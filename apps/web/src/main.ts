@@ -24,7 +24,7 @@ import { fmtDate, fmtTime } from './format.ts';
 import { importMusicFile, loadMusic, monoForTempo, useDeviceFontForFrames } from './media.ts';
 import { Office } from './office.ts';
 import { Panel } from './panel.ts';
-import { Stage } from './stage.ts';
+import { CAMERA_SEATS, Stage } from './stage.ts';
 import {
   deleteShow,
   getMusic,
@@ -128,9 +128,10 @@ const seatId = () => editor.show.seat?.id ?? 'front-near';
 const duration = () => Math.max(stage.sim.duration, editor.show.music?.duration ?? 0, 20);
 
 // 무대를 누르면, 고른 종류를 놓을 수 있는 발사 위치 가운데 가장 가까운 곳에 지금 시각으로 놓는다.
-el.stage.addEventListener('click', (e) => {
+// 3D 자유 시점에서는 끌어서 돌리고, 휠이나 두 손가락으로 확대한다.
+stage.attachControls((clientX) => {
   if (document.body.classList.contains('watching')) return;
-  const best = stage.nearestLauncher(e.clientX, launcherKindFor(editor.template.type));
+  const best = stage.nearestLauncher(clientX, launcherKindFor(editor.template.type));
   if (best >= 0) placeNow(best);
 });
 
@@ -382,9 +383,11 @@ function syncVenueInputs(): void {
   if (el.seat.dataset.venue !== venue.id) {
     el.seat.innerHTML = '';
     for (const [id, seat] of Object.entries(venue.seats)) el.seat.add(new Option(seat.label, id));
+    for (const s of CAMERA_SEATS) el.seat.add(new Option(s.label, s.id));
     el.seat.dataset.venue = venue.id;
   }
-  el.seat.value = venue.seats[seatId()] ? seatId() : 'front-near';
+  const want = seatId();
+  el.seat.value = venue.seats[want] || CAMERA_SEATS.some((s) => s.id === want) ? want : 'front-near';
   if (stage.seatId !== el.seat.value) stage.setSeat(el.seat.value);
 }
 

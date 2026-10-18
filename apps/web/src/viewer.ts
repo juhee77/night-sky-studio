@@ -4,7 +4,7 @@ import './viewer.css';
 import { VENUES, audienceCues, decodeShow, type Launch, type Show } from '@nss/engine';
 import { fmtTime } from './format.ts';
 import { importMusicFile, loadMusic, useDeviceFontForFrames } from './media.ts';
-import { Stage } from './stage.ts';
+import { CAMERA_SEATS, Stage } from './stage.ts';
 import { newId, putShow, rememberLastShow } from './storage.ts';
 import { Transport } from './transport.ts';
 
@@ -86,6 +86,8 @@ async function boot(): Promise<void> {
 
   const venue = VENUES[show.venue.preset];
   for (const [id, seat] of Object.entries(venue?.seats ?? {})) el.seat.add(new Option(seat.label, id));
+  for (const s of CAMERA_SEATS) el.seat.add(new Option(s.label, s.id));
+  stage.attachControls(() => {});
   // 보낸 사람이 위에서 보기로 편집했더라도, 받는 사람은 관람석에서 보게 한다.
   if (stage.seat.plan) stage.setSeat('front-near');
   el.seat.value = stage.seatId;

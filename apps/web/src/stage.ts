@@ -17,10 +17,25 @@ import {
   type Marker,
   type Seat,
   type Show,
+  type Vec3,
   type Venue,
   type View,
 } from '@nss/engine';
 import { launcherLabel } from './editor.ts';
+
+/** 무대마다 있는 관람석 말고, 어느 무대에서나 쓰는 카메라 */
+export const CAMERA_SEATS = [
+  { id: 'free', label: '3D 자유 시점' },
+  { id: 'fly', label: '날아다니기' },
+] as const;
+
+/** 3D 자유 시점: 쇼 가운데를 바라보며 둘레를 도는 카메라 */
+interface Orbit {
+  yaw: number;
+  pitch: number;
+  dist: number;
+  target: Vec3;
+}
 
 export class Stage {
   sim: Simulation;
@@ -37,6 +52,10 @@ export class Stage {
   private backdrop = document.createElement('canvas');
   private backdropKey = '';
   private slowSince = 0;
+  private orbit: Orbit = { yaw: 0, pitch: 0.15, dist: 900, target: [0, 140, 60] };
+  /** 끌어서 돌리는 중 (배경을 낮은 해상도로 빨리 그린다) */
+  dragging = false;
+  private time = 0;
   private frames = 0;
   private windowStart = performance.now();
   fps = 0;
@@ -55,11 +74,69 @@ export class Stage {
   }
 
   get seat(): Seat {
+    if (this.seatId === 'free') return { label: '3D 자유 시점', ...this.orbitCamera(this.orbit), fovY: 55 };
+    if (this.seatId === 'fly') return { label: '날아다니기', ...this.flyCamera(this.time), fovY: 55 };
     return this.venue.seats[this.seatId] ?? Object.values(this.venue.seats)[0];
   }
 
+  /** 움직이는 카메라인가 (배경을 매 프레임 다시 그린다) */
+  get moving(): boolean {
+    return this.seatId === 'fly' || (this.seatId === 'free' && this.dragging);
+  }
+
   setSeat(id: string): void {
+    if (id === 'free' && this.seatId !== 'free') this.orbitFrom(this.seat);
     this.seatId = id;
+    this.layout();
+  }
+
+  private orbitCamera(o: Orbit): { eye: Vec3; target: Vec3 } {
+    const c = Math.cos(o.pitch);
+    const eye: Vec3 = [
+      o.target[0] + o.dist * c * Math.sin(o.yaw),
+      Math.max(3, o.target[1] + o.dist * Math.sin(o.pitch)),
+      o.target[2] - o.dist * c * Math.cos(o.yaw),
+    ];
+    return { eye, target: o.target };
+  }
+
+  /** 지금 관람석 카메라에서 자유 시점을 시작한다. */
+  private orbitFrom(seat: Seat): void {
+    const target: Vec3 = [0, 140, this.showCenterZ()];
+    const dx = seat.eye[0] - target[0];
+    const dy = seat.eye[1] - target[1];
+    const dz = seat.eye[2] - target[2];
+    const dist = Math.min(2500, Math.max(250, Math.hypot(dx, dy, dz)));
+    this.orbit = { yaw: Math.atan2(dx, -dz), pitch: Math.asin(Math.max(-0.2, Math.min(1.3, dy / dist))), dist, target };
+  }
+
+  private showCenterZ(): number {
+    const barges = this.sim.show.launchers.filter((l) => l.kind === 'barge');
+    return barges.length ? barges.reduce((s, l) => s + l.pos[2], 0) / barges.length : 0;
+  }
+
+  /** 날아다니기: 시각만으로 정해지는 카메라 길. 같은 시각이면 늘 같은 화면이다. */
+  private flyCamera(t: number): { eye: Vec3; target: Vec3 } {
+    const z = this.showCenterZ();
+    return this.orbitCamera({
+      yaw: 0.55 * Math.sin(t / 13),
+      pitch: 0.06 + 0.12 * (0.5 + 0.5 * Math.sin(t / 9 + 1)),
+      dist: 820 + 260 * Math.sin(t / 17 + 0.5),
+      target: [60 * Math.sin(t / 7), 150, z],
+    });
+  }
+
+  /** 자유 시점 돌리기 (화면 픽셀 기준) */
+  orbitBy(dx: number, dy: number): void {
+    if (this.seatId !== 'free') return;
+    this.orbit.yaw -= dx * 0.005;
+    this.orbit.pitch = Math.min(1.35, Math.max(-0.05, this.orbit.pitch + dy * 0.004));
+    this.layout();
+  }
+
+  zoomBy(factor: number): void {
+    if (this.seatId !== 'free') return;
+    this.orbit.dist = Math.min(3000, Math.max(150, this.orbit.dist * factor));
     this.layout();
   }
 
@@ -94,22 +171,28 @@ export class Stage {
     const dpr = Math.min(window.devicePixelRatio || 1, 2) * (this.sim.density < 0.5 ? 0.75 : 1);
     const w = Math.max(1, Math.round(this.canvas.clientWidth * dpr));
     const h = Math.max(1, Math.round(this.canvas.clientHeight * dpr));
-    const key = `${w}x${h}:${this.seatId}:${this.sim.show.venue.preset}`;
+    const cam = this.seat;
+    const key = `${w}x${h}:${this.seatId}:${this.sim.show.venue.preset}:${cam.eye.map((v) => v.toFixed(1))}`;
     if (key === this.backdropKey) return;
     this.backdropKey = key;
     this.canvas.width = w;
     this.canvas.height = h;
-    this.view = makeView(this.seat, w, h);
-    this.backdrop.width = w;
-    this.backdrop.height = h;
-    const markers: Marker[] = this.seat.plan
+    this.view = makeView(cam, w, h);
+    // 카메라가 움직이는 동안에는 배경을 절반 해상도로 그려 가볍게 한다 (어두운 실루엣이라 티가 안 난다).
+    const scale = this.moving ? 0.5 : 1;
+    const bw = Math.max(1, Math.round(w * scale));
+    const bh = Math.max(1, Math.round(h * scale));
+    this.backdrop.width = bw;
+    this.backdrop.height = bh;
+    const markers: Marker[] = cam.plan
       ? this.sim.show.launchers.map((l, i) => ({ pos: l.pos, label: launcherLabel(l, i), from: l.from, to: l.to }))
       : [];
-    paintBackdrop(this.backdrop.getContext('2d')!, w, h, this.view.viewProj, this.venue, markers, this.sim.show.venue.cloud);
+    paintBackdrop(this.backdrop.getContext('2d')!, bw, bh, this.view.viewProj, this.venue, markers, this.sim.show.venue.cloud);
     this.renderer.setBackdrop(this.backdrop);
   }
 
   render(t: number, playing: boolean): void {
+    this.time = t;
     this.layout();
     this.sim.advanceTo(t);
     this.count = this.sim.writeRender(this.buffer);
@@ -166,6 +249,70 @@ export class Stage {
     return best;
   }
 
-  /** 지금 관람석에서 이 불꽃 소리가 늦게 들리는 시간 (위에서 보기는 0) */
-  soundDelay = (l: Launch): number => (this.seat.plan ? 0 : soundDelay(this.seat.eye, l));
+  /** 지금 관람석에서 이 불꽃 소리가 늦게 들리는 시간 (위에서 보기, 움직이는 카메라는 0) */
+  soundDelay = (l: Launch): number =>
+    this.seat.plan || this.seatId === 'free' || this.seatId === 'fly' ? 0 : soundDelay(this.seat.eye, l);
+
+  /**
+   * 무대 조작: 자유 시점에서는 끌어서 돌리고 휠·두 손가락으로 확대한다.
+   * 거의 움직이지 않고 뗀 것은 '누르기'로 보고 onTap을 부른다.
+   */
+  attachControls(onTap: (clientX: number) => void): void {
+    const pts = new Map<number, { x: number; y: number }>();
+    let start = { x: 0, y: 0 };
+    let moved = 0;
+    let pinch = 0;
+    const c = this.canvas;
+    c.addEventListener('pointerdown', (e) => {
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size === 1) {
+        start = { x: e.clientX, y: e.clientY };
+        moved = 0;
+        c.setPointerCapture(e.pointerId);
+      }
+      if (pts.size === 2) {
+        const [a, b] = [...pts.values()];
+        pinch = Math.hypot(a.x - b.x, a.y - b.y);
+      }
+    });
+    c.addEventListener('pointermove', (e) => {
+      const p = pts.get(e.pointerId);
+      if (!p) return;
+      const dx = e.clientX - p.x;
+      const dy = e.clientY - p.y;
+      p.x = e.clientX;
+      p.y = e.clientY;
+      moved = Math.max(moved, Math.hypot(e.clientX - start.x, e.clientY - start.y));
+      if (this.seatId !== 'free') return;
+      if (pts.size === 2) {
+        const [a, b] = [...pts.values()];
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (pinch > 0) this.zoomBy(pinch / d);
+        pinch = d;
+      } else if (moved > 4) {
+        this.dragging = true;
+        this.orbitBy(dx, dy);
+      }
+    });
+    const end = (e: PointerEvent) => {
+      const wasSingle = pts.size === 1;
+      pts.delete(e.pointerId);
+      if (pts.size === 0 && this.dragging) {
+        this.dragging = false;
+        this.backdropKey = '';
+      }
+      if (wasSingle && e.type === 'pointerup' && moved <= 4) onTap(e.clientX);
+    };
+    c.addEventListener('pointerup', end);
+    c.addEventListener('pointercancel', end);
+    c.addEventListener(
+      'wheel',
+      (e) => {
+        if (this.seatId !== 'free') return;
+        e.preventDefault();
+        this.zoomBy(Math.exp(e.deltaY * 0.0015));
+      },
+      { passive: false },
+    );
+  }
 }
