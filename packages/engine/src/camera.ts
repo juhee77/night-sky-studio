@@ -82,7 +82,8 @@ export interface View {
 
 export function makeView(cam: Camera, width: number, height: number): View {
   const aspect = width / height;
-  const portrait = aspect < 1;
+  // 평면도처럼 높은 곳에서 내려다볼 때는 세로 화면 구도를 바꾸지 않는다.
+  const portrait = aspect < 1 && cam.eye[1] < 500;
   const fovY = fitFovY(cam.fovY, aspect, portrait ? 22 : 30);
   const rad = (fovY * Math.PI) / 180;
   let target = cam.target;
@@ -95,8 +96,15 @@ export function makeView(cam: Camera, width: number, height: number): View {
     const dz = target[2] - cam.eye[2];
     target = [target[0], cam.eye[1] + Math.hypot(dx, dz) * Math.tan(pitch), target[2]];
   }
+  // 세계 좌표는 [동, 높이, 북]이라 왼손 좌표계다. 카메라 계산은 오른손 좌표계라서,
+  // 그대로 두면 동쪽이 화면 왼쪽에 와 좌우가 뒤집힌다. 카메라 좌우 축을 뒤집어 맞춘다.
+  const view = lookAt(cam.eye, target);
+  view[0] = -view[0];
+  view[4] = -view[4];
+  view[8] = -view[8];
+  view[12] = -view[12];
   return {
-    viewProj: multiply(perspective(rad, aspect), lookAt(cam.eye, target)),
+    viewProj: multiply(perspective(rad, aspect), view),
     pxPerMeter: height / 2 / Math.tan(rad / 2),
     fovY,
   };

@@ -173,3 +173,14 @@ test('별과 웃는 얼굴 모양 불꽃도 터진다', () => {
     assert.ok(s.pool.count > 30, `${type}: ${s.pool.count}`);
   }
 });
+
+test('정면 관람석에서 동쪽(+x)은 화면 오른쪽에 보인다', async () => {
+  const { makeView, toClip } = await import('../src/camera.ts');
+  const { RIVER_CITY } = await import('../src/venues.ts');
+  for (const id of ['front-near', 'top'] as const) {
+    const v = makeView(RIVER_CITY.seats[id], 1600, 900);
+    const east = toClip(v.viewProj, [200, 100, 0]);
+    const west = toClip(v.viewProj, [-200, 100, 0]);
+    assert.ok(east[0] / east[3] > west[0] / west[3], `${id}: 동쪽이 오른쪽이어야 한다`);
+  }
+});

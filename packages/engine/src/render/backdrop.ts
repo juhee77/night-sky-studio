@@ -51,7 +51,16 @@ export function projectPoint(m: Mat4, p: Vec3, w: number, h: number): [number, n
   return [((x / cw) * 0.5 + 0.5) * w, (1 - ((y / cw) * 0.5 + 0.5)) * h];
 }
 
-export function paintBackdrop(ctx: Ctx, w: number, h: number, m: Mat4, venue: Venue): void {
+/** 위에서 보기에서 발사 위치를 표시할 때 쓰는 이름표 */
+export interface Marker {
+  pos: Vec3;
+  label: string;
+  /** 다리는 양 끝을 잇는 선으로 그린다 */
+  to?: Vec3;
+  from?: Vec3;
+}
+
+export function paintBackdrop(ctx: Ctx, w: number, h: number, m: Mat4, venue: Venue, markers: Marker[] = []): void {
   const sky = ctx.createLinearGradient(0, 0, 0, h);
   sky.addColorStop(0, SKY_TOP);
   sky.addColorStop(0.8, SKY_HORIZON);
@@ -90,4 +99,32 @@ export function paintBackdrop(ctx: Ctx, w: number, h: number, m: Mat4, venue: Ve
   );
 
   fillWorld(ctx, m, [[-X, 0, -5000], [X, 0, -5000], [X, 0, venue.nearShoreZ], [-X, 0, venue.nearShoreZ]], w, h, GROUND);
+
+  // 발사 위치 표시 (위에서 보기)
+  const scale = Math.max(1, h / 700);
+  ctx.font = `600 ${Math.round(13 * scale)}px 'IBM Plex Sans KR', -apple-system, sans-serif`;
+  ctx.textAlign = 'center';
+  for (const mk of markers) {
+    if (mk.from && mk.to) {
+      const a = projectPoint(m, mk.from, w, h);
+      const b = projectPoint(m, mk.to, w, h);
+      if (a && b) {
+        ctx.strokeStyle = 'rgba(251, 146, 60, 0.9)';
+        ctx.lineWidth = 3 * scale;
+        ctx.beginPath();
+        ctx.moveTo(a[0], a[1]);
+        ctx.lineTo(b[0], b[1]);
+        ctx.stroke();
+      }
+    }
+    const p = projectPoint(m, mk.pos, w, h);
+    if (!p) continue;
+    ctx.fillStyle = '#fb923c';
+    ctx.beginPath();
+    ctx.arc(p[0], p[1], 5 * scale, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#eceaf6';
+    ctx.fillText(mk.label, p[0], p[1] - 10 * scale);
+  }
+  ctx.textAlign = 'start';
 }

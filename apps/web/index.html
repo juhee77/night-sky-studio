@@ -18,6 +18,8 @@
         <button type="button" id="shows-btn">내 쇼</button>
         <input id="title" aria-label="쇼 제목" maxlength="60" />
         <span id="save-state" class="save-state" role="status">저장됨</span>
+        <button type="button" id="watch" title="무대만 화면 가득 띄워 처음부터 봅니다">감상</button>
+        <button type="button" id="share-btn" class="primary">공유</button>
       </div>
 
       <div class="group transport">
@@ -49,7 +51,8 @@
     </header>
 
     <main class="workspace">
-      <section class="stage-wrap">
+      <section class="stage-wrap" id="stage-wrap">
+        <button type="button" id="watch-exit" class="watch-exit" aria-label="감상 끝내기">✕ 닫기</button>
         <canvas id="stage" aria-label="불꽃이 터지는 밤하늘 무대. 누르면 가까운 발사 위치에 지금 시각으로 불꽃을 놓습니다."></canvas>
         <dl class="hud" aria-hidden="true">
           <div><dt>fps</dt><dd id="fps">–</dd></div>
@@ -92,6 +95,21 @@
       </div>
       <ul id="show-list" class="show-list"></ul>
       <p class="note">쇼는 이 브라우저 안에만 저장됩니다. 다른 기기로 옮기려면 파일로 내보낸 뒤 가져오세요.</p>
+    </dialog>
+
+    <dialog id="share-dialog" aria-labelledby="share-title">
+      <form method="dialog" class="dialog-head">
+        <h2 id="share-title">링크로 쇼 보내기</h2>
+        <button value="close" aria-label="닫기">닫기</button>
+      </form>
+      <p class="note">링크를 받은 사람은 설치 없이 브라우저에서 바로 이 쇼를 봅니다. 링크 안에 쇼가 통째로 들어 있어서, 이 쇼를 나중에 고쳐도 이미 보낸 링크는 바뀌지 않습니다.</p>
+      <label for="share-link" class="sr-label">공유 링크</label>
+      <input id="share-link" readonly class="share-link" />
+      <div class="dialog-actions">
+        <button type="button" id="share-copy" class="primary">링크 복사</button>
+        <button type="button" id="share-native">다른 앱으로 보내기</button>
+      </div>
+      <p id="share-info" class="note"></p>
     </dialog>
 
     <p class="toast" id="toast" role="status" hidden></p>

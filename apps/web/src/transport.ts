@@ -17,6 +17,8 @@ export class Transport {
 
   playing = false;
   soundOn = true;
+  /** 관람석 거리만큼 소리를 늦춘다 (감상할 때만). null이면 늦추지 않는다. */
+  delayFor: ((l: Launch) => number) | null = null;
   /** 재생을 시작한 오디오 시계 시각 */
   private startCtx = 0;
   /** 재생을 시작한 쇼 시각 */
@@ -110,18 +112,22 @@ export class Transport {
     const to = this.time + LOOKAHEAD;
     if (to <= from) return;
     for (const l of launches) {
-      const fires = l.fireAt >= from && l.fireAt < to;
-      const bursts = l.burstAt >= from && l.burstAt < to;
+      // 소리가 늦게 오면, 그만큼 늦은 시각에 들리는 소리로 친다.
+      const d = this.delayFor ? this.delayFor(l) : 0;
+      const fires = l.fireAt + d >= from && l.fireAt + d < to;
+      const bursts = l.burstAt + d >= from && l.burstAt + d < to;
       if (l.type === 'niagara' || l.type === 'lancework') {
-        if (fires) this.hiss(this.toCtx(l.fireAt), l.len ?? 8, l.type === 'niagara' ? 'niagara' : 'lance');
+        if (fires) this.hiss(this.toCtx(l.fireAt + d), l.len ?? 8, l.type === 'niagara' ? 'niagara' : 'lance');
       } else if (l.type === 'cake') {
         // 케이크는 한 발마다 작게 터진다.
-        if (bursts) this.boom(this.toCtx(l.burstAt), 3, 1, 0.45);
-        if (fires) this.thump(this.toCtx(l.fireAt), 1, 0.5);
+        if (bursts) this.boom(this.toCtx(l.burstAt + d), 3, 1, 0.45);
+        if (fires) this.thump(this.toCtx(l.fireAt + d), 1, 0.5);
       } else if (l.sub === 0) {
         const count = fanCount(l);
-        if (bursts) this.boom(this.toCtx(l.burstAt), l.size, count);
-        if (fires) this.thump(this.toCtx(l.fireAt), count);
+        // 멀리서 들으면 소리가 작아진다.
+        const fade = d > 0 ? Math.min(1, 2 / (1 + d)) : 1;
+        if (bursts) this.boom(this.toCtx(l.burstAt + d), l.size, count, fade);
+        if (fires) this.thump(this.toCtx(l.fireAt + d), count, fade);
       }
     }
     this.scheduledUntil = to;

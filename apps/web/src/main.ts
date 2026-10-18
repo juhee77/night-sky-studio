@@ -2,36 +2,29 @@
 
 import './style.css';
 import {
-  RENDER_STRIDE,
-  Simulation,
-  StageRenderer,
   VENUES,
   detectTempo,
-  makeView,
+  encodeShow,
   launcherKindFor,
-  paintBackdrop,
-  projectPoint,
-  setTextRasterizer,
   tapTempo,
   type Cue,
   type Launch,
   type Show,
-  type View,
 } from '@nss/engine';
 import { demoShow } from './demo-show.ts';
 import { Editor, newShow, round3, withDefaultLaunchers, type Snap } from './editor.ts';
 import { fmtDate, fmtTime } from './format.ts';
+import { importMusicFile, loadMusic, monoForTempo, useDeviceFontForFrames } from './media.ts';
 import { Panel } from './panel.ts';
+import { Stage } from './stage.ts';
 import {
   deleteShow,
-  fileFingerprint,
   getMusic,
   getShow,
   lastShowId,
   listMusic,
   listShows,
   newId,
-  putMusic,
   putShow,
   rememberLastShow,
   storageAvailable,
@@ -74,6 +67,15 @@ const el = {
   importShow: $<HTMLButtonElement>('import-show'),
   exportShow: $<HTMLButtonElement>('export-show'),
   importFile: $<HTMLInputElement>('import-file'),
+  watch: $<HTMLButtonElement>('watch'),
+  watchExit: $<HTMLButtonElement>('watch-exit'),
+  stageWrap: $<HTMLElement>('stage-wrap'),
+  shareBtn: $<HTMLButtonElement>('share-btn'),
+  shareDialog: $<HTMLDialogElement>('share-dialog'),
+  shareLink: $<HTMLInputElement>('share-link'),
+  shareCopy: $<HTMLButtonElement>('share-copy'),
+  shareNative: $<HTMLButtonElement>('share-native'),
+  shareInfo: $<HTMLParagraphElement>('share-info'),
 };
 
 let toastTimer = 0;
@@ -85,75 +87,32 @@ function say(message: string, ms = 4500): void {
 }
 
 // ── 상태 ──
-setTextRasterizer(rasterizeText);
+useDeviceFontForFrames();
 const editor = new Editor(newId(), structuredClone(demoShow));
 const transport = new Transport();
-let sim = new Simulation(editor.show);
-let buffer = new Float32Array((sim.pool.capacity + 256) * RENDER_STRIDE);
 let musicBuffer: AudioBuffer | null = null;
 let peaks: Float32Array | null = null;
 let warnIdx = new Set<number>();
 let clipboard: Cue[] = [];
 
-const venue = () => VENUES[editor.show.venue.preset];
-const seatId = () => editor.show.seat?.id ?? 'front-near';
-const duration = () => Math.max(sim.duration, editor.show.music?.duration ?? 0, 20);
-
 // ── 무대 ──
-let renderer: StageRenderer;
+let stage: Stage;
 try {
-  renderer = new StageRenderer(el.stage);
+  stage = new Stage(el.stage, editor.show);
 } catch (err) {
   say(`${(err as Error).message} 최신 Chrome, Safari, Firefox에서 열어 주세요.`, 60000);
   throw err;
 }
-const backdropCanvas = document.createElement('canvas');
-let view: View;
-let backdropKey = '';
+stage.onDensityLowered = () => say('화면이 느려서 불꽃 밀도를 낮췄습니다.');
 
-function layoutStage(): void {
-  const dpr = Math.min(window.devicePixelRatio || 1, 2) * (sim.density < 0.5 ? 0.75 : 1);
-  const w = Math.max(1, Math.round(el.stage.clientWidth * dpr));
-  const h = Math.max(1, Math.round(el.stage.clientHeight * dpr));
-  const key = `${w}x${h}:${seatId()}:${editor.show.venue.preset}`;
-  if (key === backdropKey) return;
-  backdropKey = key;
-  el.stage.width = w;
-  el.stage.height = h;
-  view = makeView(venue().seats[seatId()], w, h);
-  backdropCanvas.width = w;
-  backdropCanvas.height = h;
-  paintBackdrop(backdropCanvas.getContext('2d')!, w, h, view.viewProj, venue());
-  renderer.setBackdrop(backdropCanvas);
-}
-new ResizeObserver(() => layoutStage()).observe(el.stage);
-
-function rebuildSim(density: number): void {
-  sim = new Simulation(editor.show, { density });
-  buffer = new Float32Array((sim.pool.capacity + 256) * RENDER_STRIDE);
-  backdropKey = '';
-  layoutStage();
-}
+const seatId = () => editor.show.seat?.id ?? 'front-near';
+const duration = () => Math.max(stage.sim.duration, editor.show.music?.duration ?? 0, 20);
 
 // 무대를 누르면, 고른 종류를 놓을 수 있는 발사 위치 가운데 가장 가까운 곳에 지금 시각으로 놓는다.
 el.stage.addEventListener('click', (e) => {
-  const r = el.stage.getBoundingClientRect();
-  const sx = ((e.clientX - r.left) / r.width) * el.stage.width;
-  const kind = launcherKindFor(editor.template.type);
-  let best = -1;
-  let bestD = Infinity;
-  editor.show.launchers.forEach((l, i) => {
-    if (l.kind !== kind) return;
-    const p = projectPoint(view.viewProj, l.pos, el.stage.width, el.stage.height);
-    if (!p) return;
-    const d = Math.abs(p[0] - sx);
-    if (d < bestD) {
-      bestD = d;
-      best = i;
-    }
-  });
-  if (best < 0) return;
-  placeNow(best);
+  if (document.body.classList.contains('watching')) return;
+  const best = stage.nearestLauncher(e.clientX, launcherKindFor(editor.template.type));
+  if (best >= 0) placeNow(best);
 });
 
 function placeNow(lane: number): void {
@@ -165,38 +124,6 @@ function placeNow(lane: number): void {
 
 function rejectPlacement(): void {
   say('나이아가라는 다리 줄에, 지상 틀불꽃은 지상 틀 줄에 놓습니다. 바지선 줄에는 하늘 불꽃과 케이크를 놓으세요.');
-}
-
-/** 틀불꽃 글자를 기기 글꼴로 그려 심지 위치로 바꾼다. 한글도 쓸 수 있다. */
-function rasterizeText(text: string): { points: [number, number][]; width: number } {
-  const H = 64;
-  const c = document.createElement('canvas');
-  const g = c.getContext('2d', { willReadFrequently: true })!;
-  // 웹 글꼴은 늦게 받아질 수 있어서, 기기에 있는 글꼴로만 그린다.
-  const font = `700 ${H}px 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif`;
-  g.font = font;
-  const w = Math.ceil(g.measureText(text).width) + 4;
-  if (w <= 4) return { points: [], width: 0 };
-  c.width = w;
-  c.height = Math.ceil(H * 1.3);
-  g.font = font;
-  g.textBaseline = 'alphabetic';
-  g.fillStyle = '#fff';
-  g.fillText(text, 2, H);
-  const data = g.getImageData(0, 0, c.width, c.height).data;
-  // 심지가 너무 많아지지 않게 간격을 넓힌다.
-  let step = 3;
-  let points: [number, number][] = [];
-  do {
-    points = [];
-    for (let y = 0; y < c.height; y += step) {
-      for (let x = 0; x < c.width; x += step) {
-        if (data[(y * c.width + x) * 4 + 3] > 128) points.push([x / H, (H - y) / H]);
-      }
-    }
-    step++;
-  } while (points.length > 1400);
-  return { points, width: c.width / H };
 }
 
 // ── 시간표와 설정 칸 ──
@@ -221,11 +148,12 @@ el.redo.addEventListener('click', () => editor.redo());
 let saveTimer = 0;
 editor.on((c) => {
   if (c !== 'show') return;
-  sim.setShow(editor.show);
-  warnIdx = new Set(sim.warnings.map((w) => w.cueIndex));
-  el.warnings.hidden = !sim.warnings.length;
-  el.warnings.textContent = sim.warnings.length
-    ? `${sim.warnings.length}개 불꽃은 쇼 시작 전에 쏴야 합니다 (시간표에 빨간 테두리). ${sim.warnings[0].message}`
+  stage.setShow(editor.show);
+  const warnings = stage.sim.warnings;
+  warnIdx = new Set(warnings.map((w) => w.cueIndex));
+  el.warnings.hidden = !warnings.length;
+  el.warnings.textContent = warnings.length
+    ? `${warnings.length}개 불꽃은 바로잡아야 합니다 (시간표에 빨간 테두리). ${warnings[0].message}`
     : '';
   el.undo.disabled = !editor.canUndo;
   el.redo.disabled = !editor.canRedo;
@@ -277,36 +205,15 @@ async function loadMusicFor(show: Show): Promise<void> {
   peaks = null;
   transport.setMusic(null);
   if (!m) return;
-  let buf: AudioBuffer | null = null;
-  const basic = loadBasicTrack(m.id);
-  if (basic) {
-    buf = await basic;
-  } else {
-    const rec = await getMusic(m.id);
-    if (!rec) {
-      say(`이 쇼의 음악 「${m.title}」이 이 기기에 없습니다. 같은 파일을 '내 음악 파일 열기'로 골라 주세요.`, 8000);
-      return;
-    }
-    buf = await decode(await rec.blob.arrayBuffer());
+  const buf = await loadMusic(m);
+  if (!buf) {
+    say(`이 쇼의 음악 「${m.title}」이 이 기기에 없습니다. 같은 파일을 '내 음악 파일 열기'로 골라 주세요.`, 8000);
+    return;
   }
   if (editor.show !== show && editor.show.music?.id !== m.id) return; // 그사이 다른 쇼를 열었다
   musicBuffer = buf;
   peaks = waveformPeaks(buf);
   transport.setMusic(buf);
-}
-
-function decode(data: ArrayBuffer): Promise<AudioBuffer> {
-  return new OfflineAudioContext(1, 1, 44100).decodeAudioData(data);
-}
-
-/** 박자 찾기용: 한 채널을 22kHz 근처로 줄인다. */
-function monoForTempo(buf: AudioBuffer): { samples: Float32Array; rate: number } {
-  const step = Math.max(1, Math.floor(buf.sampleRate / 22050));
-  const ch = buf.getChannelData(0);
-  const other = buf.numberOfChannels > 1 ? buf.getChannelData(1) : null;
-  const out = new Float32Array(Math.floor(ch.length / step));
-  for (let i = 0; i < out.length; i++) out[i] = other ? (ch[i * step] + other[i * step]) / 2 : ch[i * step];
-  return { samples: out, rate: buf.sampleRate / step };
 }
 
 el.music.addEventListener('change', async () => {
@@ -339,19 +246,14 @@ el.musicFile.addEventListener('change', async () => {
   if (!file) return;
   say(`「${file.name}」을 읽고 박자를 찾는 중입니다…`, 20000);
   try {
-    const buf = await decode(await file.arrayBuffer());
-    const { samples, rate } = monoForTempo(buf);
-    const tempo = detectTempo(samples, rate);
-    const id = await fileFingerprint(file);
-    const name = file.name.replace(/\.[^.]+$/, '');
-    await putMusic({ id, name, blob: file, bpm: tempo.bpm, offset: round3(tempo.offset), duration: round3(buf.duration) });
-    editor.change((d) => (d.music = { id, title: name, bpm: tempo.bpm, offset: round3(tempo.offset), duration: round3(buf.duration) }));
+    const { ref, confidence } = await importMusicFile(file);
+    editor.change((d) => (d.music = ref));
     await refreshMusicOptions();
     await loadMusicFor(editor.show);
     say(
-      tempo.confidence < 0.35
-        ? `박자가 뚜렷하지 않습니다. ${tempo.bpm} BPM으로 잡았지만, 재생하면서 '박자 두드리기'로 맞춰 주세요.`
-        : `박자를 찾았습니다: ${tempo.bpm} BPM. 눈금이 맞지 않으면 '박자 두드리기'로 고쳐 주세요.`,
+      confidence < 0.35
+        ? `박자가 뚜렷하지 않습니다. ${ref.bpm} BPM으로 잡았지만, 재생하면서 '박자 두드리기'로 맞춰 주세요.`
+        : `박자를 찾았습니다: ${ref.bpm} BPM. 눈금이 맞지 않으면 '박자 두드리기'로 고쳐 주세요.`,
       8000,
     );
   } catch {
@@ -425,11 +327,69 @@ el.sound.addEventListener('click', () => {
   el.sound.textContent = transport.soundOn ? '효과음 켜짐' : '효과음 꺼짐';
 });
 
-for (const [id, seat] of Object.entries(venue().seats)) el.seat.add(new Option(seat.label, id));
+for (const [id, seat] of Object.entries(VENUES[editor.show.venue.preset].seats)) el.seat.add(new Option(seat.label, id));
 el.seat.addEventListener('change', () => {
   const id = el.seat.value;
   editor.change((d) => (d.seat = { id }));
-  layoutStage();
+  stage.setSeat(id);
+});
+
+// ── 감상: 무대만 화면 가득, 처음부터, 관람석 거리만큼 소리가 늦게 ──
+function startWatching(): void {
+  document.body.classList.add('watching');
+  editor.select([]);
+  void el.stageWrap.requestFullscreen?.().catch(() => {
+    // 휴대폰처럼 전체 화면이 안 되면 화면 안에서만 가득 채운다.
+  });
+  transport.delayFor = stage.soundDelay;
+  if (transport.playing) togglePlay();
+  transport.seek(0);
+  togglePlay();
+}
+
+function stopWatching(): void {
+  if (!document.body.classList.contains('watching')) return;
+  document.body.classList.remove('watching');
+  if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+  transport.delayFor = null;
+  if (transport.playing) togglePlay();
+}
+
+el.watch.addEventListener('click', startWatching);
+el.watchExit.addEventListener('click', stopWatching);
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement) stopWatching();
+});
+
+// ── 공유 링크 ──
+el.shareBtn.addEventListener('click', async () => {
+  const code = await encodeShow(editor.show);
+  const base = new URL(`${import.meta.env.BASE_URL}v/`, location.origin);
+  const link = `${base.href}#s=${code}`;
+  el.shareLink.value = link;
+  const m = editor.show.music;
+  const notes = [`링크 길이 ${link.length.toLocaleString('ko-KR')}자.`];
+  if (link.length > 8000) notes.push('링크가 길어서 일부 메신저에서 잘릴 수 있습니다. 그럴 땐 쇼 파일로 내보내 보내 주세요.');
+  if (m && !m.id.startsWith('basic-')) {
+    notes.push(`음악 파일은 링크에 들어가지 않습니다. 받는 사람이 같은 파일(「${m.title}」, ${fmtTime(m.duration).replace(/\.\d+$/, '')})을 골라야 함께 들립니다. 바로 들려주려면 기본 곡을 쓰세요.`);
+  }
+  el.shareInfo.textContent = notes.join(' ');
+  el.shareNative.hidden = !navigator.share;
+  el.shareDialog.showModal();
+  el.shareLink.select();
+});
+el.shareCopy.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(el.shareLink.value);
+    el.shareCopy.textContent = '복사했습니다';
+  } catch {
+    el.shareLink.select();
+    el.shareCopy.textContent = '선택했습니다. ⌘C로 복사하세요';
+  }
+  setTimeout(() => (el.shareCopy.textContent = '링크 복사'), 2500);
+});
+el.shareNative.addEventListener('click', () => {
+  void navigator.share?.({ title: editor.show.title ?? '밤하늘 연출실', url: el.shareLink.value }).catch(() => {});
 });
 
 // ── 키보드 ──
@@ -437,7 +397,16 @@ const typing = (t: EventTarget | null) =>
   t instanceof HTMLInputElement || t instanceof HTMLSelectElement || t instanceof HTMLTextAreaElement;
 
 document.addEventListener('keydown', (e) => {
-  if (typing(e.target) || el.dialog.open) return;
+  if (typing(e.target) || el.dialog.open || el.shareDialog.open) return;
+  if (document.body.classList.contains('watching')) {
+    if (e.code === 'Space') {
+      e.preventDefault();
+      togglePlay();
+    } else if (e.key === 'Escape') {
+      stopWatching();
+    }
+    return;
+  }
   const mod = e.metaKey || e.ctrlKey;
   const key = e.key.toLowerCase();
   if (e.code === 'Space') {
@@ -498,8 +467,7 @@ async function openShow(id: string, loaded: Show): Promise<void> {
   el.seat.value = seatId();
   el.title.value = show.title ?? '';
   rememberLastShow(id);
-  backdropKey = '';
-  layoutStage();
+  stage.load(show);
   timeline.scroll = 0;
   await refreshMusicOptions();
   await loadMusicFor(show);
@@ -599,13 +567,10 @@ el.importFile.addEventListener('change', async () => {
 
 // ── 매 프레임 ──
 const fanCount = (l: Launch) => editor.show.cues[l.cueIndex]?.fan?.count ?? 1;
-let frames = 0;
-let windowStart = performance.now();
-let slowSince = 0;
 let lastClock = '';
+let lastHud = 0;
 
 function frame(now: number): void {
-  layoutStage();
   let t = transport.time;
   const end = duration();
   if (transport.playing && t >= end) {
@@ -613,19 +578,8 @@ function frame(now: number): void {
     transport.seek(end);
     t = end;
   }
-  sim.advanceTo(t);
-  const count = sim.writeRender(buffer);
-  renderer.render({
-    buffer,
-    count,
-    viewProj: view.viewProj,
-    pxPerMeter: view.pxPerMeter,
-    eye: venue().seats[seatId()].eye,
-    skyLight: sim.skyLight,
-    reflection: true,
-    shore: [venue().nearShoreZ, venue().farShoreZ],
-  });
-  transport.schedule(sim.launches, fanCount);
+  stage.render(t, transport.playing);
+  transport.schedule(stage.sim.launches, fanCount);
   if (transport.playing) timeline.follow(t);
   timeline.draw();
 
@@ -634,24 +588,10 @@ function frame(now: number): void {
   const clock = `${fmtTime(t)} · ${beatNo >= 0 ? `${Math.floor(beatNo / 4) + 1}마디 ${(beatNo % 4) + 1}박` : '시작 전'}`;
   if (clock !== lastClock) el.clock.value = lastClock = clock;
 
-  frames++;
-  if (now - windowStart >= 500) {
-    const fps = (frames * 1000) / (now - windowStart);
-    el.fps.textContent = fps.toFixed(0);
-    el.particles.textContent = count.toLocaleString('ko-KR');
-    frames = 0;
-    windowStart = now;
-    // 3초 동안 계속 느리면 밀도를 한 단계 낮춘다.
-    if (transport.playing && fps < 45 && !document.hidden) {
-      slowSince ||= now;
-      if (now - slowSince > 3000 && sim.density > 0.35) {
-        rebuildSim(sim.density > 0.6 ? 0.6 : 0.35);
-        say('화면이 느려서 불꽃 밀도를 낮췄습니다.');
-        slowSince = 0;
-      }
-    } else {
-      slowSince = 0;
-    }
+  if (now - lastHud >= 500) {
+    el.fps.textContent = stage.fps.toFixed(0);
+    el.particles.textContent = stage.count.toLocaleString('ko-KR');
+    lastHud = now;
   }
   requestAnimationFrame(frame);
 }
@@ -671,6 +611,5 @@ async function boot(): Promise<void> {
   el.saveState.textContent = '저장됨';
 }
 
-layoutStage();
 requestAnimationFrame(frame);
 void boot();

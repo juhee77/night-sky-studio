@@ -16,6 +16,8 @@ export interface Building {
 
 export interface Seat extends Camera {
   label: string;
+  /** 위에서 내려다보는 평면도 (소리 지연 없음, 발사 위치 표시) */
+  plan?: boolean;
 }
 
 export interface Venue {
@@ -74,6 +76,7 @@ export const RIVER_CITY: Venue = {
     'front-far': { label: '정면 멀리', eye: [0, 8, -1500], target: [0, 150, 0], fovY: 50 },
     bridge: { label: '다리 위', eye: [-900, 26, 250], target: [0, 170, 0], fovY: 50 },
     tower: { label: '높은 전망대', eye: [-350, 230, -1300], target: [0, 150, 0], fovY: 50 },
+    top: { label: '위에서 보기', eye: [0, 900, -380], target: [0, 0, 40], fovY: 50, plan: true },
   },
 };
 
