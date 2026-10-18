@@ -35,7 +35,9 @@
       <div class="group music">
         <label for="music">음악</label>
         <select id="music"></select>
-        <input type="file" id="music-file" accept="audio/*" hidden />
+        <!-- 휴대폰은 코드로 대신 누른 파일 창을 막기도 해서, 사용자가 직접 누르는 라벨로 연다. -->
+        <label class="file-btn" for="music-file">내 음악 파일</label>
+        <input type="file" id="music-file" class="visually-hidden" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.flac" />
       </div>
 
       <div class="group tempo" id="tempo">

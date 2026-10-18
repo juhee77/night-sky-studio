@@ -3,7 +3,7 @@
 import './viewer.css';
 import { VENUES, audienceCues, decodeShow, type Launch, type Show } from '@nss/engine';
 import { fmtTime } from './format.ts';
-import { importMusicFile, loadMusic, useDeviceFontForFrames } from './media.ts';
+import { importMusicFile, iphoneMusicHint, loadMusic, musicErrorMessage, useDeviceFontForFrames } from './media.ts';
 import { runCountdown } from './countdown.ts';
 import { CAMERA_SEATS, Stage } from './stage.ts';
 import { newId, putShow, rememberLastShow } from './storage.ts';
@@ -17,7 +17,7 @@ const el = {
   meta: $<HTMLParagraphElement>('show-meta'),
   musicAsk: $<HTMLDivElement>('music-ask'),
   musicAskText: $<HTMLParagraphElement>('music-ask-text'),
-  pickMusic: $<HTMLButtonElement>('pick-music'),
+  pickMusic: $<HTMLLabelElement>('pick-music'),
   noMusic: $<HTMLButtonElement>('no-music'),
   musicFile: $<HTMLInputElement>('music-file'),
   musicNote: $<HTMLParagraphElement>('music-note'),
@@ -114,7 +114,7 @@ function ready(): void {
   el.start.focus();
 }
 
-el.pickMusic.addEventListener('click', () => el.musicFile.click());
+el.pickMusic.addEventListener('click', iphoneMusicHint);
 el.musicFile.addEventListener('change', async () => {
   const file = el.musicFile.files?.[0];
   el.musicFile.value = '';
@@ -132,8 +132,8 @@ el.musicFile.addEventListener('change', async () => {
       : `고른 파일은 ${fmtTime(buffer.duration).replace(/\.\d+$/, '')}로, 원래 곡(${fmtTime(want).replace(/\.\d+$/, '')})과 길이가 다릅니다. 다른 곡이면 박자가 맞지 않을 수 있어요.`;
     el.musicAsk.hidden = true;
     ready();
-  } catch {
-    say('이 파일은 열 수 없습니다. mp3, m4a, wav 같은 음악 파일을 골라 주세요.');
+  } catch (err) {
+    say(musicErrorMessage(err));
   }
 });
 el.noMusic.addEventListener('click', () => {

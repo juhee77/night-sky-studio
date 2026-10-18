@@ -23,7 +23,7 @@ import { Career } from './career.ts';
 import { demoShow } from './demo-show.ts';
 import { Editor, moveToVenue, newShow, round3, withDefaultLaunchers, type Snap } from './editor.ts';
 import { fmtDate, fmtTime } from './format.ts';
-import { importMusicFile, loadMusic, monoForTempo, useDeviceFontForFrames } from './media.ts';
+import { importMusicFile, iphoneMusicHint, loadMusic, monoForTempo, musicErrorMessage, useDeviceFontForFrames } from './media.ts';
 import { Office } from './office.ts';
 import { Panel } from './panel.ts';
 import { runCountdown } from './countdown.ts';
@@ -271,7 +271,6 @@ async function refreshMusicOptions(): Promise<void> {
   if (current?.startsWith('file:') && !files.some((f) => f.id === current)) {
     mine.append(new Option(`${editor.show.music!.title} (이 기기에 없음)`, current));
   }
-  mine.append(new Option('내 음악 파일 열기…', '__open'));
   el.music.append(mine);
   el.music.append(new Option('음악 없음', '__none'));
   el.music.value = current ?? '__none';
@@ -285,7 +284,7 @@ async function loadMusicFor(show: Show): Promise<void> {
   if (!m) return;
   const buf = await loadMusic(m);
   if (!buf) {
-    say(`이 쇼의 음악 「${m.title}」이 이 기기에 없습니다. 같은 파일을 '내 음악 파일 열기'로 골라 주세요.`, 8000);
+    say(`이 쇼의 음악 「${m.title}」이 이 기기에 없습니다. 같은 파일을 「내 음악 파일」로 골라 주세요.`, 8000);
     return;
   }
   if (editor.show !== show && editor.show.music?.id !== m.id) return; // 그사이 다른 쇼를 열었다
@@ -296,11 +295,6 @@ async function loadMusicFor(show: Show): Promise<void> {
 
 el.music.addEventListener('change', async () => {
   const v = el.music.value;
-  if (v === '__open') {
-    el.musicFile.click();
-    el.music.value = editor.show.music?.id ?? '__none';
-    return;
-  }
   if (v === '__none') {
     editor.change((d) => delete d.music);
     await loadMusicFor(editor.show);
@@ -318,6 +312,8 @@ el.music.addEventListener('change', async () => {
   await loadMusicFor(editor.show);
 });
 
+document.querySelector('label[for="music-file"]')?.addEventListener('click', iphoneMusicHint);
+
 el.musicFile.addEventListener('change', async () => {
   const file = el.musicFile.files?.[0];
   el.musicFile.value = '';
@@ -334,8 +330,8 @@ el.musicFile.addEventListener('change', async () => {
         : `박자를 찾았습니다: ${ref.bpm} BPM. 눈금이 맞지 않으면 '박자 두드리기'로 고쳐 주세요.`,
       8000,
     );
-  } catch {
-    say('이 파일은 열 수 없습니다. mp3, m4a, wav 같은 음악 파일을 골라 주세요.');
+  } catch (err) {
+    say(musicErrorMessage(err), 8000);
   }
 });
 

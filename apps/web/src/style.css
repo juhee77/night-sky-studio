@@ -38,6 +38,22 @@ button, select, input[type='number'], input:not([type]) {
   min-height: 32px;
 }
 button { cursor: pointer; white-space: nowrap; }
+.file-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--night-2);
+  color: var(--ink);
+  font-size: 14px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.file-btn:hover { background: var(--night-3); }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); border: 0; }
+.visually-hidden:focus-visible + .file-btn, .file-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 button:hover { background: var(--night-3); }
 button:disabled { opacity: 0.45; cursor: default; }
 button.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 700; }
@@ -56,9 +72,9 @@ label, .label { color: var(--muted); font-size: 13px; }
   border-bottom: 1px solid var(--line);
   background: var(--night);
 }
-.group { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
 .show-name { flex: 1 1 260px; }
-.show-name input { flex: 1; min-width: 0; font-weight: 700; }
+.show-name input { flex: 1 1 140px; min-width: 0; font-weight: 700; }
 .save-state { color: var(--muted); font-size: 12px; white-space: nowrap; }
 #play { width: 44px; }
 #clock { font: 500 13px/1 var(--mono); font-variant-numeric: tabular-nums; min-width: 150px; }
@@ -327,11 +343,12 @@ body.watching #stage { cursor: default; }
 /* 휴대폰 세로: 무대를 넓게 쓰려고 박자 맞추기는 숨긴다 (세밀한 편집은 가로 화면·PC에서). */
 @media (max-width: 600px) {
   .show-name { flex-basis: 100%; }
-  .tempo, .view label, .music label, .save-state { display: none; }
+  .tempo, .view label, .music label:not(.file-btn), .save-state { display: none; }
   #tempo-toggle { display: inline-block; }
   #tempo-toggle[aria-expanded='true'] { border-color: var(--accent); }
   body.show-tempo .tempo { display: flex; flex-wrap: wrap; flex-basis: 100%; }
-  #music { max-width: 150px; }
+  #music { max-width: 150px; min-width: 0; flex: 1 1 120px; }
+  .music { flex: 1 1 100%; }
   #clock { min-width: 0; font-size: 12px; }
   .workspace { grid-template-rows: minmax(240px, 1fr) auto; }
   .panel { max-height: 24vh; }

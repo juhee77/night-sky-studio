@@ -19,6 +19,34 @@ export function monoForTempo(buf: AudioBuffer): { samples: Float32Array; rate: n
   return { samples: out, rate: buf.sampleRate / step };
 }
 
+/** 음악 파일을 열지 못한 까닭을 사용자 말로 */
+export function musicErrorMessage(err: unknown): string {
+  const name = (err as Error)?.name;
+  if (name === 'EncodingError' || name === 'NotSupportedError' || name === 'DataError') {
+    return '이 파일은 소리로 풀 수 없습니다. mp3, m4a, wav 같은 음악 파일을 골라 주세요. 저작권 보호가 걸린 곡(예: Apple Music에서 받은 곡)은 열 수 없습니다.';
+  }
+  if (name === 'QuotaExceededError') return '이 기기의 저장 공간이 부족해서 음악을 저장하지 못했습니다.';
+  return `음악 파일을 열지 못했습니다. (${(err as Error)?.message ?? '알 수 없는 오류'})`;
+}
+
+const isIphone = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+/** 아이폰에서 처음 음악을 고를 때 한 번만: 고를 수 있는 곳을 알려 준다. */
+export function iphoneMusicHint(): void {
+  if (!isIphone()) return;
+  try {
+    if (localStorage.getItem('nss:iphoneMusicHint')) return;
+    localStorage.setItem('nss:iphoneMusicHint', '1');
+  } catch {
+    // 저장 못 해도 안내는 띄운다.
+  }
+  const toast = document.getElementById('toast');
+  if (!toast) return;
+  toast.textContent = '아이폰은 「파일」 앱에 저장된 음악 파일(mp3, m4a 등)만 고를 수 있습니다. Apple Music 보관함의 곡은 고를 수 없어요.';
+  toast.hidden = false;
+  setTimeout(() => (toast.hidden = true), 9000);
+}
+
 export interface ImportedMusic {
   ref: MusicRef;
   buffer: AudioBuffer;

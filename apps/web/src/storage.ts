@@ -119,8 +119,21 @@ export async function putMusic(rec: MusicRecord): Promise<void> {
 /** 음악 파일 지문: 크기 + 앞부분 256KB의 SHA-1 */
 export async function fileFingerprint(file: Blob): Promise<string> {
   const head = await file.slice(0, 256 * 1024).arrayBuffer();
-  const digest = await crypto.subtle.digest('SHA-1', head);
-  const hex = [...new Uint8Array(digest)].slice(0, 8).map((b) => b.toString(16).padStart(2, '0')).join('');
+  let hex: string;
+  if (globalThis.crypto?.subtle) {
+    const digest = await crypto.subtle.digest('SHA-1', head);
+    hex = [...new Uint8Array(digest)].slice(0, 8).map((b) => b.toString(16).padStart(2, '0')).join('');
+  } else {
+    // http로 연 개발 서버처럼 crypto.subtle을 못 쓰는 곳: 간단한 해시 두 개로 대신한다.
+    const bytes = new Uint8Array(head);
+    let a = 0x811c9dc5;
+    let b = 0x01000193;
+    for (let i = 0; i < bytes.length; i++) {
+      a = Math.imul(a ^ bytes[i], 0x01000193);
+      b = Math.imul(b ^ bytes[i], 0x5bd1e995) ^ (b >>> 13);
+    }
+    hex = (a >>> 0).toString(16).padStart(8, '0') + (b >>> 0).toString(16).padStart(8, '0');
+  }
   return `file:${file.size.toString(36)}-${hex}`;
 }
 
