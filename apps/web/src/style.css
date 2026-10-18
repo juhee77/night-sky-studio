@@ -250,6 +250,12 @@ dialog.wide-dialog { width: min(760px, calc(100% - 32px)); max-height: min(88vh,
 .rule-results .no { color: #ffb4ad; }
 .money { font-weight: 700; margin: 8px 0; }
 
+/* ── 자동 연출 ── */
+.auto-form { display: flex; flex-direction: column; gap: 14px; margin: 14px 0; }
+.auto-form input[type='range'] { width: 100%; accent-color: var(--accent); }
+.auto-form .chips button[aria-pressed='true'] { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 700; }
+.warn-text { color: #ffb4ad; }
+
 /* ── 공유 ── */
 .share-link { width: 100%; margin: 12px 0; font: 500 12px var(--mono); }
 .sr-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }

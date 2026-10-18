@@ -1,0 +1,79 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { analyzeMusic, autoChoreograph, flatMusicMap } from '../src/auto.ts';
+import { showCost } from '../src/commission.ts';
+import { expandShow, type Launcher, type Show } from '../src/show.ts';
+
+const RATE = 11025;
+const launchers: Launcher[] = [
+  { id: 'barge-1', kind: 'barge', pos: [-220, 0, 0] },
+  { id: 'barge-2', kind: 'barge', pos: [0, 0, -80] },
+  { id: 'barge-3', kind: 'barge', pos: [220, 0, 60] },
+  { id: 'bridge', kind: 'bridge', pos: [0, 18, 258], from: [-500, 18, 258], to: [500, 18, 258] },
+  { id: 'ground', kind: 'frame', pos: [0, 0, -330] },
+];
+
+/** 앞 절반은 조용하고 뒤 절반은 큰 112 BPM 북소리 */
+function quietThenLoud(seconds: number): Float32Array {
+  const out = new Float32Array(RATE * seconds);
+  const beat = 60 / 112;
+  for (let t = 0; t < seconds; t += beat) {
+    const amp = t < seconds / 2 ? 0.15 : 0.9;
+    const s = Math.floor(t * RATE);
+    for (let i = 0; i < RATE * 0.12 && s + i < out.length; i++) out[s + i] += Math.sin((2 * Math.PI * 70 * i) / RATE) * Math.exp(-i / (RATE * 0.04)) * amp;
+  }
+  return out;
+}
+
+const showOf = (cues: Show['cues']): Show => ({
+  version: 1, seed: 1, music: { id: 'x', title: 'x', bpm: 112, offset: 0, duration: 60 },
+  venue: { preset: 'river-bridge-city' }, launchers, cues,
+});
+
+test('곡이 커지는 곳에 불꽃이 더 촘촘하고, 불꽃은 박에 붙는다', () => {
+  const map = analyzeMusic(quietThenLoud(60), RATE, 112, 0);
+  const cues = autoChoreograph(map, launchers, { seed: 3, style: 'grand', density: 0.8 });
+  const firstHalf = cues.filter((c) => c.t < 25).length;
+  const secondHalf = cues.filter((c) => c.t >= 30 && c.t < 50).length;
+  assert.ok(secondHalf > firstHalf, `앞 ${firstHalf}, 뒤 ${secondHalf}`);
+  const beat = 60 / 112;
+  const off = cues.filter((c) => {
+    const k = c.t / beat;
+    return Math.abs(k * 2 - Math.round(k * 2)) > 0.01; // 반 박 단위까지 허용
+  });
+  assert.equal(off.length, 0);
+  const { warnings } = expandShow(showOf(cues));
+  assert.equal(warnings.length, 0, warnings[0]?.message);
+});
+
+test('같은 시드면 같은 쇼, 다른 시드면 다른 쇼', () => {
+  const map = flatMusicMap(60, 112);
+  const a = autoChoreograph(map, launchers, { seed: 1, style: 'grand', density: 0.7 });
+  const b = autoChoreograph(map, launchers, { seed: 1, style: 'grand', density: 0.7 });
+  const c = autoChoreograph(map, launchers, { seed: 2, style: 'grand', density: 0.7 });
+  assert.deepEqual(a, b);
+  assert.notDeepEqual(a, c);
+});
+
+test('의뢰 조건을 따른다: 해금한 종류, 크기 제한, 색, 꼭 넣을 것, 예산', () => {
+  const map = flatMusicMap(60, 84);
+  const allowed = ['chrysanthemum', 'peony', 'willow', 'ring', 'heart'] as const;
+  const cues = autoChoreograph(map, launchers, {
+    seed: 5, style: 'calm', density: 1, allowed: [...allowed], maxSize: 5,
+    colors: ['pink', 'white', 'gold'], include: ['heart'], endColors: { seconds: 10, colors: ['gold'] }, budget: 100,
+  });
+  assert.ok(cues.length > 10);
+  assert.ok(cues.every((c) => (allowed as readonly string[]).includes(c.type)), cues.map((c) => c.type).join());
+  assert.ok(cues.every((c) => c.size <= 5));
+  assert.ok(cues.every((c) => (c.colors ?? []).every((x) => ['pink', 'white', 'gold'].includes(x))));
+  assert.ok(cues.some((c) => c.type === 'heart'));
+  assert.ok(cues.filter((c) => c.t >= 50).every((c) => c.colors![0] === 'gold'));
+  assert.ok(showCost(showOf(cues)) <= 100, `값 ${showCost(showOf(cues))}`);
+});
+
+test('다리와 지상 틀이 있으면 피날레 나이아가라와 글자를 넣는다', () => {
+  const cues = autoChoreograph(flatMusicMap(60, 112), launchers, { seed: 9, style: 'grand', density: 0.8, text: '축하해' });
+  assert.ok(cues.some((c) => c.type === 'niagara' && c.t > 45));
+  assert.ok(cues.some((c) => c.type === 'lancework' && c.text === '축하해'));
+  assert.ok(cues.filter((c) => c.t > 50).length > cues.filter((c) => c.t > 20 && c.t < 30).length);
+});

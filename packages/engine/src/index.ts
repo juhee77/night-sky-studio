@@ -15,3 +15,4 @@ export * from './smoke.ts';
 export * from './commission.ts';
 export * from './score.ts';
 export * from './audience.ts';
+export * from './auto.ts';

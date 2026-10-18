@@ -3,8 +3,13 @@
 import './style.css';
 import {
   VENUES,
+  analyzeMusic,
   audienceCues,
+  autoChoreograph,
   detectTempo,
+  flatMusicMap,
+  type AutoOptions,
+  type MusicMap,
   encodeShow,
   launcherKindFor,
   tapTempo,
@@ -80,6 +85,15 @@ const el = {
   shareNative: $<HTMLButtonElement>('share-native'),
   shareInfo: $<HTMLParagraphElement>('share-info'),
   officeBtn: $<HTMLButtonElement>('office-btn'),
+  autoBtn: $<HTMLButtonElement>('auto-btn'),
+  autoDialog: $<HTMLDialogElement>('auto-dialog'),
+  autoDensity: $<HTMLInputElement>('auto-density'),
+  autoDensityOut: $<HTMLOutputElement>('auto-density-out'),
+  autoText: $<HTMLInputElement>('auto-text'),
+  autoTextField: $<HTMLDivElement>('auto-text-field'),
+  autoLimits: $<HTMLParagraphElement>('auto-limits'),
+  autoReplace: $<HTMLParagraphElement>('auto-replace'),
+  autoRun: $<HTMLButtonElement>('auto-run'),
 };
 
 let toastTimer = 0;
@@ -388,6 +402,79 @@ el.watch.addEventListener('click', startWatching);
 el.watchExit.addEventListener('click', stopWatching);
 document.addEventListener('fullscreenchange', () => {
   if (!document.fullscreenElement) stopWatching();
+});
+
+// ── 자동 연출 ──
+let autoStyle: AutoOptions['style'] = 'grand';
+let musicMapCache: { key: string; map: MusicMap } | null = null;
+
+function currentMusicMap(): MusicMap {
+  const m = editor.show.music;
+  const bpm = m?.bpm ?? 120;
+  const offset = m?.offset ?? 0;
+  const key = `${m?.id}|${bpm}|${offset}|${musicBuffer ? 'buf' : 'none'}`;
+  if (musicMapCache?.key === key) return musicMapCache.map;
+  let map: MusicMap;
+  if (musicBuffer) {
+    const { samples, rate } = monoForTempo(musicBuffer);
+    map = analyzeMusic(samples, rate, bpm, offset);
+  } else {
+    map = flatMusicMap(Math.max(30, m?.duration ?? 60), bpm, offset);
+  }
+  musicMapCache = { key, map };
+  return map;
+}
+
+function autoOptions(seed: number): AutoOptions {
+  const o: AutoOptions = { seed, style: autoStyle, density: Number(el.autoDensity.value) };
+  const text = el.autoText.value.trim();
+  if (text) o.text = text;
+  const c = editor.show.commission;
+  if (c) {
+    // 의뢰 쇼: 해금한 불꽃과 의뢰 조건, 예산을 지킨다.
+    o.allowed = career.state.unlocked;
+    o.budget = c.budget;
+    for (const r of c.rules) {
+      if (r.kind === 'maxSize') o.maxSize = r.size;
+      else if (r.kind === 'colorsOnly') o.colors = r.colors;
+      else if (r.kind === 'include') (o.include ??= []).push(r.type);
+      else if (r.kind === 'endColors') o.endColors = { seconds: r.seconds, colors: r.colors };
+      else if (r.kind === 'frameText' && !o.text) o.text = c.client.slice(0, 12);
+    }
+  }
+  return o;
+}
+
+el.autoBtn.addEventListener('click', () => {
+  const n = editor.show.cues.length;
+  el.autoReplace.textContent = n ? `지금 놓인 불꽃 ${n}개를 지우고 새로 만듭니다. 마음에 들지 않으면 「되돌리기」로 되돌릴 수 있습니다.` : '';
+  const c = editor.show.commission;
+  el.autoLimits.textContent = c ? `의뢰 쇼라서 해금한 불꽃과 의뢰 조건, 예산(${c.budget}) 안에서 만듭니다.` : '';
+  const hasFrame = editor.show.launchers.some((l) => l.kind === 'frame') && !office.isLocked('lancework');
+  el.autoTextField.hidden = !hasFrame;
+  if (!el.autoText.value && editor.show.title) el.autoText.placeholder = `예: ${editor.show.title.slice(0, 12)}`;
+  el.autoDialog.showModal();
+});
+el.autoDialog.querySelectorAll<HTMLButtonElement>('[data-style]').forEach((b) =>
+  b.addEventListener('click', () => {
+    autoStyle = b.dataset.style as AutoOptions['style'];
+    el.autoDialog.querySelectorAll('[data-style]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  }),
+);
+el.autoDensity.addEventListener('input', () => {
+  const d = Number(el.autoDensity.value);
+  el.autoDensityOut.value = d < 0.5 ? '드문드문' : d < 0.8 ? '보통' : '촘촘하게';
+});
+el.autoRun.addEventListener('click', () => {
+  const seed = Math.floor(Math.random() * 1e9);
+  const cues = autoChoreograph(currentMusicMap(), editor.show.launchers, autoOptions(seed));
+  editor.change((d) => (d.cues = cues));
+  editor.select([]);
+  el.autoDialog.close();
+  if (transport.playing) togglePlay();
+  transport.seek(0);
+  timeline.scroll = 0;
+  say(`불꽃 ${cues.length}개를 놓았습니다. ▶ 재생해 보고, 마음에 안 들면 「자동 연출」을 다시 누르면 다른 쇼가 나옵니다.`);
 });
 
 // ── 공유 링크 ──
