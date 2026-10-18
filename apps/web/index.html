@@ -22,6 +22,7 @@
         <button type="button" id="auto-btn" title="곡의 박자와 세기를 보고 불꽃을 놓아 줍니다">자동 연출</button>
         <button type="button" id="watch" title="무대만 화면 가득 띄워 처음부터 봅니다">감상</button>
         <button type="button" id="photo-btn" title="셔터를 몇 초 열어 둔 장노출 사진을 찍습니다">사진</button>
+        <button type="button" id="video-btn" title="쇼를 소리까지 담은 영상 파일(MP4)로 만듭니다">영상</button>
         <button type="button" id="share-btn" class="primary">공유</button>
       </div>
 
@@ -202,6 +203,30 @@
         <button type="button" id="photo-shoot" class="primary">찍기</button>
         <button type="button" id="photo-save" hidden>사진 저장</button>
         <button type="button" id="photo-share" hidden>다른 앱으로 보내기</button>
+      </div>
+    </dialog>
+
+    <dialog id="video-dialog" aria-labelledby="video-title">
+      <form method="dialog" class="dialog-head">
+        <h2 id="video-title">영상으로 저장</h2>
+        <button value="close" aria-label="닫기">닫기</button>
+      </form>
+      <p class="note">쇼 전체를 지금 고른 관람석에서 본 모습으로, 음악과 불꽃 소리, 관객 소리까지 담아 MP4 파일로 만듭니다. 한 프레임씩 계산하므로 기기가 느려도 끊기지 않지만, 곡 길이에 따라 시간이 조금 걸립니다.</p>
+      <div class="field">
+        <span class="label">화질</span>
+        <div class="chips" id="video-size">
+          <button type="button" data-h="720" aria-pressed="true">720p</button>
+          <button type="button" data-h="1080" aria-pressed="false">1080p</button>
+        </div>
+      </div>
+      <progress id="video-progress" max="1" value="0" hidden></progress>
+      <p id="video-status" class="note" role="status"></p>
+      <video id="video-preview" class="photo-preview" controls playsinline hidden></video>
+      <div class="dialog-actions">
+        <button type="button" id="video-make" class="primary">만들기</button>
+        <button type="button" id="video-stop" hidden>그만두기</button>
+        <button type="button" id="video-save" hidden>영상 저장</button>
+        <button type="button" id="video-share" hidden>다른 앱으로 보내기</button>
       </div>
     </dialog>
 

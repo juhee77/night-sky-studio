@@ -1,9 +1,22 @@
-// 쇼를 화면 밖에서 따로 그려 내보낸다: 장노출 사진.
+// 쇼를 화면 밖에서 따로 그려 내보낸다: 장노출 사진, 영상(MP4).
 // 편집 중인 무대와 별개로 계산하므로, 찍는 동안에도 편집 화면은 그대로다.
 
 import {
+  AudioBufferSource,
+  BufferTarget,
+  CanvasSource,
+  Mp4OutputFormat,
+  Output,
+  QUALITY_HIGH,
+  canEncodeVideo,
+  getFirstEncodableAudioCodec,
+} from 'mediabunny';
+import {
   RENDER_EXTRA,
   SKIES,
+  writeSnow,
+  type CrowdCue,
+  type Launch,
   RENDER_STRIDE,
   Simulation,
   StageRenderer,
@@ -15,6 +28,7 @@ import {
   type Venue,
 } from '@nss/engine';
 import { fmtTime } from './format.ts';
+import { Sfx, scheduleSounds } from './sfx.ts';
 
 export interface CaptureFrame {
   show: Show;
@@ -106,4 +120,117 @@ export async function longExposure(
 
   onProgress(1);
   return new Promise((resolve, reject) => out.toBlob((b) => (b ? resolve(b) : reject(new Error('이미지를 만들지 못했습니다.'))), 'image/png'));
+}
+
+export interface VideoOptions extends CaptureFrame {
+  fps: number;
+  /** 쇼에서 영상으로 만들 구간 */
+  from: number;
+  to: number;
+  music: AudioBuffer | null;
+  delayFor: ((l: Launch) => number) | null;
+  crowd: CrowdCue[] | null;
+  fanCount: (l: Launch) => number;
+  onProgress: (done: number, stage: string) => void;
+  signal: AbortSignal;
+}
+
+/** 이 브라우저에서 영상 만들기를 할 수 있는지 */
+export async function canMakeVideo(width: number, height: number): Promise<boolean> {
+  try {
+    return typeof VideoEncoder !== 'undefined' && (await canEncodeVideo('avc', { width, height }));
+  } catch {
+    return false;
+  }
+}
+
+/** 음악과 효과음을 한 소리로 섞는다 (재생과 같은 소리, 화면 밖에서 빠르게) */
+async function mixAudio(o: VideoOptions, launches: Launch[]): Promise<AudioBuffer> {
+  const rate = 48000;
+  const len = o.to - o.from;
+  const ctx = new OfflineAudioContext(2, Math.ceil(len * rate), rate);
+  if (o.music && o.from < o.music.duration) {
+    const src = ctx.createBufferSource();
+    src.buffer = o.music;
+    const g = ctx.createGain();
+    g.gain.value = 0.8;
+    src.connect(g).connect(ctx.destination);
+    src.start(0, o.from);
+  }
+  const sfx = new Sfx(ctx, ctx.destination);
+  scheduleSounds(sfx, launches, o.from, o.to, (t) => t - o.from, { delayFor: o.delayFor, crowd: o.crowd, fanCount: o.fanCount });
+  return ctx.startRendering();
+}
+
+/**
+ * 영상(MP4) 만들기: 한 프레임씩 계산해 그리고 인코딩하므로, 기기가 느려도 끊기지 않는다.
+ * 소리는 음악·발사음·폭발음·관객 소리를 미리 섞어서 넣는다.
+ */
+export async function makeVideo(o: VideoOptions): Promise<Blob> {
+  const { width: w, height: h, show, venue, fps } = o;
+  const look = SKIES[show.venue.sky ?? 'night'];
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const renderer = new StageRenderer(canvas, { preserve: true });
+  const sim = new Simulation(show, { density: 1 });
+  const buffer = new Float32Array((sim.pool.capacity + RENDER_EXTRA) * RENDER_STRIDE);
+
+  o.onProgress(0, '소리를 섞는 중');
+  const audio = await mixAudio(o, sim.launches);
+  if (o.signal.aborted) throw new DOMException('그만뒀습니다.', 'AbortError');
+
+  const output = new Output({ format: new Mp4OutputFormat(), target: new BufferTarget() });
+  const video = new CanvasSource(canvas, { codec: 'avc', bitrate: QUALITY_HIGH });
+  output.addVideoTrack(video, { frameRate: fps });
+  const audioCodec = await getFirstEncodableAudioCodec(['aac', 'opus']);
+  const audioSource = audioCodec ? new AudioBufferSource({ codec: audioCodec, bitrate: QUALITY_HIGH }) : null;
+  if (audioSource) output.addAudioTrack(audioSource);
+  await output.start();
+  if (audioSource) await audioSource.add(audio);
+
+  const backdrop = document.createElement('canvas');
+  let backdropKey = '';
+  const frames = Math.max(1, Math.round((o.to - o.from) * fps));
+  sim.advanceTo(o.from);
+  try {
+    for (let i = 0; i < frames; i++) {
+      if (o.signal.aborted) throw new DOMException('그만뒀습니다.', 'AbortError');
+      const t = o.from + i / fps;
+      const cam = o.camera(t);
+      const view = makeView(cam, w, h);
+      const key = cam.eye.map((v) => v.toFixed(1)).join(',');
+      if (key !== backdropKey) {
+        // 카메라가 움직일 때만 배경을 다시 그린다 (날아다니기는 매 프레임, 절반 해상도로)
+        const moving = backdropKey !== '';
+        backdrop.width = moving ? w / 2 : w;
+        backdrop.height = moving ? h / 2 : h;
+        paintBackdrop(backdrop.getContext('2d')!, backdrop.width, backdrop.height, view.viewProj, venue, [], show.venue.cloud, look);
+        renderer.setBackdrop(backdrop);
+        backdropKey = key;
+      }
+      sim.advanceTo(t);
+      let count = sim.writeRender(buffer);
+      if (look.snow) count += writeSnow(buffer, count, t, cam.eye, sim.skyLight[0] + sim.skyLight[1] + sim.skyLight[2]);
+      renderer.render({
+        buffer,
+        count,
+        viewProj: view.viewProj,
+        pxPerMeter: view.pxPerMeter,
+        eye: cam.eye,
+        skyLight: sim.skyLight,
+        reflection: !cam.plan,
+        shore: waterSpan(venue),
+        fog: look.fog,
+      });
+      await video.add(i / fps, 1 / fps);
+      if (i % 15 === 0) o.onProgress(i / frames, '영상을 만드는 중');
+    }
+  } catch (err) {
+    await output.cancel();
+    throw err;
+  }
+  o.onProgress(1, '마무리하는 중');
+  await output.finalize();
+  return new Blob([output.target.buffer!], { type: 'video/mp4' });
 }

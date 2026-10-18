@@ -9,6 +9,7 @@
     "preview": "vite preview --mode pages"
   },
   "dependencies": {
-    "@nss/engine": "*"
+    "@nss/engine": "*",
+    "mediabunny": "^1.61.6"
   }
 }

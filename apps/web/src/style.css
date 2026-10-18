@@ -37,7 +37,7 @@ button, select, input[type='number'], input:not([type]) {
   padding: 4px 10px;
   min-height: 32px;
 }
-button { cursor: pointer; }
+button { cursor: pointer; white-space: nowrap; }
 button:hover { background: var(--night-3); }
 button:disabled { opacity: 0.45; cursor: default; }
 button.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 700; }
@@ -284,7 +284,10 @@ dialog.wide-dialog { width: min(760px, calc(100% - 32px)); max-height: min(88vh,
 #photo-dialog { width: min(720px, calc(100% - 32px)); }
 #photo-dialog .field { margin: 12px 0; }
 #photo-shutter button[aria-pressed='true'] { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 700; }
-#photo-progress { width: 100%; accent-color: var(--accent); }
+#photo-progress, #video-progress { width: 100%; accent-color: var(--accent); }
+#video-dialog { width: min(720px, calc(100% - 32px)); }
+#video-dialog .field { margin: 12px 0; }
+#video-size button[aria-pressed='true'] { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 700; }
 .photo-preview { display: block; width: 100%; height: auto; border-radius: 10px; margin: 10px 0; border: 1px solid var(--line); }
 
 /* ── 공유 ── */

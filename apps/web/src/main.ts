@@ -26,7 +26,6 @@ import { fmtDate, fmtTime } from './format.ts';
 import { importMusicFile, loadMusic, monoForTempo, useDeviceFontForFrames } from './media.ts';
 import { Office } from './office.ts';
 import { Panel } from './panel.ts';
-import { longExposure } from './capture.ts';
 import { runCountdown } from './countdown.ts';
 import { CAMERA_SEATS, Stage } from './stage.ts';
 import {
@@ -119,6 +118,16 @@ const el = {
   photoShoot: $<HTMLButtonElement>('photo-shoot'),
   photoSave: $<HTMLButtonElement>('photo-save'),
   photoShare: $<HTMLButtonElement>('photo-share'),
+  videoBtn: $<HTMLButtonElement>('video-btn'),
+  videoDialog: $<HTMLDialogElement>('video-dialog'),
+  videoSize: $<HTMLDivElement>('video-size'),
+  videoProgress: $<HTMLProgressElement>('video-progress'),
+  videoStatus: $<HTMLParagraphElement>('video-status'),
+  videoPreview: $<HTMLVideoElement>('video-preview'),
+  videoMake: $<HTMLButtonElement>('video-make'),
+  videoStop: $<HTMLButtonElement>('video-stop'),
+  videoSave: $<HTMLButtonElement>('video-save'),
+  videoShare: $<HTMLButtonElement>('video-share'),
 };
 
 let toastTimer = 0;
@@ -616,6 +625,8 @@ el.photoShoot.addEventListener('click', async () => {
   el.photoProgress.value = 0;
   try {
     const t0 = transport.time;
+    // 사진·영상 코드는 처음 쓸 때 받아 온다 (편집기를 여는 속도를 위해)
+    const { longExposure } = await import('./capture.ts');
     photoBlob = await longExposure(
       { show: editor.show, venue: stage.venue, camera: (t) => stage.cameraAt(t), width: 1920, height: 1080 },
       t0,
@@ -648,6 +659,89 @@ el.photoSave.addEventListener('click', () => {
 el.photoShare.addEventListener('click', () => {
   if (!photoBlob) return;
   const file = new File([photoBlob], photoName(), { type: 'image/png' });
+  void navigator.share?.({ files: [file], title: editor.show.title ?? '밤하늘 연출실' }).catch(() => {});
+});
+
+// ── 영상 ──
+let videoHeight = 720;
+let videoBlob: Blob | null = null;
+let videoAbort: AbortController | null = null;
+el.videoBtn.addEventListener('click', () => {
+  if (transport.playing) togglePlay();
+  el.videoDialog.showModal();
+});
+el.videoSize.querySelectorAll<HTMLButtonElement>('[data-h]').forEach((b) =>
+  b.addEventListener('click', () => {
+    videoHeight = Number(b.dataset.h);
+    el.videoSize.querySelectorAll('[data-h]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  }),
+);
+el.videoMake.addEventListener('click', async () => {
+  const h = videoHeight;
+  const w = Math.round((h * 16) / 9);
+  const { canMakeVideo, makeVideo } = await import('./capture.ts');
+  if (!(await canMakeVideo(w, h))) {
+    el.videoStatus.textContent = '이 브라우저에서는 영상을 만들 수 없습니다. 최신 Chrome, Edge, Safari에서 해 보세요.';
+    return;
+  }
+  videoAbort = new AbortController();
+  el.videoMake.disabled = true;
+  el.videoStop.hidden = false;
+  el.videoProgress.hidden = false;
+  el.videoPreview.hidden = true;
+  const started = performance.now();
+  try {
+    videoBlob = await makeVideo({
+      show: editor.show,
+      venue: stage.venue,
+      camera: (t) => stage.cameraAt(t),
+      width: w,
+      height: h,
+      fps: 30,
+      from: 0,
+      to: duration(),
+      music: musicBuffer,
+      delayFor: stage.soundDelay,
+      crowd: audienceCues(stage.sim.launches),
+      fanCount,
+      signal: videoAbort.signal,
+      onProgress: (p, stageName) => {
+        el.videoProgress.value = p;
+        el.videoStatus.textContent = `${stageName}… ${Math.round(p * 100)}%`;
+      },
+    });
+    if (el.videoPreview.src) URL.revokeObjectURL(el.videoPreview.src);
+    el.videoPreview.src = URL.createObjectURL(videoBlob);
+    el.videoPreview.hidden = false;
+    el.videoSave.hidden = false;
+    const file = new File([videoBlob], 'show.mp4', { type: 'video/mp4' });
+    el.videoShare.hidden = !navigator.canShare?.({ files: [file] });
+    const mb = (videoBlob.size / 1024 / 1024).toFixed(1);
+    el.videoStatus.textContent = `다 만들었습니다. ${mb}MB, ${Math.round((performance.now() - started) / 1000)}초 걸렸습니다.`;
+  } catch (err) {
+    el.videoStatus.textContent =
+      (err as Error).name === 'AbortError' ? '그만뒀습니다.' : `영상을 만들지 못했습니다. ${(err as Error).message}`;
+  } finally {
+    el.videoMake.disabled = false;
+    el.videoMake.textContent = '다시 만들기';
+    el.videoStop.hidden = true;
+    el.videoProgress.hidden = true;
+  }
+});
+el.videoStop.addEventListener('click', () => videoAbort?.abort());
+el.videoDialog.addEventListener('close', () => videoAbort?.abort());
+const videoName = () => `${(editor.show.title || '밤하늘').replace(/[\\/:*?"<>|]/g, '_')}.mp4`;
+el.videoSave.addEventListener('click', () => {
+  if (!videoBlob) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(videoBlob);
+  a.download = videoName();
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+el.videoShare.addEventListener('click', () => {
+  if (!videoBlob) return;
+  const file = new File([videoBlob], videoName(), { type: 'video/mp4' });
   void navigator.share?.({ files: [file], title: editor.show.title ?? '밤하늘 연출실' }).catch(() => {});
 });
 
