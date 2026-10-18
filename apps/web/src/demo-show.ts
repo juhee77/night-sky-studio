@@ -49,6 +49,12 @@ for (let i = 0; i < 16; i++) {
 for (const pad of pads) {
   cues.push({ t: at(13), at: pad, type: 'willow', size: 10, colors: ['gold'] });
 }
+// 피날레 배경: 다리의 나이아가라, 물 위 틀에 쓴 글자, 케이크 연속 발사
+cues.push(
+  { t: at(11), at: 'bridge', type: 'niagara', size: 5, colors: ['white'], len: 9 },
+  { t: at(11, 2), at: 'ground', type: 'lancework', size: 5, colors: ['pink'], text: '밤하늘', len: 9 },
+  { t: at(12), at: 'barge-2', type: 'cake', size: 5, colors: ['gold', 'red'], shots: 24, interval: 0.13, pattern: 'zigzag' },
+);
 
 export const demoShow: Show = {
   version: 1,
@@ -61,6 +67,8 @@ export const demoShow: Show = {
     { id: 'barge-1', kind: 'barge', pos: [-220, 0, 0] },
     { id: 'barge-2', kind: 'barge', pos: [220, 0, 60] },
     { id: 'barge-3', kind: 'barge', pos: [0, 0, -80] },
+    { id: 'bridge', kind: 'bridge', pos: [0, 18, 258], from: [-500, 18, 258], to: [500, 18, 258] },
+    { id: 'ground', kind: 'frame', pos: [0, 0, -330] },
   ],
   cues,
 };

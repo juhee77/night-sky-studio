@@ -1,17 +1,34 @@
 // 편집 중인 쇼와 선택, 되돌리기. 화면 부품들은 여기서 바뀐 것을 듣고 다시 그린다.
 
-import type { ColorName, Cue, Launcher, ShellType, Show, Size } from '@nss/engine';
+import {
+  CAKE_DEFAULTS,
+  LEN_DEFAULTS,
+  launcherKindFor,
+  type CakePattern,
+  type ColorName,
+  type Cue,
+  type FireworkType,
+  type Launcher,
+  type Show,
+  type Size,
+} from '@nss/engine';
 
 export type Change = 'show' | 'selection' | 'template';
 
 /** 새로 놓을 불꽃의 설정 */
 export interface Template {
-  type: ShellType;
+  type: FireworkType;
   size: Size;
   colors: ColorName[];
   angle: number;
   fanCount: number;
   fanSpread: number;
+  shots: number;
+  interval: number;
+  cakePattern: CakePattern;
+  /** 나이아가라·틀불꽃이 타는 시간 */
+  len: number;
+  text: string;
 }
 
 export type Snap = 'beat' | 'half' | 'off';
@@ -22,7 +39,11 @@ export class Editor {
   id: string;
   show: Show;
   selection = new Set<number>();
-  template: Template = { type: 'chrysanthemum', size: 5, colors: ['gold'], angle: 0, fanCount: 1, fanSpread: 40 };
+  template: Template = {
+    type: 'chrysanthemum', size: 5, colors: ['gold'], angle: 0, fanCount: 1, fanSpread: 40,
+    shots: CAKE_DEFAULTS.shots, interval: CAKE_DEFAULTS.interval, cakePattern: CAKE_DEFAULTS.pattern,
+    len: LEN_DEFAULTS.niagara, text: '밤하늘',
+  };
   snap: Snap = 'beat';
 
   private undoStack: string[] = [];
@@ -138,14 +159,33 @@ export class Editor {
     this.emit('template');
   }
 
-  /** 설정대로 새 불꽃 하나를 놓고 선택한다. */
-  addCue(t: number, launcherId: string): void {
+  /**
+   * 설정대로 새 불꽃 하나를 놓고 선택한다. 다리 줄에는 나이아가라, 지상 틀 줄에는 틀불꽃이 놓인다.
+   * 바지선 줄에 나이아가라·틀불꽃을 놓으려 하면 놓지 않고 false를 돌려준다.
+   */
+  addCue(t: number, launcherId: string): boolean {
+    const launcher = this.show.launchers.find((l) => l.id === launcherId);
+    if (!launcher) return false;
     const tpl = this.template;
-    const cue: Cue = { t: round3(Math.max(0, t)), at: launcherId, type: tpl.type, size: tpl.size, colors: [...tpl.colors] };
-    if (tpl.angle) cue.angle = tpl.angle;
-    if (tpl.fanCount > 1) cue.fan = { count: tpl.fanCount, spread: tpl.fanSpread };
+    let type: FireworkType = tpl.type;
+    if (launcher.kind === 'bridge') type = 'niagara';
+    else if (launcher.kind === 'frame') type = 'lancework';
+    else if (launcherKindFor(type) !== 'barge') return false;
+
+    const cue: Cue = { t: round3(Math.max(0, t)), at: launcherId, type, size: tpl.size, colors: [...tpl.colors] };
+    if (type === 'niagara' || type === 'lancework') {
+      cue.len = tpl.len;
+      if (type === 'lancework') cue.text = tpl.text || '밤하늘';
+    } else if (type === 'cake') {
+      Object.assign(cue, { shots: tpl.shots, interval: tpl.interval, pattern: tpl.cakePattern });
+      if (tpl.angle) cue.angle = tpl.angle;
+    } else {
+      if (tpl.angle) cue.angle = tpl.angle;
+      if (tpl.fanCount > 1) cue.fan = { count: tpl.fanCount, spread: tpl.fanSpread };
+    }
     this.change((d) => d.cues.push(cue));
     this.select([this.show.cues.length - 1]);
+    return true;
   }
 
   deleteSelected(): void {
@@ -185,6 +225,12 @@ export class Editor {
   laneOf(cue: Cue): number {
     return Math.max(0, this.show.launchers.findIndex((l) => l.id === cue.at));
   }
+
+  /** 선택한 불꽃들이 놓인 발사 위치 종류 (섞여 있으면 null) */
+  get selectionKind(): Launcher['kind'] | null {
+    const kinds = new Set(this.selectedCues.map((c) => this.show.launchers.find((l) => l.id === c.at)?.kind));
+    return kinds.size === 1 ? ([...kinds][0] ?? null) : null;
+  }
 }
 
 export function round3(x: number): number {
@@ -209,7 +255,21 @@ export function newShow(title: string): Show {
       { id: 'barge-1', kind: 'barge', pos: [-220, 0, 0] },
       { id: 'barge-2', kind: 'barge', pos: [0, 0, -80] },
       { id: 'barge-3', kind: 'barge', pos: [220, 0, 60] },
+      ...DEFAULT_SPECIAL_LAUNCHERS,
     ],
     cues: [],
   };
+}
+
+/** 강변 도시 무대의 다리(나이아가라)와 물 위 지상 틀 */
+export const DEFAULT_SPECIAL_LAUNCHERS: Launcher[] = [
+  { id: 'bridge', kind: 'bridge', pos: [0, 18, 258], from: [-500, 18, 258], to: [500, 18, 258] },
+  { id: 'ground', kind: 'frame', pos: [0, 0, -330] },
+];
+
+/** 예전에 만든 쇼에 다리와 지상 틀 줄이 없으면 더한다. */
+export function withDefaultLaunchers(show: Show): Show {
+  if (show.venue.preset !== 'river-bridge-city') return show;
+  const missing = DEFAULT_SPECIAL_LAUNCHERS.filter((d) => !show.launchers.some((l) => l.kind === d.kind));
+  return missing.length ? { ...show, launchers: [...show.launchers, ...structuredClone(missing)] } : show;
 }

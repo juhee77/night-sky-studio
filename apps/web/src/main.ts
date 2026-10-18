@@ -8,8 +8,10 @@ import {
   VENUES,
   detectTempo,
   makeView,
+  launcherKindFor,
   paintBackdrop,
   projectPoint,
+  setTextRasterizer,
   tapTempo,
   type Cue,
   type Launch,
@@ -17,7 +19,7 @@ import {
   type View,
 } from '@nss/engine';
 import { demoShow } from './demo-show.ts';
-import { Editor, newShow, round3, type Snap } from './editor.ts';
+import { Editor, newShow, round3, withDefaultLaunchers, type Snap } from './editor.ts';
 import { fmtDate, fmtTime } from './format.ts';
 import { Panel } from './panel.ts';
 import {
@@ -83,6 +85,7 @@ function say(message: string, ms = 4500): void {
 }
 
 // ── 상태 ──
+setTextRasterizer(rasterizeText);
 const editor = new Editor(newId(), structuredClone(demoShow));
 const transport = new Transport();
 let sim = new Simulation(editor.show);
@@ -132,13 +135,15 @@ function rebuildSim(density: number): void {
   layoutStage();
 }
 
-// 무대를 누르면 가장 가까운 발사 위치에 지금 시각으로 놓는다.
+// 무대를 누르면, 고른 종류를 놓을 수 있는 발사 위치 가운데 가장 가까운 곳에 지금 시각으로 놓는다.
 el.stage.addEventListener('click', (e) => {
   const r = el.stage.getBoundingClientRect();
   const sx = ((e.clientX - r.left) / r.width) * el.stage.width;
+  const kind = launcherKindFor(editor.template.type);
   let best = -1;
   let bestD = Infinity;
   editor.show.launchers.forEach((l, i) => {
+    if (l.kind !== kind) return;
     const p = projectPoint(view.viewProj, l.pos, el.stage.width, el.stage.height);
     if (!p) return;
     const d = Math.abs(p[0] - sx);
@@ -155,11 +160,47 @@ function placeNow(lane: number): void {
   const l = editor.show.launchers[lane];
   if (!l) return;
   const t = editor.snapTime(transport.time);
-  editor.addCue(t, l.id);
+  if (!editor.addCue(t, l.id)) rejectPlacement();
+}
+
+function rejectPlacement(): void {
+  say('나이아가라는 다리 줄에, 지상 틀불꽃은 지상 틀 줄에 놓습니다. 바지선 줄에는 하늘 불꽃과 케이크를 놓으세요.');
+}
+
+/** 틀불꽃 글자를 기기 글꼴로 그려 심지 위치로 바꾼다. 한글도 쓸 수 있다. */
+function rasterizeText(text: string): { points: [number, number][]; width: number } {
+  const H = 64;
+  const c = document.createElement('canvas');
+  const g = c.getContext('2d', { willReadFrequently: true })!;
+  // 웹 글꼴은 늦게 받아질 수 있어서, 기기에 있는 글꼴로만 그린다.
+  const font = `700 ${H}px 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif`;
+  g.font = font;
+  const w = Math.ceil(g.measureText(text).width) + 4;
+  if (w <= 4) return { points: [], width: 0 };
+  c.width = w;
+  c.height = Math.ceil(H * 1.3);
+  g.font = font;
+  g.textBaseline = 'alphabetic';
+  g.fillStyle = '#fff';
+  g.fillText(text, 2, H);
+  const data = g.getImageData(0, 0, c.width, c.height).data;
+  // 심지가 너무 많아지지 않게 간격을 넓힌다.
+  let step = 3;
+  let points: [number, number][] = [];
+  do {
+    points = [];
+    for (let y = 0; y < c.height; y += step) {
+      for (let x = 0; x < c.width; x += step) {
+        if (data[(y * c.width + x) * 4 + 3] > 128) points.push([x / H, (H - y) / H]);
+      }
+    }
+    step++;
+  } while (points.length > 1400);
+  return { points, width: c.width / H };
 }
 
 // ── 시간표와 설정 칸 ──
-const timeline = new Timeline(el.timeline, editor, {
+const timeline: Timeline = new Timeline(el.timeline, editor, {
   time: () => transport.time,
   seek: (t) => transport.seek(Math.min(t, duration())),
   duration,
@@ -168,6 +209,7 @@ const timeline = new Timeline(el.timeline, editor, {
   warnings: () => warnIdx,
 });
 new Panel(el.panel, editor);
+timeline.onReject = rejectPlacement;
 
 el.snap.addEventListener('change', () => (editor.snap = el.snap.value as Snap));
 el.zoomIn.addEventListener('click', () => timeline.zoomBy(1.5));
@@ -370,6 +412,13 @@ function togglePlay(): void {
 }
 el.play.addEventListener('click', togglePlay);
 
+// 휴대폰에서는 박자 맞추기 칸을 접어 두고, 버튼으로 연다.
+const tempoToggle = document.getElementById('tempo-toggle') as HTMLButtonElement;
+tempoToggle.addEventListener('click', () => {
+  const open = document.body.classList.toggle('show-tempo');
+  tempoToggle.setAttribute('aria-expanded', String(open));
+});
+
 el.sound.addEventListener('click', () => {
   transport.soundOn = !transport.soundOn;
   el.sound.setAttribute('aria-pressed', String(transport.soundOn));
@@ -441,7 +490,8 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ── 내 쇼 ──
-async function openShow(id: string, show: Show): Promise<void> {
+async function openShow(id: string, loaded: Show): Promise<void> {
+  const show = withDefaultLaunchers(loaded);
   if (transport.playing) togglePlay();
   transport.seek(0);
   editor.load(id, show);

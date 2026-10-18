@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { expandShow } from '../src/show.ts';
+import { cueLength, expandShow } from '../src/show.ts';
 import { STEP, Simulation } from '../src/sim.ts';
 import type { Show } from '../src/show.ts';
 
@@ -11,6 +11,8 @@ const show: Show = {
   launchers: [
     { id: 'barge-1', kind: 'barge', pos: [-200, 0, 0] },
     { id: 'barge-2', kind: 'barge', pos: [200, 0, 40] },
+    { id: 'bridge', kind: 'bridge', pos: [0, 18, 260], from: [-300, 18, 258], to: [300, 18, 258] },
+    { id: 'ground', kind: 'frame', pos: [0, 0, -300] },
   ],
   cues: [
     { t: 4.5, at: 'barge-1', type: 'chrysanthemum', size: 5, colors: ['gold'] },
@@ -111,4 +113,63 @@ test('다른 cue를 지워도 남은 불꽃의 모양은 그대로다', () => {
   a.advanceTo(t);
   b.advanceTo(t);
   assert.equal(a.stateHash(), b.stateHash());
+});
+
+test('케이크는 정해진 간격으로 여러 발을 쏘고, 첫 발이 cue 시각에 터진다', () => {
+  const cake: Show = { ...show, cues: [{ t: 5, at: 'barge-1', type: 'cake', size: 3, shots: 10, interval: 0.2, pattern: 'fan' }] };
+  const { launches } = expandShow(cake);
+  assert.equal(launches.length, 10);
+  assert.equal(launches[0].burstAt, 5);
+  assert.equal(launches[0].fireAt, 3.5); // 케이크 상승 1.5초
+  assert.ok(Math.abs(launches[9].burstAt - 6.8) < 1e-9);
+  assert.equal(launches[0].angle, -30);
+  assert.equal(launches[9].angle, 30);
+  assert.ok(Math.abs(cueLength(cake.cues[0]) - (9 * 0.2 + 1.1)) < 1e-9);
+});
+
+test('불꽃은 맞는 발사 위치에만 놓인다', () => {
+  const wrong: Show = {
+    ...show,
+    cues: [
+      { t: 5, at: 'bridge', type: 'peony', size: 5 },
+      { t: 5, at: 'barge-1', type: 'niagara', size: 5 },
+      { t: 5, at: 'ground', type: 'lancework', size: 5, text: 'HI' },
+    ],
+  };
+  const { launches, warnings } = expandShow(wrong);
+  assert.equal(warnings.length, 2);
+  assert.equal(launches.length, 1);
+  assert.equal(launches[0].type, 'lancework');
+});
+
+test('나이아가라는 정해진 시간 동안만 흘러내린다', () => {
+  const s = new Simulation({ ...show, cues: [{ t: 2, at: 'bridge', type: 'niagara', size: 5, len: 3 }] });
+  s.advanceTo(1.9);
+  assert.equal(s.pool.count, 0);
+  s.advanceTo(4);
+  assert.ok(s.pool.count > 200, `불티 ${s.pool.count}`);
+  s.advanceTo(9); // 꺼지고 불티도 다 떨어진 뒤
+  assert.equal(s.pool.count, 0);
+});
+
+test('틀불꽃은 글자 모양의 심지에 왼쪽부터 불이 붙는다', () => {
+  const s = new Simulation({ ...show, cues: [{ t: 1, at: 'ground', type: 'lancework', size: 5, text: 'HI', len: 4, colors: ['pink'] }] });
+  s.advanceTo(1.05);
+  const lances = s.pool.count;
+  assert.ok(lances > 20, `심지 ${lances}`);
+  const out = new Float32Array((s.pool.capacity + 256) * 8);
+  const n = s.writeRender(out);
+  let lit = 0;
+  for (let i = 0; i < n; i++) if (out[i * 8 + 7] > 0) lit++;
+  assert.ok(lit > 0 && lit < lances, `아직 일부만 붙어야 한다: ${lit}/${lances}`);
+  s.advanceTo(8);
+  assert.equal(s.pool.count, 0);
+});
+
+test('별과 웃는 얼굴 모양 불꽃도 터진다', () => {
+  for (const type of ['star', 'smile'] as const) {
+    const s = new Simulation({ ...show, cues: [{ t: 4, at: 'barge-1', type, size: 5 }] });
+    s.advanceTo(4.5);
+    assert.ok(s.pool.count > 30, `${type}: ${s.pool.count}`);
+  }
 });

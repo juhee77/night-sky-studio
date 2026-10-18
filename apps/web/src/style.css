@@ -64,6 +64,7 @@ label, .label { color: var(--muted); font-size: 13px; }
 #music { max-width: 190px; }
 .tempo input { width: 76px; font-family: var(--mono); font-variant-numeric: tabular-nums; }
 #sound[aria-pressed='false'] { color: var(--muted); }
+#tempo-toggle { display: none; }
 
 /* ── 가운데 ── */
 .workspace {
@@ -198,6 +199,9 @@ dialog::backdrop { background: rgba(5, 6, 15, 0.6); }
 @media (max-width: 600px) {
   .show-name { flex-basis: 100%; }
   .tempo, .view label, .music label, .save-state { display: none; }
+  #tempo-toggle { display: inline-block; }
+  #tempo-toggle[aria-expanded='true'] { border-color: var(--accent); }
+  body.show-tempo .tempo { display: flex; flex-wrap: wrap; flex-basis: 100%; }
   #music { max-width: 150px; }
   #clock { min-width: 0; font-size: 12px; }
   .workspace { grid-template-rows: minmax(240px, 1fr) auto; }

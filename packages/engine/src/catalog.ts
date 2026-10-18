@@ -22,10 +22,16 @@ export const SIZE_SPECS: Record<Size, SizeSpec> = {
   10: { height: 330, spread: 320, prefire: 6 },
 };
 
-export type ShellType = 'chrysanthemum' | 'peony' | 'willow' | 'palm' | 'ring' | 'crossette' | 'heart';
+/** 하늘로 쏘아 올려 터지는 불꽃. 케이크는 작은 알 여러 발을 차례로 쏜다. */
+export type ShellType =
+  | 'chrysanthemum' | 'peony' | 'willow' | 'palm' | 'ring' | 'crossette'
+  | 'heart' | 'star' | 'smile' | 'cake';
+
+/** 시간표에 놓을 수 있는 모든 종류: 하늘 불꽃 + 다리 나이아가라 + 지상 틀불꽃 */
+export type FireworkType = ShellType | 'niagara' | 'lancework';
 
 /** 별을 처음에 어떻게 흩뿌리는가 */
-export type Pattern = 'sphere' | 'ring' | 'palm' | 'heart';
+export type Pattern = 'sphere' | 'ring' | 'palm' | 'heart' | 'star' | 'smile';
 
 export type Tail = 'none' | 'spark' | 'willow' | 'palm';
 
@@ -80,16 +86,48 @@ export const SHELLS: Record<ShellType, ShellSpec> = {
     label: '하트', pattern: 'heart', starsAt5: 52, starLife: 1.7, drag: 1.8, spreadScale: 0.8,
     starSize: 5.5, tail: 'none', ember: false, glitter: false, split: false,
   },
+  star: {
+    label: '별', pattern: 'star', starsAt5: 50, starLife: 1.7, drag: 1.8, spreadScale: 0.85,
+    starSize: 5.5, tail: 'none', ember: false, glitter: false, split: false,
+  },
+  smile: {
+    label: '웃는 얼굴', pattern: 'smile', starsAt5: 56, starLife: 1.7, drag: 1.8, spreadScale: 0.85,
+    starSize: 5.5, tail: 'none', ember: false, glitter: false, split: false,
+  },
+  // 케이크 한 발. 높이와 지름은 크기표 대신 shellSize()에서 정한다.
+  cake: {
+    label: '케이크', pattern: 'sphere', starsAt5: 22, starLife: 1.1, drag: 2.2, spreadScale: 1,
+    starSize: 4, tail: 'spark', ember: true, glitter: false, split: false,
+  },
 };
 
 export const SHELL_TYPES = Object.keys(SHELLS) as ShellType[];
+
+/** 팔레트에 보여 줄 순서 */
+export const FIREWORK_TYPES: FireworkType[] = [...SHELL_TYPES, 'niagara', 'lancework'];
+
+const SPECIAL_LABEL = { niagara: '나이아가라', lancework: '지상 틀불꽃' } as const;
+
+export function typeLabel(t: FireworkType): string {
+  return t === 'niagara' || t === 'lancework' ? SPECIAL_LABEL[t] : SHELLS[t].label;
+}
+
+export function isShell(t: FireworkType): t is ShellType {
+  return t !== 'niagara' && t !== 'lancework';
+}
+
+/** 불꽃 종류와 크기에 맞는 높이·지름·상승 시간. 케이크는 낮게, 빨리 터진다. */
+export function shellSize(type: ShellType, size: Size): SizeSpec {
+  if (type === 'cake') return { height: 50 + size * 4, spread: 26 + size * 5, prefire: 1.5 };
+  return SIZE_SPECS[size];
+}
 
 export function starCount(type: ShellType, size: Size): number {
   const exp = SHELLS[type].pattern === 'sphere' ? 1.1 : 0.5;
   return Math.max(6, Math.round(SHELLS[type].starsAt5 * Math.pow(size / 5, exp)));
 }
 
-/** 시간표에 그릴 불꽃 길이(초): 터진 뒤 눈에 보이는 시간 */
+/** 하늘 불꽃 한 발이 터진 뒤 눈에 보이는 시간(초) */
 export function visibleLength(type: ShellType): number {
   const s = SHELLS[type];
   return s.split ? s.starLife + 1.1 : s.starLife;

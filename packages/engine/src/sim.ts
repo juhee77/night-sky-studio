@@ -1,11 +1,12 @@
 // 불꽃 계산. 모든 값은 미터 단위 3D 좌표 [동, 높이, 북]이고,
 // 화면 주사율과 상관없이 STEP 간격으로만 계산한다. 그래서 같은 쇼는 어느 기기에서나 같게 재생된다.
 
-import { SHELLS, SIZE_SPECS, starCount } from './catalog.ts';
+import { SHELLS, shellSize, starCount, type ShellType } from './catalog.ts';
 import { COLORS } from './colors.ts';
 import { hash32, rand01 } from './rng.ts';
 import {
   expandShow,
+  isShellLaunch,
   launchKey,
   windVector,
   type Launch,
@@ -13,6 +14,7 @@ import {
   type ShowWarning,
   type Vec3,
 } from './show.ts';
+import { textShape } from './text.ts';
 
 /** 고정 계산 간격(초) */
 export const STEP = 1 / 120;
@@ -25,6 +27,7 @@ export const FLAG_FLASH = 16; // 터지는 순간의 섬광
 export const FLAG_SPARK = 32; // 꼬리에서 떨어져 나온 불티
 export const FLAG_PALM_TAIL = 64; // 야자: 굵은 줄기 꼬리
 export const FLAG_SPLIT = 128; // 크로세트: 수명이 끝나면 십자로 갈라진다
+export const FLAG_LANCE = 256; // 지상 틀불꽃의 심지 하나. 제자리에서 타오른다
 
 /** 렌더 버퍼에서 입자 하나가 차지하는 float 개수: x, y, z, 크기(m), r, g, b, a */
 export const RENDER_STRIDE = 8;
@@ -43,6 +46,13 @@ const WILLOW_SPARK_DAMP = Math.exp(-2 * STEP);
 const PALM_SPARK_DAMP = Math.exp(-2.4 * STEP);
 const TRAIL_DAMP = Math.exp(-2.5 * STEP);
 const SPLIT_DAMP = Math.exp(-1.4 * STEP);
+const CURTAIN_DAMP = Math.exp(-1.2 * STEP);
+/** 나이아가라 불티가 떨어지는 지점 간격(m) */
+const CURTAIN_PITCH = 6;
+/** 틀불꽃 글자 높이(m) */
+const LANCE_HEIGHT = 22;
+/** 틀불꽃은 왼쪽 끝에서 오른쪽 끝까지 이 시간 동안 차례로 불이 붙는다 */
+const LANCE_IGNITE = 0.6;
 const SKY_DECAY = Math.exp(-6 * STEP);
 
 const FLOAT_FIELDS = [
@@ -67,7 +77,7 @@ class ParticlePool {
   /** 한 스텝마다 속도에 곱하는 감쇠값 exp(-drag * STEP) */
   readonly damp: Float32Array;
   readonly grav: Float32Array;
-  readonly flags: Uint8Array;
+  readonly flags: Uint16Array;
   readonly seed: Uint32Array;
 
   constructor(capacity: number) {
@@ -87,7 +97,7 @@ class ParticlePool {
     this.size = f();
     this.damp = f();
     this.grav = f();
-    this.flags = new Uint8Array(capacity);
+    this.flags = new Uint16Array(capacity);
     this.seed = new Uint32Array(capacity);
   }
 
@@ -167,15 +177,21 @@ class ParticlePool {
 interface PoolSnapshot {
   count: number;
   floats: Float32Array[];
-  flags: Uint8Array;
+  flags: Uint16Array;
   seed: Uint32Array;
 }
 
 /** 올라가는 중인 불꽃 알 */
 interface Rising {
-  launch: Launch;
+  launch: Launch & { type: ShellType };
   age: number;
   pos: Vec3;
+}
+
+/** 타고 있는 나이아가라 */
+interface Curtain {
+  launch: Launch;
+  age: number;
 }
 
 /** 중간 저장점: 이 스텝을 계산하기 직전의 상태 */
@@ -183,6 +199,7 @@ interface Checkpoint {
   step: number;
   next: number;
   rising: Rising[];
+  curtains: Curtain[];
   skyLight: [number, number, number];
   pool: PoolSnapshot;
 }
@@ -206,6 +223,7 @@ export class Simulation {
   step = 0;
   private next = 0;
   private rising: Rising[] = [];
+  private curtains: Curtain[] = [];
   private wind: Vec3;
   private checkpoints = new Map<number, Checkpoint>();
 
@@ -232,6 +250,7 @@ export class Simulation {
     this.step = 0;
     this.next = 0;
     this.rising = [];
+    this.curtains = [];
     this.pool.count = 0;
     this.skyLight[0] = this.skyLight[1] = this.skyLight[2] = 0;
   }
@@ -301,6 +320,7 @@ export class Simulation {
       step: this.step,
       next: this.next,
       rising: this.rising.map((r) => ({ launch: r.launch, age: r.age, pos: [...r.pos] as Vec3 })),
+      curtains: this.curtains.map((c) => ({ ...c })),
       skyLight: [...this.skyLight],
       pool: this.pool.save(),
     });
@@ -317,6 +337,7 @@ export class Simulation {
     this.step = best.step;
     this.next = best.next;
     this.rising = best.rising.map((r) => ({ launch: r.launch, age: r.age, pos: [...r.pos] as Vec3 }));
+    this.curtains = best.curtains.map((c) => ({ ...c }));
     this.skyLight[0] = best.skyLight[0];
     this.skyLight[1] = best.skyLight[1];
     this.skyLight[2] = best.skyLight[2];
@@ -328,11 +349,18 @@ export class Simulation {
 
     while (this.next < this.launches.length && this.launches[this.next].fireAt <= now) {
       const launch = this.launches[this.next++];
-      // 쇼 시작 전에 쐈어야 하는 불꽃은 이미 올라가던 중인 것으로 친다.
-      this.rising.push({ launch, age: now - launch.fireAt, pos: [...launch.origin] });
+      if (isShellLaunch(launch)) {
+        // 쇼 시작 전에 쐈어야 하는 불꽃은 이미 올라가던 중인 것으로 친다.
+        this.rising.push({ launch, age: now - launch.fireAt, pos: [...launch.origin] });
+      } else if (launch.type === 'niagara') {
+        this.curtains.push({ launch, age: now - launch.fireAt });
+      } else {
+        this.lightFrame(launch, now - launch.fireAt);
+      }
     }
 
     this.updateRising();
+    this.updateCurtains();
     this.updateParticles();
 
     this.skyLight[0] *= SKY_DECAY;
@@ -346,7 +374,7 @@ export class Simulation {
     for (let i = 0; i < this.rising.length; ) {
       const s = this.rising[i];
       s.age += STEP;
-      const spec = SIZE_SPECS[s.launch.size];
+      const spec = shellSize(s.launch.type, s.launch.size);
       risePosition(s.launch, Math.min(s.age, spec.prefire), this.wind, s.pos);
 
       const seed = hash32(s.launch.seed, this.step, 3);
@@ -369,9 +397,67 @@ export class Simulation {
     }
   }
 
-  private burst(l: Launch, at: Vec3): void {
+  /** 다리에 걸린 나이아가라: 다리를 따라 일정한 간격으로 불티가 흘러내린다. */
+  private updateCurtains(): void {
+    const pool = this.pool;
+    for (let i = 0; i < this.curtains.length; ) {
+      const c = this.curtains[i];
+      c.age += STEP;
+      const len = c.launch.len ?? 8;
+      if (c.age >= len) {
+        this.curtains.splice(i, 1);
+        continue;
+      }
+      // 켜질 때와 꺼질 때는 천천히.
+      const ramp = Math.min(1, c.age / 0.6, (len - c.age) / 0.8);
+      const [a, b] = c.launch.span!;
+      const span = Math.hypot(b[0] - a[0], b[2] - a[2]);
+      const n = Math.max(2, Math.floor(span / CURTAIN_PITCH));
+      const rgb = COLORS[c.launch.colors[0]];
+      for (let k = 0; k <= n; k++) {
+        const s = hash32(c.launch.seed, this.step, k);
+        if (rand01(s) >= 0.22 * this.density * ramp) continue;
+        const u = (k + rand01(s, 1) - 0.5) / n;
+        // 금빛 불티에 고른 색을 조금 섞는다.
+        const w = 0.35;
+        pool.spawn(
+          a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u - 0.5, a[2] + (b[2] - a[2]) * u,
+          (rand01(s, 2) - 0.5) * 1.2, -1 - rand01(s, 3) * 1.5, (rand01(s, 4) - 0.5) * 1.2,
+          1.3 + rand01(s, 5) * 0.8,
+          (1.0 * (1 - w) + rgb[0] * w) * 0.95, (0.82 * (1 - w) + rgb[1] * w) * 0.95, (0.5 * (1 - w) + rgb[2] * w) * 0.95,
+          2.1, CURTAIN_DAMP, 3.5, FLAG_SPARK, s,
+        );
+      }
+      i++;
+    }
+  }
+
+  /** 지상 틀불꽃에 불을 붙인다. 글자를 이루는 심지마다 제자리에서 타는 입자 하나. */
+  private lightFrame(l: Launch, age: number): void {
+    const shape = textShape(l.text ?? '');
+    if (!shape.points.length) return;
+    const scale = LANCE_HEIGHT;
+    const half = (shape.width * scale) / 2;
+    const len = l.len ?? 10;
+    shape.points.forEach(([x, y], i) => {
+      const s = hash32(l.seed, i, 41);
+      const rgb = COLORS[l.colors[i % l.colors.length]];
+      // 왼쪽부터 차례로 불이 붙는다: 아직 안 붙은 심지는 나이를 음수로 둔다.
+      const delay = (x / Math.max(shape.width, 1e-3)) * LANCE_IGNITE + rand01(s) * 0.05;
+      const ok = this.pool.spawn(
+        l.origin[0] - half + x * scale, l.origin[1] + 4 + y * scale, l.origin[2],
+        0, 0, 0,
+        len,
+        rgb[0], rgb[1], rgb[2],
+        2.6, 1, 0, FLAG_LANCE, s,
+      );
+      if (ok) this.pool.age[this.pool.count - 1] = age - delay;
+    });
+  }
+
+  private burst(l: Launch & { type: ShellType }, at: Vec3): void {
     const shell = SHELLS[l.type];
-    const spec = SIZE_SPECS[l.size];
+    const spec = shellSize(l.type, l.size);
     const pool = this.pool;
     const n = Math.max(6, Math.round(starCount(l.type, l.size) * (shell.pattern === 'sphere' ? this.density : 1)));
     const radius = (spec.spread / 2) * shell.spreadScale;
@@ -391,7 +477,7 @@ export class Simulation {
       const [dx, dy, dz, mag] = dirs[i];
       // 공기 저항이 k일 때 처음 속도 v는 v/k 만큼 날아가므로, 반지름에 맞춰 v = k·R로 정한다.
       // 모양 불꽃은 모양이 흐트러지지 않게 속도 오차를 줄인다.
-      const jitter = shell.pattern === 'heart' || shell.pattern === 'ring' ? 0.03 : 0.14;
+      const jitter = shell.pattern === 'sphere' || shell.pattern === 'palm' ? 0.14 : 0.03;
       const speed = shell.drag * radius * mag * (1 - jitter / 2 + rand01(s, 4) * jitter);
       const rgb = COLORS[l.colors[i % l.colors.length]];
       pool.spawn(
@@ -471,6 +557,22 @@ export class Simulation {
         if (f & FLAG_SPLIT) this.split(i);
         continue;
       }
+      if (f & FLAG_LANCE) {
+        // 심지는 움직이지 않고, 가끔 작은 불티를 튀긴다.
+        if (age > 0) {
+          const s = hash32(p.seed[i], this.step, 8);
+          if (rand01(s) < 0.03 * this.density) {
+            p.spawn(
+              p.px[i], p.py[i], p.pz[i],
+              (rand01(s, 1) - 0.5) * 3, 1 + rand01(s, 2) * 3, (rand01(s, 3) - 0.5) * 3,
+              0.25 + rand01(s, 4) * 0.3,
+              SPARK_RGB[0], SPARK_RGB[1], SPARK_RGB[2],
+              1.4, SPARK_DAMP, 6, FLAG_SPARK, s,
+            );
+          }
+        }
+        continue;
+      }
 
       const d = p.damp[i];
       // 공기는 바람과 같이 움직이므로, 수평 속도는 바람 속도로 다가간다.
@@ -540,7 +642,14 @@ export class Simulation {
       let b = p.b[i];
       let a: number;
 
-      if (f & FLAG_FLASH) {
+      if (f & FLAG_LANCE) {
+        // 아직 불이 안 붙었으면 보이지 않고, 타는 동안은 촛불처럼 흔들린다.
+        if (age < 0) a = 0;
+        else {
+          const left = p.life[i] - age;
+          a = Math.min(1, age / 0.08, left / 0.8) * (0.7 + 0.3 * rand01(p.seed[i], Math.floor(age * 30), 2));
+        }
+      } else if (f & FLAG_FLASH) {
         a = (1 - u) * (1 - u) * 0.9;
       } else if (f & FLAG_SPARK) {
         a = (1 - u) * 0.8;
@@ -592,7 +701,7 @@ export class Simulation {
     const xs = new Uint32Array(p.px.buffer, 0, n);
     const ys = new Uint32Array(p.py.buffer, 0, n);
     const zs = new Uint32Array(p.pz.buffer, 0, n);
-    let h = hash32(this.step, n, this.rising.length);
+    let h = hash32(this.step, n, this.rising.length * 1000 + this.curtains.length);
     for (let i = 0; i < n; i++) {
       h = hash32(h, xs[i], ys[i]);
       h = hash32(h, zs[i]);
@@ -606,7 +715,7 @@ function starDirections(pattern: string, n: number, seed: number): [number, numb
   const out: [number, number, number, number][] = [];
   const rot = rand01(seed, 1) * Math.PI * 2;
 
-  if (pattern === 'ring' || pattern === 'heart') {
+  if (pattern === 'ring' || pattern === 'heart' || pattern === 'star' || pattern === 'smile') {
     // 평면 모양 불꽃. 실제처럼 터질 때마다 면이 향하는 방향이 달라진다.
     // 관객(남쪽, -z)을 기준으로 좌우 ±70도, 앞뒤 ±25도 안에서 정한다.
     const yaw = (rand01(seed, 2) - 0.5) * (Math.PI * 140) / 180;
@@ -624,6 +733,10 @@ function starDirections(pattern: string, n: number, seed: number): [number, numb
         const t = (i / n) * Math.PI * 2;
         x = Math.cos(t);
         y = Math.sin(t);
+      } else if (pattern === 'star') {
+        [x, y] = starOutline(i / n);
+      } else if (pattern === 'smile') {
+        [x, y] = smileFace(i, n);
       } else {
         const t = (i / n) * Math.PI * 2;
         x = (16 * Math.pow(Math.sin(t), 3)) / 17;
@@ -663,9 +776,39 @@ function starDirections(pattern: string, n: number, seed: number): [number, numb
   return out;
 }
 
+/** 다섯 꼭짓점 별의 윤곽 위 한 점 (u: 0~1) */
+function starOutline(u: number): [number, number] {
+  const corners: [number, number][] = [];
+  for (let k = 0; k < 10; k++) {
+    const r = k % 2 === 0 ? 1 : 0.42;
+    const a = Math.PI / 2 + (k * Math.PI) / 5;
+    corners.push([Math.cos(a) * r, Math.sin(a) * r]);
+  }
+  const f = u * 10;
+  const k = Math.floor(f) % 10;
+  const t = f - Math.floor(f);
+  const [ax, ay] = corners[k];
+  const [bx, by] = corners[(k + 1) % 10];
+  return [ax + (bx - ax) * t, ay + (by - ay) * t];
+}
+
+/** 웃는 얼굴: 별의 60%는 얼굴 원, 나머지는 두 눈과 입 */
+function smileFace(i: number, n: number): [number, number] {
+  const face = Math.round(n * 0.6);
+  const eyes = Math.max(2, Math.round(n * 0.08));
+  if (i < face) {
+    const a = (i / face) * Math.PI * 2;
+    return [Math.cos(a), Math.sin(a)];
+  }
+  if (i < face + eyes) return [(i - face) % 2 ? 0.35 : -0.35, 0.3];
+  const m = n - face - eyes;
+  const a = Math.PI * (1.18 + (0.64 * (i - face - eyes)) / Math.max(1, m - 1));
+  return [Math.cos(a) * 0.55, Math.sin(a) * 0.55 + 0.05];
+}
+
 /** 올라가는 불꽃 알의 위치. 꼭대기에 가까울수록 느려진다. */
-function risePosition(l: Launch, age: number, wind: Vec3, out: Vec3): void {
-  const spec = SIZE_SPECS[l.size];
+function risePosition(l: Launch & { type: ShellType }, age: number, wind: Vec3, out: Vec3): void {
+  const spec = shellSize(l.type, l.size);
   const u = Math.min(age / spec.prefire, 1);
   const e = 1 - (1 - u) * (1 - u);
   const tilt = (l.angle * Math.PI) / 180;

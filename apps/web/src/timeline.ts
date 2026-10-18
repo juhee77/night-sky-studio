@@ -1,7 +1,7 @@
 // 시간표. 발사 위치마다 한 줄이고, 불꽃은 터지는 시각에 놓인다.
 // 불꽃 앞의 가는 선은 상승 시간이다: 선이 시작하는 점에서 점화된다.
 
-import { COLORS, SHELLS, SIZE_SPECS, visibleLength, type Cue } from '@nss/engine';
+import { CAKE_DEFAULTS, COLORS, cueLength, cuePrefire, typeLabel, type Cue } from '@nss/engine';
 import { launcherLabel, round3, type Editor } from './editor.ts';
 
 const LABEL_W = 76;
@@ -52,6 +52,9 @@ export class Timeline {
   scroll = 0;
   private hits: Hit[] = [];
   private drag: Drag | null = null;
+  /** 화면에 닿아 있는 손가락들 (두 손가락으로 벌리면 확대) */
+  private pointers = new Map<number, number>();
+  private pinch: { dist: number; pps: number; center: number } | null = null;
   private ctx: CanvasRenderingContext2D;
   private cssW = 0;
   private cssH = 0;
@@ -177,8 +180,8 @@ export class Timeline {
     g.textBaseline = 'middle';
     show.cues.forEach((cue, i) => {
       const lane = ed.laneOf(cue);
-      const prefire = SIZE_SPECS[cue.size].prefire;
-      const len = visibleLength(cue.type);
+      const prefire = cuePrefire(cue);
+      const len = cueLength(cue);
       if (cue.t + len < t0 || cue.t - prefire > t1) return;
       const y = lanesTop + lane * LANE_H;
       const x = this.x(cue.t);
@@ -186,18 +189,20 @@ export class Timeline {
       const bad = warn.has(i);
       const sel = ed.selection.has(i);
 
-      // 상승 시간 선과 점화 점
-      const fx = this.x(cue.t - prefire);
-      g.strokeStyle = bad ? C.warn : 'rgba(255,220,170,0.45)';
-      g.lineWidth = 1;
-      g.beginPath();
-      g.moveTo(fx, y + LANE_H / 2);
-      g.lineTo(x, y + LANE_H / 2);
-      g.stroke();
-      g.fillStyle = bad ? C.warn : 'rgba(255,220,170,0.8)';
-      g.beginPath();
-      g.arc(fx, y + LANE_H / 2, 2.5, 0, Math.PI * 2);
-      g.fill();
+      // 상승 시간 선과 점화 점 (나이아가라·틀불꽃은 바로 불이 붙어 선이 없다)
+      if (prefire > 0) {
+        const fx = this.x(cue.t - prefire);
+        g.strokeStyle = bad ? C.warn : 'rgba(255,220,170,0.45)';
+        g.lineWidth = 1;
+        g.beginPath();
+        g.moveTo(fx, y + LANE_H / 2);
+        g.lineTo(x, y + LANE_H / 2);
+        g.stroke();
+        g.fillStyle = bad ? C.warn : 'rgba(255,220,170,0.8)';
+        g.beginPath();
+        g.arc(fx, y + LANE_H / 2, 2.5, 0, Math.PI * 2);
+        g.fill();
+      }
 
       const rgb = COLORS[cue.colors?.[0] ?? 'gold'];
       g.fillStyle = `rgba(${rgb.map((v) => Math.round(Math.min(1, v) * 255)).join(',')},0.88)`;
@@ -218,7 +223,7 @@ export class Timeline {
         g.stroke();
         g.setLineDash([]);
       }
-      const label = `${SHELLS[cue.type].label} ${cue.size}${cue.fan ? ` ×${cue.fan.count}` : ''}`;
+      const label = clipLabel(cue);
       if (cw > 30) {
         g.save();
         g.beginPath();
@@ -270,8 +275,31 @@ export class Timeline {
     return Math.floor((y - RULER_H - WAVE_H) / LANE_H);
   }
 
+  /** 두 손가락으로 벌리거나 오므리면 확대·축소 */
+  private updatePinch(): boolean {
+    if (this.pointers.size !== 2) {
+      this.pinch = null;
+      return false;
+    }
+    const [a, b] = [...this.pointers.values()];
+    const dist = Math.max(20, Math.abs(a - b));
+    const center = this.t((a + b) / 2);
+    if (!this.pinch) {
+      this.pinch = { dist, pps: this.pps, center };
+      if (this.drag?.kind === 'move' && this.drag.moved) this.editor.endBatch();
+      this.drag = null;
+    } else {
+      const px = this.x(this.pinch.center);
+      this.pps = Math.min(MAX_PPS, Math.max(MIN_PPS, (this.pinch.pps * dist) / this.pinch.dist));
+      this.scroll = Math.max(0, this.pinch.center - (px - LABEL_W) / this.pps);
+    }
+    return true;
+  }
+
   private onDown(e: PointerEvent): void {
     const [x, y] = this.local(e);
+    this.pointers.set(e.pointerId, x);
+    if (this.updatePinch()) return;
     if (x < LABEL_W) return;
     this.canvas.setPointerCapture(e.pointerId);
     if (y < RULER_H + WAVE_H) {
@@ -297,6 +325,10 @@ export class Timeline {
 
   private onMove(e: PointerEvent): void {
     const [x, y] = this.local(e);
+    if (this.pointers.has(e.pointerId)) {
+      this.pointers.set(e.pointerId, x);
+      if (this.updatePinch()) return;
+    }
     const d = this.drag;
     if (!d) {
       this.canvas.style.cursor = y < RULER_H + WAVE_H ? 'col-resize' : this.hitAt(x, y) ? 'grab' : 'copy';
@@ -323,8 +355,11 @@ export class Timeline {
       const launchers = ed.show.launchers;
       ed.change((draft) => {
         for (const [i, orig] of d.originals) {
-          const lane = Math.min(launchers.length - 1, Math.max(0, ed.laneOf(orig) + laneShift));
-          draft.cues[i] = { ...orig, t: round3(Math.max(0, orig.t + dt)), at: launchers[lane].id };
+          const from = ed.laneOf(orig);
+          const lane = Math.min(launchers.length - 1, Math.max(0, from + laneShift));
+          // 바지선 불꽃은 바지선 줄로만, 나이아가라는 다리 줄로만 옮긴다.
+          const at = launchers[lane].kind === launchers[from].kind ? launchers[lane].id : orig.at;
+          draft.cues[i] = { ...orig, t: round3(Math.max(0, orig.t + dt)), at };
         }
       });
       this.canvas.style.cursor = 'grabbing';
@@ -332,6 +367,11 @@ export class Timeline {
   }
 
   private onUp(e: PointerEvent): void {
+    this.pointers.delete(e.pointerId);
+    if (this.pinch) {
+      this.updatePinch();
+      return;
+    }
     const d = this.drag;
     this.drag = null;
     if (this.canvas.hasPointerCapture(e.pointerId)) this.canvas.releasePointerCapture(e.pointerId);
@@ -344,9 +384,12 @@ export class Timeline {
         ed.select([]);
         return;
       }
-      ed.addCue(ed.snapTime(this.t(x)), ed.show.launchers[d.lane].id);
+      if (!ed.addCue(ed.snapTime(this.t(x)), ed.show.launchers[d.lane].id)) this.onReject?.();
     }
   }
+
+  /** 그 줄에 놓을 수 없는 불꽃이었을 때 */
+  onReject?: () => void;
 
   private onWheel(e: WheelEvent): void {
     e.preventDefault();
@@ -358,6 +401,14 @@ export class Timeline {
       this.scroll = Math.max(0, this.scroll + delta / this.pps);
     }
   }
+}
+
+function clipLabel(cue: Cue): string {
+  const name = typeLabel(cue.type);
+  if (cue.type === 'lancework') return `「${cue.text ?? ''}」 ${cue.len ?? 10}초`;
+  if (cue.type === 'niagara') return `${name} ${cue.len ?? 8}초`;
+  if (cue.type === 'cake') return `${name} ×${cue.shots ?? CAKE_DEFAULTS.shots}`;
+  return `${name} ${cue.size}${cue.fan ? ` ×${cue.fan.count}` : ''}`;
 }
 
 function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {

@@ -23,6 +23,7 @@
       <div class="group transport">
         <button type="button" id="play" class="primary" aria-label="재생">▶</button>
         <output id="clock" aria-label="재생 위치">0:00.00</output>
+        <button type="button" id="tempo-toggle" aria-expanded="false" aria-controls="tempo">박자</button>
       </div>
 
       <div class="group music">
@@ -31,7 +32,7 @@
         <input type="file" id="music-file" accept="audio/*" hidden />
       </div>
 
-      <div class="group tempo">
+      <div class="group tempo" id="tempo">
         <label for="bpm">BPM</label>
         <input id="bpm" type="number" min="40" max="240" step="0.1" />
         <label for="offset">첫 박</label>

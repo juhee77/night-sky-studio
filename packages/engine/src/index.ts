@@ -8,3 +8,4 @@ export * from './rng.ts';
 export * from './beat.ts';
 export { paintBackdrop, projectPoint } from './render/backdrop.ts';
 export { StageRenderer, type FrameInput } from './render/webgl.ts';
+export * from './text.ts';
