@@ -82,10 +82,21 @@ export interface View {
 
 export function makeView(cam: Camera, width: number, height: number): View {
   const aspect = width / height;
-  const fovY = fitFovY(cam.fovY, aspect);
+  const portrait = aspect < 1;
+  const fovY = fitFovY(cam.fovY, aspect, portrait ? 22 : 30);
   const rad = (fovY * Math.PI) / 180;
+  let target = cam.target;
+  if (portrait) {
+    // 세로 화면은 시야가 위아래로 넓어 빈 하늘이 많아진다.
+    // 화면 위 끝이 올려다본 각도 46도(10호가 터지는 높이 조금 위)에 오게 고개를 내리고,
+    // 남는 아래쪽은 물에 비친 불꽃으로 채운다.
+    const pitch = (46 * Math.PI) / 180 - rad / 2;
+    const dx = target[0] - cam.eye[0];
+    const dz = target[2] - cam.eye[2];
+    target = [target[0], cam.eye[1] + Math.hypot(dx, dz) * Math.tan(pitch), target[2]];
+  }
   return {
-    viewProj: multiply(perspective(rad, aspect), lookAt(cam.eye, cam.target)),
+    viewProj: multiply(perspective(rad, aspect), lookAt(cam.eye, target)),
     pxPerMeter: height / 2 / Math.tan(rad / 2),
     fovY,
   };

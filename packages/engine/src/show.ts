@@ -1,7 +1,7 @@
 // 쇼 파일 규격과, cue를 실제 발사 목록으로 펼치는 일.
 // cue의 t는 터지는 시각이다. 발사 시각은 카탈로그의 상승 시간을 빼서 여기서 계산한다.
 
-import { SHELLS, SIZE_SPECS, type ShellType, type Size } from './catalog.ts';
+import { SHELLS, SIZE_SPECS, visibleLength, type ShellType, type Size } from './catalog.ts';
 import type { ColorName } from './colors.ts';
 import { hash32, hashString } from './rng.ts';
 
@@ -28,9 +28,23 @@ export interface Cue {
   fan?: { count: number; spread: number };
 }
 
+/** 쇼에 쓴 음악. 음악 파일 자체는 쇼에 넣지 않는다. */
+export interface MusicRef {
+  /** 기본 곡은 'basic-1' 같은 id, 내 음악 파일은 'file:' + 파일 지문 */
+  id: string;
+  title: string;
+  bpm: number;
+  /** 첫 박이 오는 시각(초) */
+  offset: number;
+  /** 곡 길이(초). 받은 사람이 같은 파일을 골랐는지 확인하는 데도 쓴다. */
+  duration: number;
+}
+
 export interface Show {
   version: 1;
+  title?: string;
   seed: number;
+  music?: MusicRef;
   venue: {
     preset: string;
     /** dir: 바람이 불어오는 방향(도, 북=0 시계방향), speed: m/s */
@@ -110,11 +124,16 @@ export function expandShow(show: Show): ExpandedShow {
         seed: hash32(base, sub, cue.size),
       });
     }
-    duration = Math.max(duration, cue.t + shell.starLife + 1.5);
+    duration = Math.max(duration, cue.t + visibleLength(cue.type) + 1.5);
   });
 
   launches.sort((a, b) => a.fireAt - b.fireAt || a.cueIndex - b.cueIndex || a.sub - b.sub);
   return { launches, warnings, duration };
+}
+
+/** 발사 한 발을 비교하는 열쇠. 같으면 화면에 같은 불꽃이 나온다. */
+export function launchKey(l: Launch): string {
+  return `${l.fireAt.toFixed(5)}|${l.seed}|${l.type}|${l.size}|${l.angle}|${l.colors.join(',')}|${l.origin.join(',')}`;
 }
 
 /** 바람이 불어 가는 쪽의 속도 벡터(m/s) */

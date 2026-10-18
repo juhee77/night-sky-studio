@@ -5,5 +5,6 @@ export * from './sim.ts';
 export * from './camera.ts';
 export * from './venues.ts';
 export * from './rng.ts';
+export * from './beat.ts';
 export { paintBackdrop, projectPoint } from './render/backdrop.ts';
 export { StageRenderer, type FrameInput } from './render/webgl.ts';

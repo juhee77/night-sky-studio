@@ -3,6 +3,8 @@
 
 export type Size = 3 | 5 | 7 | 10;
 
+export const SIZES: Size[] = [3, 5, 7, 10];
+
 export interface SizeSpec {
   /** 터지는 높이(m) */
   height: number;
@@ -20,15 +22,19 @@ export const SIZE_SPECS: Record<Size, SizeSpec> = {
   10: { height: 330, spread: 320, prefire: 6 },
 };
 
-export type ShellType = 'chrysanthemum' | 'peony' | 'willow';
+export type ShellType = 'chrysanthemum' | 'peony' | 'willow' | 'palm' | 'ring' | 'crossette' | 'heart';
 
-export type Tail = 'none' | 'spark' | 'willow';
+/** 별을 처음에 어떻게 흩뿌리는가 */
+export type Pattern = 'sphere' | 'ring' | 'palm' | 'heart';
+
+export type Tail = 'none' | 'spark' | 'willow' | 'palm';
 
 export interface ShellSpec {
   label: string;
+  pattern: Pattern;
   /** 5호 기준 별 개수 */
   starsAt5: number;
-  /** 별이 사는 시간(초) */
+  /** 별이 사는 시간(초). 크로세트는 갈라지기까지의 시간 */
   starLife: number;
   /** 공기 저항(1/s). 클수록 빨리 멈추고 천천히 떨어진다. */
   drag: number;
@@ -41,44 +47,50 @@ export interface ShellSpec {
   ember: boolean;
   /** 사라지기 전에 반짝이는가 */
   glitter: boolean;
+  /** 날아가다 십자로 갈라지는가 */
+  split: boolean;
 }
 
 export const SHELLS: Record<ShellType, ShellSpec> = {
   chrysanthemum: {
-    label: '국화',
-    starsAt5: 110,
-    starLife: 2.1,
-    drag: 1.6,
-    spreadScale: 1,
-    starSize: 5,
-    tail: 'spark',
-    ember: true,
-    glitter: true,
+    label: '국화', pattern: 'sphere', starsAt5: 110, starLife: 2.1, drag: 1.6, spreadScale: 1,
+    starSize: 5, tail: 'spark', ember: true, glitter: true, split: false,
   },
   peony: {
-    label: '모란',
-    starsAt5: 140,
-    starLife: 1.5,
-    drag: 1.8,
-    spreadScale: 0.95,
-    starSize: 5.5,
-    tail: 'none',
-    ember: false,
-    glitter: false,
+    label: '모란', pattern: 'sphere', starsAt5: 140, starLife: 1.5, drag: 1.8, spreadScale: 0.95,
+    starSize: 5.5, tail: 'none', ember: false, glitter: false, split: false,
   },
   willow: {
-    label: '버들',
-    starsAt5: 70,
-    starLife: 4.5,
-    drag: 0.9,
-    spreadScale: 0.75,
-    starSize: 3.2,
-    tail: 'willow',
-    ember: true,
-    glitter: false,
+    label: '버들', pattern: 'sphere', starsAt5: 70, starLife: 4.5, drag: 0.9, spreadScale: 0.75,
+    starSize: 3.2, tail: 'willow', ember: true, glitter: false, split: false,
+  },
+  palm: {
+    label: '야자', pattern: 'palm', starsAt5: 10, starLife: 2.6, drag: 1.0, spreadScale: 0.85,
+    starSize: 7, tail: 'palm', ember: true, glitter: false, split: false,
+  },
+  ring: {
+    label: '링', pattern: 'ring', starsAt5: 64, starLife: 1.6, drag: 1.8, spreadScale: 0.9,
+    starSize: 5.5, tail: 'none', ember: false, glitter: false, split: false,
+  },
+  crossette: {
+    label: '크로세트', pattern: 'sphere', starsAt5: 18, starLife: 0.9, drag: 1.2, spreadScale: 0.55,
+    starSize: 5, tail: 'spark', ember: false, glitter: false, split: true,
+  },
+  heart: {
+    label: '하트', pattern: 'heart', starsAt5: 52, starLife: 1.7, drag: 1.8, spreadScale: 0.8,
+    starSize: 5.5, tail: 'none', ember: false, glitter: false, split: false,
   },
 };
 
+export const SHELL_TYPES = Object.keys(SHELLS) as ShellType[];
+
 export function starCount(type: ShellType, size: Size): number {
-  return Math.round(SHELLS[type].starsAt5 * Math.pow(size / 5, 1.1));
+  const exp = SHELLS[type].pattern === 'sphere' ? 1.1 : 0.5;
+  return Math.max(6, Math.round(SHELLS[type].starsAt5 * Math.pow(size / 5, exp)));
+}
+
+/** 시간표에 그릴 불꽃 길이(초): 터진 뒤 눈에 보이는 시간 */
+export function visibleLength(type: ShellType): number {
+  const s = SHELLS[type];
+  return s.split ? s.starLife + 1.1 : s.starLife;
 }

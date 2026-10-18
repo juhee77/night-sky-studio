@@ -64,6 +64,45 @@ test('뒤로 감았다가 다시 와도 같은 화면이 나온다', () => {
   assert.equal(a.stateHash(), before);
 });
 
+test('저장점에서 되감아도 처음부터 계산한 것과 같다', () => {
+  const fresh = new Simulation(show);
+  fresh.advanceTo(9.5);
+  const a = new Simulation(show);
+  a.advanceTo(14); // 저장점이 2초마다 생긴다
+  a.advanceTo(9.5);
+  assert.equal(a.stateHash(), fresh.stateHash());
+});
+
+test('쇼를 고치면 고친 곳 이후만 다시 계산하고, 결과는 새로 계산한 것과 같다', () => {
+  const edited: Show = {
+    ...show,
+    cues: [...show.cues.slice(0, 3), { t: 9.0, at: 'barge-2', type: 'heart', size: 5, colors: ['pink'] }],
+  };
+  const a = new Simulation(show);
+  a.advanceTo(12);
+  a.setShow(edited);
+  // 하트는 5초에 쏘므로 그 이전 저장점(4초)으로 돌아가 있어야 한다.
+  assert.ok(a.step * STEP <= 5, `step ${a.step}`);
+  a.advanceTo(12);
+  const b = new Simulation(edited);
+  b.advanceTo(12);
+  assert.equal(a.stateHash(), b.stateHash());
+});
+
+test('새 불꽃 종류도 터지고 크로세트는 갈라진다', () => {
+  const types = ['palm', 'ring', 'crossette', 'heart'] as const;
+  for (const type of types) {
+    const s = new Simulation({ ...show, cues: [{ t: 4, at: 'barge-1', type, size: 5 }] });
+    s.advanceTo(4.5);
+    assert.ok(s.pool.count > 6, `${type}: ${s.pool.count}`);
+  }
+  const c = new Simulation({ ...show, cues: [{ t: 4, at: 'barge-1', type: 'crossette', size: 5 }] });
+  c.advanceTo(4.8);
+  const before = c.pool.count;
+  c.advanceTo(5.3);
+  assert.ok(c.pool.count > before, '갈라진 뒤 입자가 늘어야 한다');
+});
+
 test('다른 cue를 지워도 남은 불꽃의 모양은 그대로다', () => {
   const a = new Simulation(show);
   const b = new Simulation({ ...show, cues: show.cues.filter((_, i) => i !== 3) });
