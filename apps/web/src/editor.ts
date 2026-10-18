@@ -3,6 +3,7 @@
 import {
   CAKE_DEFAULTS,
   LEN_DEFAULTS,
+  VENUES,
   launcherKindFor,
   type CakePattern,
   type ColorName,
@@ -246,33 +247,43 @@ export function launcherLabel(l: Launcher, index: number): string {
   return '지상 틀';
 }
 
-export function newShow(title: string): Show {
+export function newShow(title: string, venueId = 'river-bridge-city'): Show {
+  const venue = VENUES[venueId] ?? VENUES['river-bridge-city'];
   return {
     version: 1,
     title,
     seed: Math.floor(Math.random() * 1e9),
     music: { id: 'basic-1', title: '밤하늘 행진', bpm: 112, offset: 0, duration: 61.5 },
-    venue: { preset: 'river-bridge-city', wind: { dir: 250, speed: 2 } },
+    venue: { preset: venue.id, wind: { dir: 250, speed: 2 } },
     seat: { id: 'front-near' },
-    launchers: [
-      { id: 'barge-1', kind: 'barge', pos: [-220, 0, 0] },
-      { id: 'barge-2', kind: 'barge', pos: [0, 0, -80] },
-      { id: 'barge-3', kind: 'barge', pos: [220, 0, 60] },
-      ...DEFAULT_SPECIAL_LAUNCHERS,
-    ],
+    launchers: structuredClone(venue.launchers),
     cues: [],
   };
 }
 
-/** 강변 도시 무대의 다리(나이아가라)와 물 위 지상 틀 */
-export const DEFAULT_SPECIAL_LAUNCHERS: Launcher[] = [
-  { id: 'bridge', kind: 'bridge', pos: [0, 18, 258], from: [-500, 18, 258], to: [500, 18, 258] },
-  { id: 'ground', kind: 'frame', pos: [0, 0, -330] },
-];
-
-/** 예전에 만든 쇼에 다리와 지상 틀 줄이 없으면 더한다. */
+/** 예전에 만든 쇼에 다리와 지상 틀 줄이 없으면 그 무대의 기본 위치로 더한다. */
 export function withDefaultLaunchers(show: Show): Show {
-  if (show.venue.preset !== 'river-bridge-city') return show;
-  const missing = DEFAULT_SPECIAL_LAUNCHERS.filter((d) => !show.launchers.some((l) => l.kind === d.kind));
+  const venue = VENUES[show.venue.preset];
+  if (!venue) return show;
+  const missing = venue.launchers.filter((d) => d.kind !== 'barge' && !show.launchers.some((l) => l.kind === d.kind));
   return missing.length ? { ...show, launchers: [...show.launchers, ...structuredClone(missing)] } : show;
+}
+
+/**
+ * 쇼를 다른 무대로 옮긴다. 발사 위치는 새 무대의 기본 위치로 바꾸고,
+ * 새 무대에 없는 바지선에 놓인 불꽃은 번호가 가장 가까운 바지선으로 옮긴다.
+ */
+export function moveToVenue(d: Show, venueId: string): void {
+  const venue = VENUES[venueId];
+  if (!venue) return;
+  d.venue = { ...d.venue, preset: venueId };
+  d.launchers = structuredClone(venue.launchers);
+  const ids = new Set(d.launchers.map((l) => l.id));
+  const bargeCount = d.launchers.filter((l) => l.kind === 'barge').length;
+  for (const c of d.cues) {
+    if (ids.has(c.at)) continue;
+    const n = Number(c.at.match(/^barge-(\d+)$/)?.[1] ?? 1);
+    c.at = `barge-${Math.min(Math.max(1, n), bargeCount)}`;
+  }
+  if (!d.seat || !venue.seats[d.seat.id]) d.seat = { id: 'front-near' };
 }

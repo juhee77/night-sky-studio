@@ -19,7 +19,7 @@ import {
 } from '@nss/engine';
 import { Career } from './career.ts';
 import { demoShow } from './demo-show.ts';
-import { Editor, newShow, round3, withDefaultLaunchers, type Snap } from './editor.ts';
+import { Editor, moveToVenue, newShow, round3, withDefaultLaunchers, type Snap } from './editor.ts';
 import { fmtDate, fmtTime } from './format.ts';
 import { importMusicFile, loadMusic, monoForTempo, useDeviceFontForFrames } from './media.ts';
 import { Office } from './office.ts';
@@ -94,6 +94,7 @@ const el = {
   autoLimits: $<HTMLParagraphElement>('auto-limits'),
   autoReplace: $<HTMLParagraphElement>('auto-replace'),
   autoRun: $<HTMLButtonElement>('auto-run'),
+  venue: $<HTMLSelectElement>('venue'),
 };
 
 let toastTimer = 0;
@@ -199,6 +200,7 @@ editor.on((c) => {
   syncTempoInputs();
   // 의뢰 쇼는 의뢰 곡을 바꿀 수 없다.
   el.music.disabled = !!editor.show.commission;
+  syncVenueInputs();
   el.music.title = editor.show.commission ? '의뢰 곡은 바꿀 수 없습니다' : '';
   el.saveState.textContent = '저장 중…';
   clearTimeout(saveTimer);
@@ -368,7 +370,31 @@ el.sound.addEventListener('click', () => {
   el.sound.textContent = transport.soundOn ? '효과음 켜짐' : '효과음 꺼짐';
 });
 
-for (const [id, seat] of Object.entries(VENUES[editor.show.venue.preset].seats)) el.seat.add(new Option(seat.label, id));
+// ── 무대와 관람석 ──
+for (const v of Object.values(VENUES)) el.venue.add(new Option(`${v.label} (${v.place})`, v.id));
+
+/** 무대에 맞게 관람석 목록을 다시 채운다. */
+function syncVenueInputs(): void {
+  const venue = VENUES[editor.show.venue.preset] ?? VENUES['river-bridge-city'];
+  el.venue.value = venue.id;
+  // 의뢰 쇼는 의뢰받은 무대에서만 한다.
+  el.venue.disabled = !!editor.show.commission;
+  if (el.seat.dataset.venue !== venue.id) {
+    el.seat.innerHTML = '';
+    for (const [id, seat] of Object.entries(venue.seats)) el.seat.add(new Option(seat.label, id));
+    el.seat.dataset.venue = venue.id;
+  }
+  el.seat.value = venue.seats[seatId()] ? seatId() : 'front-near';
+  if (stage.seatId !== el.seat.value) stage.setSeat(el.seat.value);
+}
+
+el.venue.addEventListener('change', () => {
+  const id = el.venue.value;
+  editor.change((d) => moveToVenue(d, id));
+  const v = VENUES[id];
+  say(`무대를 「${v.label}」(${v.place})로 옮겼습니다. 발사 위치도 이 무대에 맞게 바뀌었습니다.`);
+});
+
 el.seat.addEventListener('change', () => {
   const id = el.seat.value;
   editor.change((d) => (d.seat = { id }));
@@ -580,7 +606,6 @@ async function openShow(id: string, loaded: Show): Promise<void> {
   if (transport.playing) togglePlay();
   transport.seek(0);
   editor.load(id, show);
-  el.seat.value = seatId();
   el.title.value = show.title ?? '';
   rememberLastShow(id);
   stage.load(show);

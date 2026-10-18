@@ -11,6 +11,7 @@ import {
   paintBackdrop,
   projectPoint,
   soundDelay,
+  waterSpan,
   type Launch,
   type Launcher,
   type Marker,
@@ -121,7 +122,7 @@ export class Stage {
       eye: this.seat.eye,
       skyLight: this.sim.skyLight,
       reflection: !this.seat.plan,
-      shore: [venue.nearShoreZ, venue.farShoreZ],
+      shore: waterSpan(venue),
     });
     this.watchSpeed(playing);
   }

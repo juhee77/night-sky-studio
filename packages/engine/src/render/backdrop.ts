@@ -4,7 +4,7 @@
 import { NEAR, toClip, type Mat4 } from '../camera.ts';
 import { mulberry32 } from '../rng.ts';
 import type { Vec3 } from '../show.ts';
-import type { Venue } from '../venues.ts';
+import type { BridgeShape, Venue } from '../venues.ts';
 
 type Ctx = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
@@ -14,6 +14,7 @@ const WATER = '#080b20';
 const GROUND = '#04050b';
 const BUILDING = '#06070f';
 const BRIDGE = '#0c0e22';
+const CABLE = 'rgba(120, 130, 190, 0.35)';
 const WINDOW = 'rgba(255, 196, 120, 0.35)';
 
 /** 사각형(또는 다각형)을 카메라 앞쪽만 남기고 잘라서 칠한다. */
@@ -42,6 +43,50 @@ function fillWorld(ctx: Ctx, m: Mat4, pts: Vec3[], w: number, h: number, color: 
   ctx.closePath();
   ctx.fillStyle = color;
   ctx.fill();
+}
+
+/** 두 점을 잇는 띠 (세계 좌표에서 두께 thick m, 다리 쪽 z면 위에) */
+function band(ctx: Ctx, m: Mat4, w: number, h: number, a: Vec3, b: Vec3, thick: number, color: string): void {
+  fillWorld(ctx, m, [a, b, [b[0], b[1] + thick, b[2]], [a[0], a[1] + thick, a[2]]], w, h, color);
+}
+
+function drawBridge(ctx: Ctx, m: Mat4, w: number, h: number, br: BridgeShape): void {
+  const { z, deckY } = br;
+  if (br.kind === 'girder') {
+    for (const x of br.piers) fillWorld(ctx, m, [[x - 3, 0, z], [x + 3, 0, z], [x + 3, deckY, z], [x - 3, deckY, z]], w, h, BRIDGE);
+    band(ctx, m, w, h, [br.x0, deckY, z], [br.x1, deckY, z], 5, BRIDGE);
+    return;
+  }
+  if (br.kind === 'arch') {
+    // 양 끝 돌 기둥, 상판, 그 위로 크게 휜 아치와 아치에서 상판으로 내려오는 줄
+    const half = br.span / 2;
+    for (const x of [-half - 30, half + 10]) fillWorld(ctx, m, [[x, 0, z], [x + 20, 0, z], [x + 20, deckY + 40, z], [x, deckY + 40, z]], w, h, BRIDGE);
+    band(ctx, m, w, h, [br.x0, deckY, z], [br.x1, deckY, z], 6, BRIDGE);
+    const arch = (x: number) => deckY + br.rise * 1.6 * (1 - (x / half) ** 2) - 10;
+    const step = 20;
+    for (let x = -half; x < half; x += step) {
+      band(ctx, m, w, h, [x, arch(x), z], [x + step, arch(x + step), z], 9, BRIDGE);
+      if (x > -half && Math.abs(x) < half * 0.85) fillWorld(ctx, m, [[x - 0.8, deckY, z], [x + 0.8, deckY, z], [x + 0.8, arch(x), z], [x - 0.8, arch(x), z]], w, h, BRIDGE);
+    }
+    return;
+  }
+  // 현수교: 주탑, 상판, 주탑 사이와 바깥으로 늘어진 케이블, 케이블에서 내려오는 줄
+  const [t0, t1] = br.towers;
+  const top = deckY + br.towerH;
+  for (const x of br.towers) fillWorld(ctx, m, [[x - 6, 0, z], [x + 6, 0, z], [x + 6, top, z], [x - 6, top, z]], w, h, BRIDGE);
+  band(ctx, m, w, h, [br.x0, deckY, z], [br.x1, deckY, z], 5, BRIDGE);
+  const mid = (t0 + t1) / 2;
+  const halfSpan = (t1 - t0) / 2;
+  const sag = (x: number) => {
+    if (x >= t0 && x <= t1) return deckY + 6 + (br.towerH - 6) * ((x - mid) / halfSpan) ** 2;
+    const out = x < t0 ? t0 - x : x - t1;
+    return Math.max(deckY + 2, top - out * 0.25);
+  };
+  const step = 25;
+  for (let x = t0 - 450; x < t1 + 450; x += step) {
+    band(ctx, m, w, h, [x, sag(x), z], [x + step, sag(x + step), z], 1.6, CABLE);
+    if (Math.abs(x - t0) > 10 && Math.abs(x - t1) > 10) fillWorld(ctx, m, [[x - 0.4, deckY, z], [x + 0.4, deckY, z], [x + 0.4, sag(x), z], [x - 0.4, sag(x), z]], w, h, CABLE);
+  }
 }
 
 /** 세계의 한 점이 화면 어디에 오는지 (카메라 뒤면 null) */
@@ -83,8 +128,15 @@ export function paintBackdrop(
     fillWorld(ctx, m, [[-X, cloud, -1500], [X, cloud, -1500], [X, cloud, 6000], [-X, cloud, 6000]], w, h, 'rgba(52, 56, 92, 0.72)');
     fillWorld(ctx, m, [[-X, cloud - 25, -1500], [X, cloud - 25, -1500], [X, cloud - 25, 6000], [-X, cloud - 25, 6000]], w, h, 'rgba(52, 56, 92, 0.25)');
   }
-  fillWorld(ctx, m, [[-X, 0, venue.farShoreZ], [X, 0, venue.farShoreZ], [X, 0, 5000], [-X, 0, 5000]], w, h, GROUND);
-  fillWorld(ctx, m, [[-X, 0, venue.nearShoreZ], [X, 0, venue.nearShoreZ], [X, 0, venue.farShoreZ], [-X, 0, venue.farShoreZ]], w, h, WATER);
+  const far = venue.farShoreZ ?? 9000;
+  if (venue.farShoreZ !== null) {
+    fillWorld(ctx, m, [[-X, 0, far], [X, 0, far], [X, 0, 5000], [-X, 0, 5000]], w, h, GROUND);
+  }
+  fillWorld(ctx, m, [[-X, 0, venue.nearShoreZ], [X, 0, venue.nearShoreZ], [X, 0, far], [-X, 0, far]], w, h, WATER);
+  if (venue.farShoreZ === null) {
+    // 수평선: 바다 끝이 하늘과 만나는 곳을 조금 밝게
+    fillWorld(ctx, m, [[-X * 3, 0, 8800], [X * 3, 0, 8800], [X * 3, 6, 8800], [-X * 3, 6, 8800]], w, h, 'rgba(70, 76, 130, 0.5)');
+  }
 
   // 멀리 있는 줄부터 그려야 가까운 건물이 앞을 가린다.
   const buildings = [...venue.buildings].sort((a, b) => b.z - a.z);
@@ -95,17 +147,9 @@ export function paintBackdrop(
     }
   }
 
-  const br = venue.bridge;
-  for (const x of br.piers) {
-    fillWorld(ctx, m, [[x - 3, 0, br.z], [x + 3, 0, br.z], [x + 3, br.deckY, br.z], [x - 3, br.deckY, br.z]], w, h, BRIDGE);
-  }
-  fillWorld(
-    ctx, m,
-    [[-2000, br.deckY, br.z], [2000, br.deckY, br.z], [2000, br.deckY + br.deckThickness, br.z], [-2000, br.deckY + br.deckThickness, br.z]],
-    w, h, BRIDGE,
-  );
+  drawBridge(ctx, m, w, h, venue.bridge);
 
-  fillWorld(ctx, m, [[-X, 0, -5000], [X, 0, -5000], [X, 0, venue.nearShoreZ], [-X, 0, venue.nearShoreZ]], w, h, GROUND);
+  fillWorld(ctx, m, [[-X, 0, -5000], [X, 0, -5000], [X, 0, venue.nearShoreZ], [-X, 0, venue.nearShoreZ]], w, h, venue.nearGround);
 
   // 발사 위치 표시 (위에서 보기)
   const scale = Math.max(1, h / 700);
