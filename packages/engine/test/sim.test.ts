@@ -157,7 +157,7 @@ test('틀불꽃은 글자 모양의 심지에 왼쪽부터 불이 붙는다', ()
   s.advanceTo(1.05);
   const lances = s.pool.count;
   assert.ok(lances > 20, `심지 ${lances}`);
-  const out = new Float32Array((s.pool.capacity + 256) * 8);
+  const out = new Float32Array((s.pool.capacity + 512) * 8);
   const n = s.writeRender(out);
   let lit = 0;
   for (let i = 0; i < n; i++) if (out[i * 8 + 7] > 0) lit++;

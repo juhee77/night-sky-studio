@@ -2,6 +2,7 @@
 // 편집기와 상영관(공유 링크로 보는 화면)이 같이 쓴다.
 
 import {
+  RENDER_EXTRA,
   RENDER_STRIDE,
   Simulation,
   StageRenderer,
@@ -43,7 +44,7 @@ export class Stage {
     this.canvas = canvas;
     this.renderer = new StageRenderer(canvas);
     this.sim = new Simulation(show);
-    this.buffer = new Float32Array((this.sim.pool.capacity + 256) * RENDER_STRIDE);
+    this.buffer = new Float32Array((this.sim.pool.capacity + RENDER_EXTRA) * RENDER_STRIDE);
     this.seatId = show.seat?.id ?? 'front-near';
     new ResizeObserver(() => this.layout()).observe(canvas);
   }
@@ -63,7 +64,8 @@ export class Stage {
 
   /** 쇼를 바꾼다. 같은 쇼를 고친 것이면 고친 곳 이후만 다시 계산한다. */
   setShow(show: Show): void {
-    const launchersChanged = JSON.stringify(show.launchers) !== JSON.stringify(this.sim.show.launchers);
+    const launchersChanged =
+      JSON.stringify(show.launchers) !== JSON.stringify(this.sim.show.launchers) || show.venue.cloud !== this.sim.show.venue.cloud;
     this.sim.setShow(show);
     if (launchersChanged) this.backdropKey = '';
   }
@@ -71,7 +73,7 @@ export class Stage {
   /** 다른 쇼를 처음부터 연다. */
   load(show: Show): void {
     this.sim = new Simulation(show, { density: this.sim.density });
-    this.buffer = new Float32Array((this.sim.pool.capacity + 256) * RENDER_STRIDE);
+    this.buffer = new Float32Array((this.sim.pool.capacity + RENDER_EXTRA) * RENDER_STRIDE);
     this.seatId = show.seat?.id ?? this.seatId;
     this.backdropKey = '';
     this.layout();
@@ -81,7 +83,7 @@ export class Stage {
     const show = this.sim.show;
     const t = this.sim.time;
     this.sim = new Simulation(show, { density });
-    this.buffer = new Float32Array((this.sim.pool.capacity + 256) * RENDER_STRIDE);
+    this.buffer = new Float32Array((this.sim.pool.capacity + RENDER_EXTRA) * RENDER_STRIDE);
     this.sim.advanceTo(t);
     this.backdropKey = '';
     this.layout();
@@ -102,7 +104,7 @@ export class Stage {
     const markers: Marker[] = this.seat.plan
       ? this.sim.show.launchers.map((l, i) => ({ pos: l.pos, label: launcherLabel(l, i), from: l.from, to: l.to }))
       : [];
-    paintBackdrop(this.backdrop.getContext('2d')!, w, h, this.view.viewProj, this.venue, markers);
+    paintBackdrop(this.backdrop.getContext('2d')!, w, h, this.view.viewProj, this.venue, markers, this.sim.show.venue.cloud);
     this.renderer.setBackdrop(this.backdrop);
   }
 

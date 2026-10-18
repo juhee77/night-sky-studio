@@ -1,7 +1,7 @@
 // 재생 시계와 소리. 화면의 시각은 오디오 시계를 따른다.
 // 그래야 음악과 불꽃이 어긋나지 않는다 (블루투스 이어폰 지연도 빼서 맞춘다).
 
-import { mulberry32, type Launch, type Size } from '@nss/engine';
+import { mulberry32, type CrowdCue, type Launch, type Size } from '@nss/engine';
 
 const LOOKAHEAD = 0.25;
 
@@ -19,6 +19,8 @@ export class Transport {
   soundOn = true;
   /** 관람석 거리만큼 소리를 늦춘다 (감상할 때만). null이면 늦추지 않는다. */
   delayFor: ((l: Launch) => number) | null = null;
+  /** 관객 함성과 박수 (감상할 때만). null이면 내지 않는다. */
+  crowd: CrowdCue[] | null = null;
   /** 재생을 시작한 오디오 시계 시각 */
   private startCtx = 0;
   /** 재생을 시작한 쇼 시각 */
@@ -130,6 +132,12 @@ export class Transport {
         if (fires) this.thump(this.toCtx(l.fireAt + d), count, fade);
       }
     }
+    for (const c of this.crowd ?? []) {
+      if (c.t >= from && c.t < to) {
+        if (c.kind === 'cheer') this.cheer(this.toCtx(c.t), c.level);
+        else this.applause(this.toCtx(c.t));
+      }
+    }
     this.scheduledUntil = to;
     const now = this.ctx.currentTime;
     this.scheduled = this.scheduled.filter((s) => s.end > now);
@@ -178,6 +186,60 @@ export class Transport {
     o.start(when);
     o.stop(when + 0.18);
     this.track(o, when + 0.18);
+  }
+
+  /** 관객 함성: 사람 목소리 높이의 잡음이 부풀었다 가라앉는다. */
+  private cheer(when: number, level: number): void {
+    const ctx = this.ctx!;
+    if (when < ctx.currentTime) return;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise;
+    src.loop = true;
+    const low = ctx.createBiquadFilter();
+    low.type = 'bandpass';
+    low.frequency.value = 650;
+    low.Q.value = 1.2;
+    const high = ctx.createBiquadFilter();
+    high.type = 'bandpass';
+    high.frequency.value = 1500;
+    high.Q.value = 1.4;
+    const g = ctx.createGain();
+    const peak = 0.05 + 0.13 * level;
+    const len = 1.6 + level;
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.linearRampToValueAtTime(peak, when + 0.35);
+    g.gain.setTargetAtTime(0.0001, when + 0.6, len / 3);
+    src.connect(low).connect(g);
+    src.connect(high).connect(g);
+    g.connect(this.sfx!);
+    src.start(when, (when * 3.1) % 1);
+    src.stop(when + len + 1);
+    this.track(src, when + len + 1);
+  }
+
+  /** 박수: 짧은 손뼉 소리를 무작위 간격으로 4초 동안 */
+  private applause(when: number): void {
+    const ctx = this.ctx!;
+    if (when < ctx.currentTime) return;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise;
+    src.loop = true;
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 2200;
+    f.Q.value = 0.8;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, when);
+    const rnd = mulberry32(Math.floor(when * 1000));
+    for (let t = 0; t < 4; t += 0.02 + rnd() * 0.03) {
+      const fade = t < 0.5 ? t / 0.5 : t > 3 ? (4 - t) : 1;
+      g.gain.setValueAtTime(0.16 * fade * (0.4 + rnd() * 0.6), when + t);
+      g.gain.setValueAtTime(0.0, when + t + 0.012);
+    }
+    src.connect(f).connect(g).connect(this.sfx!);
+    src.start(when);
+    src.stop(when + 4.1);
+    this.track(src, when + 4.1);
   }
 
   /** 나이아가라는 쏴아 하는 소리, 틀불꽃은 타닥거리는 소리를 len초 동안 낸다. */

@@ -12,6 +12,7 @@ import {
   type Size,
 } from './catalog.ts';
 import type { ColorName } from './colors.ts';
+import type { Commission } from './commission.ts';
 import { hash32, hashString } from './rng.ts';
 
 /** 무대 원점 기준 미터 [동, 높이, 북] */
@@ -72,10 +73,14 @@ export interface Show {
     preset: string;
     /** dir: 바람이 불어오는 방향(도, 북=0 시계방향), speed: m/s */
     wind?: { dir: number; speed: number };
+    /** 구름 바닥 높이(m). 이보다 높이 터지는 불꽃은 구름에 묻힌다. */
+    cloud?: number;
   };
   seat?: { id: string };
   launchers: Launcher[];
   cues: Cue[];
+  /** 의뢰 모드에서 받은 의뢰 (공유 링크에는 넣지 않는다) */
+  commission?: Commission;
 }
 
 /** cue 하나를 펼친 실제 발사 한 발 (케이크는 한 발마다 하나, 부채꼴도 한 발마다 하나) */

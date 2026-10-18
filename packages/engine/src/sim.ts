@@ -14,6 +14,7 @@ import {
   type ShowWarning,
   type Vec3,
 } from './show.ts';
+import { SMOKE_LIFE, analyzeSmoke, puffAt, type Puff } from './smoke.ts';
 import { textShape } from './text.ts';
 
 /** 고정 계산 간격(초) */
@@ -31,6 +32,9 @@ export const FLAG_LANCE = 256; // 지상 틀불꽃의 심지 하나. 제자리�
 
 /** 렌더 버퍼에서 입자 하나가 차지하는 float 개수: x, y, z, 크기(m), r, g, b, a */
 export const RENDER_STRIDE = 8;
+/** 입자 말고 더 그리는 것(올라가는 알, 연기)을 위한 여유 칸 */
+export const RENDER_EXTRA = 512;
+const MAX_PUFFS = 300;
 
 /** 이 스텝마다 중간 저장점을 남긴다 (2초) */
 const CHECKPOINT_EVERY = 240;
@@ -226,6 +230,9 @@ export class Simulation {
   private curtains: Curtain[] = [];
   private wind: Vec3;
   private checkpoints = new Map<number, Checkpoint>();
+  /** 연기 덩어리들과, 연기에 가려 흐리게 터지는 발사들 */
+  private puffs: Puff[] = [];
+  private obscured = new Set<string>();
 
   constructor(show: Show, options: SimOptions = {}) {
     this.show = show;
@@ -236,6 +243,14 @@ export class Simulation {
     this.density = Math.min(1, Math.max(0.25, options.density ?? 1));
     this.pool = new ParticlePool(Math.round(45000 * this.density) + 2000);
     this.wind = windVector(show);
+    this.updateSmoke();
+  }
+
+  /** 연기는 터지는 순서와 바람만으로 정해지므로 쇼가 바뀔 때 미리 계산해 둔다. */
+  private updateSmoke(): void {
+    const smoke = analyzeSmoke(this.launches, this.wind);
+    this.puffs = smoke.puffs.filter((p) => p.d0 >= 0.5);
+    this.obscured = new Set([...smoke.obscured].map(launchKey));
   }
 
   get time(): number {
@@ -290,6 +305,7 @@ export class Simulation {
     this.warnings = expanded.warnings;
     this.duration = expanded.duration;
     this.wind = windVector(show);
+    this.updateSmoke();
     if (from === Infinity) return;
 
     // 저장점 s는 스텝 s-1까지 쏜 불꽃만 담고 있다.
@@ -464,6 +480,8 @@ export class Simulation {
     const damp = Math.exp(-shell.drag * STEP);
     const dirs = starDirections(shell.pattern, n, l.seed);
 
+    // 앞 불꽃의 연기 속에서 터지면 흐리게 보인다.
+    const dim = this.obscured.has(launchKey(l)) ? 0.45 : 1;
     let flags = 0;
     if (shell.tail === 'spark') flags |= FLAG_SPARK_TAIL;
     if (shell.tail === 'willow') flags |= FLAG_WILLOW_TAIL;
@@ -484,7 +502,7 @@ export class Simulation {
         at[0], at[1], at[2],
         dx * speed, dy * speed, dz * speed,
         shell.starLife * (shell.split ? 0.95 + rand01(s, 5) * 0.1 : 0.9 + rand01(s, 5) * 0.2),
-        rgb[0], rgb[1], rgb[2],
+        rgb[0] * dim, rgb[1] * dim, rgb[2] * dim,
         shell.starSize, damp, 9.8, flags, s,
       );
     }
@@ -628,10 +646,11 @@ export class Simulation {
 
   /**
    * 그릴 입자를 out에 채우고 개수를 돌려준다. 밝기와 색 변화도 여기서 정한다.
-   * out은 (pool.capacity + 256) * RENDER_STRIDE 이상이어야 한다.
+   * out은 (pool.capacity + RENDER_EXTRA) * RENDER_STRIDE 이상이어야 한다.
    */
   writeRender(out: Float32Array): number {
     const p = this.pool;
+    const cloud = this.show.venue.cloud ?? Infinity;
     let k = 0;
     for (let i = 0; i < p.count; i++) {
       const age = p.age[i];
@@ -671,6 +690,9 @@ export class Simulation {
         }
       }
 
+      // 구름 속은 빛이 퍼져 거의 보이지 않는다.
+      if (p.py[i] > cloud) a *= 0.12;
+
       out[k++] = p.px[i];
       out[k++] = p.py[i];
       out[k++] = p.pz[i];
@@ -681,6 +703,27 @@ export class Simulation {
       out[k++] = a;
     }
 
+    // 연기: 불꽃 빛을 받아 희미하게 보이는 덩어리
+    const now = this.time;
+    let shown = 0;
+    for (let i = this.puffs.length - 1; i >= 0 && shown < MAX_PUFFS; i--) {
+      const puff = this.puffs[i];
+      if (puff.t > now) continue;
+      if (now - puff.t > SMOKE_LIFE) break;
+      const at = puffAt(puff, now, this.wind);
+      if (at.density < 0.03) continue;
+      const lit = 0.12 + Math.min(0.5, (this.skyLight[0] + this.skyLight[1] + this.skyLight[2]) * 0.6);
+      out[k++] = at.pos[0];
+      out[k++] = at.pos[1];
+      out[k++] = at.pos[2];
+      out[k++] = at.r * 1.6;
+      out[k++] = lit;
+      out[k++] = lit;
+      out[k++] = lit * 1.2;
+      out[k++] = at.density * 0.16 * (at.pos[1] > cloud ? 0.2 : 1);
+      shown++;
+    }
+
     for (const s of this.rising) {
       out[k++] = s.pos[0];
       out[k++] = s.pos[1];
@@ -689,7 +732,7 @@ export class Simulation {
       out[k++] = HEAD_RGB[0];
       out[k++] = HEAD_RGB[1];
       out[k++] = HEAD_RGB[2];
-      out[k++] = 1;
+      out[k++] = s.pos[1] > cloud ? 0.12 : 1;
     }
     return k / RENDER_STRIDE;
   }

@@ -186,6 +186,70 @@ dialog::backdrop { background: rgba(5, 6, 15, 0.6); }
   z-index: 10;
 }
 
+/* ── 의뢰 막대 ── */
+.commission-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--line);
+  background: #17142c;
+  font-size: 13px;
+}
+.commission-bar .tag { font-size: 11px; font-weight: 700; color: var(--accent-ink); background: var(--accent); padding: 1px 8px; border-radius: 999px; }
+.commission-bar .title { font-weight: 700; }
+.commission-bar .budget { display: flex; align-items: center; gap: 6px; }
+.meter { display: inline-block; width: 90px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--accent); }
+.budget.over .meter i { background: var(--danger); }
+.budget.over .num { color: var(--danger); }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.checks { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.checks li.ok { color: #9fe3a8; }
+.checks li.no { color: #ffb4ad; }
+.commission-bar .actions { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.commission-bar .delivered { color: #f5c451; font-weight: 700; }
+.lock { font-size: 10px; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 0 4px; margin-left: 2px; }
+
+/* ── 의뢰소와 채점 결과 ── */
+dialog.wide-dialog { width: min(760px, calc(100% - 32px)); max-height: min(88vh, 900px); }
+.board-body h3 { margin: 18px 0 8px; font-size: 14px; color: var(--muted); }
+.ledger { display: flex; flex-wrap: wrap; gap: 8px 24px; padding: 12px 14px; border-radius: 12px; background: var(--night); border: 1px solid var(--line); }
+.ledger div { display: flex; align-items: baseline; gap: 6px; }
+.ledger b { font-size: 18px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-bottom: 8px; }
+.commission-card { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 12px; background: var(--night); border: 1px solid var(--line); min-width: 0; }
+.commission-card.tier-1 { border-color: rgba(125, 216, 238, 0.45); }
+.commission-card.tier-2 { border-color: rgba(245, 196, 81, 0.6); }
+.commission-card header { display: flex; flex-direction: column; }
+.commission-card h4 { margin: 0; font-size: 15px; }
+.commission-card .quote { margin: 0; font-size: 13px; color: var(--ink); line-height: 1.6; }
+.commission-card .rules { margin: 0; padding-left: 1.1em; font-size: 12px; color: var(--muted); }
+.facts { margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; font-size: 12px; }
+.facts div { display: flex; gap: 6px; min-width: 0; }
+.facts .wide { grid-column: 1 / -1; }
+.facts dt { color: var(--muted); white-space: nowrap; }
+.facts dd { margin: 0; }
+.commission-card button { margin-top: auto; }
+.shop, .history { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.shop li, .history li { display: flex; align-items: center; gap: 12px; padding: 6px 10px; border-radius: 8px; background: var(--night); }
+.shop li span:first-child, .history li span:first-child { flex: 1; min-width: 0; }
+.stars { color: #f5c451; letter-spacing: 1px; }
+.stars.big { font-size: 28px; }
+.result-body h2 { margin: 0 0 8px; font-size: 16px; }
+.verdict { display: flex; align-items: baseline; gap: 12px; margin: 4px 0 12px; }
+.verdict b { font-size: 24px; }
+.verdict.fail { color: #ffb4ad; font-weight: 700; }
+.score-items { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.score-items li { display: grid; grid-template-columns: 90px 1fr 36px; align-items: center; gap: 4px 10px; }
+.score-items .meter { width: 100%; }
+.score-items .note { grid-column: 2 / -1; }
+.rule-results { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.rule-results .ok { color: #9fe3a8; }
+.rule-results .no { color: #ffb4ad; }
+.money { font-weight: 700; margin: 8px 0; }
+
 /* ── 공유 ── */
 .share-link { width: 100%; margin: 12px 0; font: 500 12px var(--mono); }
 .sr-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }

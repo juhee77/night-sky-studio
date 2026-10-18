@@ -3,6 +3,7 @@
 import './style.css';
 import {
   VENUES,
+  audienceCues,
   detectTempo,
   encodeShow,
   launcherKindFor,
@@ -11,10 +12,12 @@ import {
   type Launch,
   type Show,
 } from '@nss/engine';
+import { Career } from './career.ts';
 import { demoShow } from './demo-show.ts';
 import { Editor, newShow, round3, withDefaultLaunchers, type Snap } from './editor.ts';
 import { fmtDate, fmtTime } from './format.ts';
 import { importMusicFile, loadMusic, monoForTempo, useDeviceFontForFrames } from './media.ts';
+import { Office } from './office.ts';
 import { Panel } from './panel.ts';
 import { Stage } from './stage.ts';
 import {
@@ -76,6 +79,7 @@ const el = {
   shareCopy: $<HTMLButtonElement>('share-copy'),
   shareNative: $<HTMLButtonElement>('share-native'),
   shareInfo: $<HTMLParagraphElement>('share-info'),
+  officeBtn: $<HTMLButtonElement>('office-btn'),
 };
 
 let toastTimer = 0;
@@ -119,12 +123,32 @@ function placeNow(lane: number): void {
   const l = editor.show.launchers[lane];
   if (!l) return;
   const t = editor.snapTime(transport.time);
-  if (!editor.addCue(t, l.id)) rejectPlacement();
+  const res = editor.addCue(t, l.id);
+  if (res !== true) rejectPlacement(res);
 }
 
-function rejectPlacement(): void {
-  say('나이아가라는 다리 줄에, 지상 틀불꽃은 지상 틀 줄에 놓습니다. 바지선 줄에는 하늘 불꽃과 케이크를 놓으세요.');
+function rejectPlacement(why: 'kind' | 'locked'): void {
+  say(
+    why === 'locked'
+      ? '이 의뢰에서는 아직 해금하지 않은 불꽃입니다. 「의뢰소」에서 해금하세요.'
+      : '나이아가라는 다리 줄에, 지상 틀불꽃은 지상 틀 줄에 놓습니다. 바지선 줄에는 하늘 불꽃과 케이크를 놓으세요.',
+  );
 }
+
+// ── 의뢰소 ──
+const career = new Career();
+const office = new Office(editor, career, {
+  openShow: (id, show) => openShow(id, show),
+  saveNewShow: async (show) => {
+    const id = newId();
+    await putShow({ id, updatedAt: Date.now(), show });
+    return id;
+  },
+  say,
+  watch: () => startWatching(),
+});
+editor.allowType = (t) => !office.isLocked(t);
+el.officeBtn.addEventListener('click', () => office.openBoard());
 
 // ── 시간표와 설정 칸 ──
 const timeline: Timeline = new Timeline(el.timeline, editor, {
@@ -135,7 +159,7 @@ const timeline: Timeline = new Timeline(el.timeline, editor, {
   musicDuration: () => musicBuffer?.duration ?? 0,
   warnings: () => warnIdx,
 });
-new Panel(el.panel, editor);
+new Panel(el.panel, editor, office.isLocked);
 timeline.onReject = rejectPlacement;
 
 el.snap.addEventListener('change', () => (editor.snap = el.snap.value as Snap));
@@ -159,6 +183,9 @@ editor.on((c) => {
   el.redo.disabled = !editor.canRedo;
   if (document.activeElement !== el.title) el.title.value = editor.show.title ?? '';
   syncTempoInputs();
+  // 의뢰 쇼는 의뢰 곡을 바꿀 수 없다.
+  el.music.disabled = !!editor.show.commission;
+  el.music.title = editor.show.commission ? '의뢰 곡은 바꿀 수 없습니다' : '';
   el.saveState.textContent = '저장 중…';
   clearTimeout(saveTimer);
   saveTimer = window.setTimeout(save, 600);
@@ -342,6 +369,7 @@ function startWatching(): void {
     // 휴대폰처럼 전체 화면이 안 되면 화면 안에서만 가득 채운다.
   });
   transport.delayFor = stage.soundDelay;
+  transport.crowd = audienceCues(stage.sim.launches);
   if (transport.playing) togglePlay();
   transport.seek(0);
   togglePlay();
@@ -352,6 +380,7 @@ function stopWatching(): void {
   document.body.classList.remove('watching');
   if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
   transport.delayFor = null;
+  transport.crowd = null;
   if (transport.playing) togglePlay();
 }
 
@@ -397,7 +426,7 @@ const typing = (t: EventTarget | null) =>
   t instanceof HTMLInputElement || t instanceof HTMLSelectElement || t instanceof HTMLTextAreaElement;
 
 document.addEventListener('keydown', (e) => {
-  if (typing(e.target) || el.dialog.open || el.shareDialog.open) return;
+  if (typing(e.target) || document.querySelector('dialog[open]')) return;
   if (document.body.classList.contains('watching')) {
     if (e.code === 'Space') {
       e.preventDefault();

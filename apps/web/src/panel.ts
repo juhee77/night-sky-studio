@@ -34,9 +34,11 @@ export class Panel {
   private title: HTMLElement;
   private body: HTMLElement;
   private editor: Editor;
+  private isLocked: (t: FireworkType) => boolean;
 
-  constructor(root: HTMLElement, editor: Editor) {
+  constructor(root: HTMLElement, editor: Editor, isLocked: (t: FireworkType) => boolean = () => false) {
     this.editor = editor;
+    this.isLocked = isLocked;
     root.innerHTML = `<h2 id="panel-title"></h2><div class="panel-body"></div>`;
     this.title = root.querySelector('#panel-title')!;
     this.body = root.querySelector('.panel-body')!;
@@ -88,8 +90,10 @@ export class Panel {
     // 선택한 불꽃이 있으면, 그 발사 위치에 놓을 수 있는 종류만 고를 수 있다.
     const kind = n ? ed.selectionKind : null;
     const typeButtons = FIREWORK_TYPES.map((t) => {
-      const allowed = !n || (kind !== null && launcherKindFor(t) === kind);
-      return `<button type="button" data-type="${t}" aria-pressed="${t === v.type}" ${allowed ? '' : 'disabled'}>${typeLabel(t)}</button>`;
+      const locked = this.isLocked(t);
+      const allowed = !locked && (!n || (kind !== null && launcherKindFor(t) === kind));
+      const title = locked ? ' title="의뢰소에서 해금하면 쓸 수 있습니다"' : '';
+      return `<button type="button" data-type="${t}" aria-pressed="${t === v.type}" ${allowed ? '' : 'disabled'}${title}>${typeLabel(t)}${locked ? ' <span class="lock">잠김</span>' : ''}</button>`;
     }).join('');
 
     const isSpecial = v.type === 'niagara' || v.type === 'lancework';

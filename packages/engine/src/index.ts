@@ -11,3 +11,7 @@ export { StageRenderer, type FrameInput } from './render/webgl.ts';
 export * from './text.ts';
 export * from './share.ts';
 export * from './sound.ts';
+export * from './smoke.ts';
+export * from './commission.ts';
+export * from './score.ts';
+export * from './audience.ts';

@@ -16,6 +16,7 @@
     <header class="topbar">
       <div class="group show-name">
         <button type="button" id="shows-btn">내 쇼</button>
+        <button type="button" id="office-btn">의뢰소</button>
         <input id="title" aria-label="쇼 제목" maxlength="60" />
         <span id="save-state" class="save-state" role="status">저장됨</span>
         <button type="button" id="watch" title="무대만 화면 가득 띄워 처음부터 봅니다">감상</button>
@@ -64,6 +65,7 @@
     </main>
 
     <section class="timeline-wrap" aria-label="시간표">
+      <div class="commission-bar" id="commission-bar" hidden></div>
       <div class="timeline-tools">
         <label for="snap">박자에 붙이기</label>
         <select id="snap">
@@ -110,6 +112,18 @@
         <button type="button" id="share-native">다른 앱으로 보내기</button>
       </div>
       <p id="share-info" class="note"></p>
+    </dialog>
+
+    <dialog id="board-dialog" class="wide-dialog" aria-labelledby="board-title">
+      <form method="dialog" class="dialog-head">
+        <h2 id="board-title">의뢰소</h2>
+        <button value="close" aria-label="닫기">닫기</button>
+      </form>
+      <div class="board-body"></div>
+    </dialog>
+
+    <dialog id="result-dialog" class="wide-dialog" aria-labelledby="result-title">
+      <div class="result-body"></div>
     </dialog>
 
     <p class="toast" id="toast" role="status" hidden></p>

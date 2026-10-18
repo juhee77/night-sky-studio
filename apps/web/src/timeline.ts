@@ -384,12 +384,13 @@ export class Timeline {
         ed.select([]);
         return;
       }
-      if (!ed.addCue(ed.snapTime(this.t(x)), ed.show.launchers[d.lane].id)) this.onReject?.();
+      const res = ed.addCue(ed.snapTime(this.t(x)), ed.show.launchers[d.lane].id);
+      if (res !== true) this.onReject?.(res);
     }
   }
 
-  /** 그 줄에 놓을 수 없는 불꽃이었을 때 */
-  onReject?: () => void;
+  /** 놓지 못했을 때 (그 줄에 놓을 수 없는 종류이거나, 해금하지 않은 불꽃) */
+  onReject?: (why: 'kind' | 'locked') => void;
 
   private onWheel(e: WheelEvent): void {
     e.preventDefault();

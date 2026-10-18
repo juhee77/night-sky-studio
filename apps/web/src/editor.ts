@@ -45,6 +45,8 @@ export class Editor {
     len: LEN_DEFAULTS.niagara, text: '밤하늘',
   };
   snap: Snap = 'beat';
+  /** 쓸 수 있는 불꽃인지 (의뢰 쇼에서 해금하지 않은 불꽃은 못 쓴다) */
+  allowType: (t: FireworkType) => boolean = () => true;
 
   private undoStack: string[] = [];
   private redoStack: string[] = [];
@@ -161,16 +163,17 @@ export class Editor {
 
   /**
    * 설정대로 새 불꽃 하나를 놓고 선택한다. 다리 줄에는 나이아가라, 지상 틀 줄에는 틀불꽃이 놓인다.
-   * 바지선 줄에 나이아가라·틀불꽃을 놓으려 하면 놓지 않고 false를 돌려준다.
+   * 놓지 못하면 까닭을 돌려준다: 'kind'는 그 줄에 놓을 수 없는 종류, 'locked'는 해금하지 않은 불꽃.
    */
-  addCue(t: number, launcherId: string): boolean {
+  addCue(t: number, launcherId: string): true | 'kind' | 'locked' {
     const launcher = this.show.launchers.find((l) => l.id === launcherId);
-    if (!launcher) return false;
+    if (!launcher) return 'kind';
     const tpl = this.template;
     let type: FireworkType = tpl.type;
     if (launcher.kind === 'bridge') type = 'niagara';
     else if (launcher.kind === 'frame') type = 'lancework';
-    else if (launcherKindFor(type) !== 'barge') return false;
+    else if (launcherKindFor(type) !== 'barge') return 'kind';
+    if (!this.allowType(type)) return 'locked';
 
     const cue: Cue = { t: round3(Math.max(0, t)), at: launcherId, type, size: tpl.size, colors: [...tpl.colors] };
     if (type === 'niagara' || type === 'lancework') {

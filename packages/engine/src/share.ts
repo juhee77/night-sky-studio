@@ -17,7 +17,7 @@ interface Packed {
   seed: number;
   ti?: string;
   mu?: [string, string, number, number, number];
-  ve: [string, number?, number?];
+  ve: [string, number?, number?, number?];
   se?: string;
   la: (string | number)[][];
   /** 터지는 시각 차이(ms), 발사 위치 번호, 종류 번호, 크기, 색 글자 */
@@ -56,7 +56,8 @@ export function packShow(show: Show): Packed {
     const m = show.music;
     p.mu = [m.id, m.title, round(m.bpm, 2), round(m.offset), round(m.duration, 2)];
   }
-  if (show.venue.wind) p.ve.push(round(show.venue.wind.dir, 1), round(show.venue.wind.speed, 2));
+  p.ve.push(round(show.venue.wind?.dir ?? 0, 1), round(show.venue.wind?.speed ?? 0, 2));
+  if (show.venue.cloud) p.ve.push(Math.round(show.venue.cloud));
   if (show.seat) p.se = show.seat.id;
 
   let prev = 0;
@@ -128,7 +129,8 @@ export function unpackShow(p: Packed): Show {
     const [id, title, bpm, offset, duration] = p.mu;
     show.music = { id, title, bpm, offset, duration };
   }
-  if (p.ve[1] !== undefined && p.ve[2] !== undefined) show.venue.wind = { dir: p.ve[1], speed: p.ve[2] };
+  if (p.ve[1] !== undefined && p.ve[2] !== undefined && (p.ve[1] || p.ve[2])) show.venue.wind = { dir: p.ve[1], speed: p.ve[2] };
+  if (p.ve[3]) show.venue.cloud = p.ve[3];
   if (p.se) show.seat = { id: p.se };
   return show;
 }

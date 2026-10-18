@@ -1,7 +1,7 @@
 // 상영관: 공유 링크(#s=...)로 받은 쇼를 본다. 편집 기능은 없고, 원하면 내 쇼로 가져가 고칠 수 있다.
 
 import './viewer.css';
-import { VENUES, decodeShow, type Launch, type Show } from '@nss/engine';
+import { VENUES, audienceCues, decodeShow, type Launch, type Show } from '@nss/engine';
 import { fmtTime } from './format.ts';
 import { importMusicFile, loadMusic, useDeviceFontForFrames } from './media.ts';
 import { Stage } from './stage.ts';
@@ -158,6 +158,7 @@ el.start.addEventListener('click', () => {
   el.bar.hidden = false;
   el.scrub.max = duration.toFixed(2);
   transport.delayFor = stage.soundDelay;
+  transport.crowd = audienceCues(stage.sim.launches);
   transport.seek(0);
   setPlaying(true);
   poke();

@@ -60,7 +60,9 @@ export interface Marker {
   from?: Vec3;
 }
 
-export function paintBackdrop(ctx: Ctx, w: number, h: number, m: Mat4, venue: Venue, markers: Marker[] = []): void {
+export function paintBackdrop(
+  ctx: Ctx, w: number, h: number, m: Mat4, venue: Venue, markers: Marker[] = [], cloud?: number,
+): void {
   const sky = ctx.createLinearGradient(0, 0, 0, h);
   sky.addColorStop(0, SKY_TOP);
   sky.addColorStop(0.8, SKY_HORIZON);
@@ -76,6 +78,11 @@ export function paintBackdrop(ctx: Ctx, w: number, h: number, m: Mat4, venue: Ve
   }
 
   const X = 6000;
+  // 낮게 깔린 구름: 하늘을 덮는 천장. 이보다 높이 터지는 불꽃은 구름 속에 묻힌다.
+  if (cloud) {
+    fillWorld(ctx, m, [[-X, cloud, -1500], [X, cloud, -1500], [X, cloud, 6000], [-X, cloud, 6000]], w, h, 'rgba(52, 56, 92, 0.72)');
+    fillWorld(ctx, m, [[-X, cloud - 25, -1500], [X, cloud - 25, -1500], [X, cloud - 25, 6000], [-X, cloud - 25, 6000]], w, h, 'rgba(52, 56, 92, 0.25)');
+  }
   fillWorld(ctx, m, [[-X, 0, venue.farShoreZ], [X, 0, venue.farShoreZ], [X, 0, 5000], [-X, 0, 5000]], w, h, GROUND);
   fillWorld(ctx, m, [[-X, 0, venue.nearShoreZ], [X, 0, venue.nearShoreZ], [X, 0, venue.farShoreZ], [-X, 0, venue.farShoreZ]], w, h, WATER);
 
