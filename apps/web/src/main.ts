@@ -24,6 +24,7 @@ import { fmtDate, fmtTime } from './format.ts';
 import { importMusicFile, loadMusic, monoForTempo, useDeviceFontForFrames } from './media.ts';
 import { Office } from './office.ts';
 import { Panel } from './panel.ts';
+import { longExposure } from './capture.ts';
 import { CAMERA_SEATS, Stage } from './stage.ts';
 import {
   deleteShow,
@@ -95,6 +96,15 @@ const el = {
   autoReplace: $<HTMLParagraphElement>('auto-replace'),
   autoRun: $<HTMLButtonElement>('auto-run'),
   venue: $<HTMLSelectElement>('venue'),
+  photoBtn: $<HTMLButtonElement>('photo-btn'),
+  photoDialog: $<HTMLDialogElement>('photo-dialog'),
+  photoFrom: $<HTMLSpanElement>('photo-from'),
+  photoShutter: $<HTMLDivElement>('photo-shutter'),
+  photoProgress: $<HTMLProgressElement>('photo-progress'),
+  photoPreview: $<HTMLImageElement>('photo-preview'),
+  photoShoot: $<HTMLButtonElement>('photo-shoot'),
+  photoSave: $<HTMLButtonElement>('photo-save'),
+  photoShare: $<HTMLButtonElement>('photo-share'),
 };
 
 let toastTimer = 0;
@@ -504,6 +514,61 @@ el.autoRun.addEventListener('click', () => {
   transport.seek(0);
   timeline.scroll = 0;
   say(`불꽃 ${cues.length}개를 놓았습니다. ▶ 재생해 보고, 마음에 안 들면 「자동 연출」을 다시 누르면 다른 쇼가 나옵니다.`);
+});
+
+// ── 장노출 사진 ──
+let shutter = 4;
+let photoBlob: Blob | null = null;
+el.photoBtn.addEventListener('click', () => {
+  if (transport.playing) togglePlay();
+  el.photoFrom.textContent = `지금 재생 위치(${fmtTime(transport.time).replace(/\.\d+$/, '')})부터 찍습니다. 시간표에서 위치를 옮긴 뒤 찍어도 됩니다.`;
+  el.photoDialog.showModal();
+});
+el.photoShutter.querySelectorAll<HTMLButtonElement>('[data-sec]').forEach((b) =>
+  b.addEventListener('click', () => {
+    shutter = Number(b.dataset.sec);
+    el.photoShutter.querySelectorAll('[data-sec]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  }),
+);
+el.photoShoot.addEventListener('click', async () => {
+  el.photoShoot.disabled = true;
+  el.photoProgress.hidden = false;
+  el.photoProgress.value = 0;
+  try {
+    const t0 = transport.time;
+    photoBlob = await longExposure(
+      { show: editor.show, venue: stage.venue, camera: (t) => stage.cameraAt(t), width: 1920, height: 1080 },
+      t0,
+      shutter,
+      (p) => (el.photoProgress.value = p),
+    );
+    if (el.photoPreview.src) URL.revokeObjectURL(el.photoPreview.src);
+    el.photoPreview.src = URL.createObjectURL(photoBlob);
+    el.photoPreview.hidden = false;
+    el.photoSave.hidden = false;
+    const file = new File([photoBlob], 'photo.png', { type: 'image/png' });
+    el.photoShare.hidden = !navigator.canShare?.({ files: [file] });
+  } catch (err) {
+    say(`사진을 찍지 못했습니다. ${(err as Error).message}`);
+  } finally {
+    el.photoShoot.disabled = false;
+    el.photoShoot.textContent = '다시 찍기';
+    el.photoProgress.hidden = true;
+  }
+});
+const photoName = () => `${(editor.show.title || '밤하늘').replace(/[\\/:*?"<>|]/g, '_')}-장노출.png`;
+el.photoSave.addEventListener('click', () => {
+  if (!photoBlob) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(photoBlob);
+  a.download = photoName();
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+el.photoShare.addEventListener('click', () => {
+  if (!photoBlob) return;
+  const file = new File([photoBlob], photoName(), { type: 'image/png' });
+  void navigator.share?.({ files: [file], title: editor.show.title ?? '밤하늘 연출실' }).catch(() => {});
 });
 
 // ── 공유 링크 ──

@@ -108,8 +108,14 @@ export class StageRenderer {
   private capacityFloats = 0;
   private readonly u: Record<string, WebGLUniformLocation | null>;
 
-  constructor(canvas: HTMLCanvasElement) {
-    const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, powerPreference: 'high-performance' });
+  /** preserve: 그린 화면을 다음 프레임까지 남긴다 (사진·영상처럼 그린 뒤 바로 복사할 때) */
+  constructor(canvas: HTMLCanvasElement | OffscreenCanvas, options: { preserve?: boolean } = {}) {
+    const gl = canvas.getContext('webgl2', {
+      antialias: false,
+      alpha: false,
+      powerPreference: 'high-performance',
+      preserveDrawingBuffer: options.preserve ?? false,
+    }) as WebGL2RenderingContext | null;
     if (!gl) throw new Error('이 브라우저에서는 WebGL2를 쓸 수 없습니다.');
     this.gl = gl;
     this.pointProg = compile(gl, POINT_VS, POINT_FS);

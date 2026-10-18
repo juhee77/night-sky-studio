@@ -256,6 +256,13 @@ dialog.wide-dialog { width: min(760px, calc(100% - 32px)); max-height: min(88vh,
 .auto-form .chips button[aria-pressed='true'] { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 700; }
 .warn-text { color: #ffb4ad; }
 
+/* ── 장노출 사진 ── */
+#photo-dialog { width: min(720px, calc(100% - 32px)); }
+#photo-dialog .field { margin: 12px 0; }
+#photo-shutter button[aria-pressed='true'] { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 700; }
+#photo-progress { width: 100%; accent-color: var(--accent); }
+.photo-preview { display: block; width: 100%; height: auto; border-radius: 10px; margin: 10px 0; border: 1px solid var(--line); }
+
 /* ── 공유 ── */
 .share-link { width: 100%; margin: 12px 0; font: 500 12px var(--mono); }
 .sr-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }

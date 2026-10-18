@@ -79,6 +79,12 @@ export class Stage {
     return this.venue.seats[this.seatId] ?? Object.values(this.venue.seats)[0];
   }
 
+  /** t초일 때의 카메라 (날아다니기는 시각마다 다르다) */
+  cameraAt(t: number): Seat {
+    if (this.seatId === 'fly') return { label: '날아다니기', ...this.flyCamera(t), fovY: 55 };
+    return this.seat;
+  }
+
   /** 움직이는 카메라인가 (배경을 매 프레임 다시 그린다) */
   get moving(): boolean {
     return this.seatId === 'fly' || (this.seatId === 'free' && this.dragging);
