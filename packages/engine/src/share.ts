@@ -3,8 +3,9 @@
 // JSON으로 만든 뒤 deflate로 압축하고, 주소에 쓸 수 있는 base64로 바꾼다.
 // 음악 파일은 넣지 않는다. 곡 이름과 길이만 넣어서 받는 사람이 같은 파일을 고를 수 있게 한다.
 
-import { FIREWORK_TYPES, type FireworkType, type Size } from './catalog.ts';
+import { ALL_TYPES, type FireworkType, type Size } from './catalog.ts';
 import { COLOR_NAMES, type ColorName } from './colors.ts';
+import { normalizeShell, type CustomShell } from './custom.ts';
 import type { CakePattern, Cue, Launcher, Show } from './show.ts';
 import { SKY_IDS } from './weather.ts';
 
@@ -30,6 +31,8 @@ interface Packed {
   co: string[];
   /** 기본값이 아닌 값만: [불꽃 번호, 이름, 값] */
   ex: [number, string, number | string][];
+  /** 이 쇼에 쓴 내 불꽃 정의 */
+  cs?: CustomShell[];
 }
 
 const round = (x: number, d = 3) => Math.round(x * 10 ** d) / 10 ** d;
@@ -69,7 +72,7 @@ export function packShow(show: Show): Packed {
     p.dt.push(ms - prev);
     prev = ms;
     p.at.push(launcherIndex.get(c.at) ?? 0);
-    p.ty.push(FIREWORK_TYPES.indexOf(c.type));
+    p.ty.push(ALL_TYPES.indexOf(c.type));
     p.sz.push(c.size);
     p.co.push((c.colors ?? []).map((n) => COLOR_CODES[COLOR_NAMES.indexOf(n)]).join(''));
     if (c.angle) p.ex.push([i, 'a', c.angle]);
@@ -79,7 +82,12 @@ export function packShow(show: Show): Packed {
     if (c.pattern) p.ex.push([i, 'p', PATTERNS.indexOf(c.pattern)]);
     if (c.len !== undefined) p.ex.push([i, 'l', c.len]);
     if (c.text !== undefined) p.ex.push([i, 't', c.text]);
+    if (c.custom !== undefined) p.ex.push([i, 'c', c.custom]);
   });
+  // 실제로 쓴 내 불꽃만 담는다.
+  const used = new Set(cues.map((c) => c.custom).filter(Boolean));
+  const shells = Object.values(show.customShells ?? {}).filter((s) => used.has(s.id));
+  if (shells.length) p.cs = shells;
   return p;
 }
 
@@ -98,7 +106,7 @@ export function unpackShow(p: Packed): Show {
   let ms = 0;
   for (let i = 0; i < p.dt.length; i++) {
     ms += p.dt[i];
-    const type = FIREWORK_TYPES[p.ty[i]] as FireworkType | undefined;
+    const type = ALL_TYPES[p.ty[i]] as FireworkType | undefined;
     if (!type) throw new Error('알 수 없는 불꽃 종류입니다.');
     const colors = [...(p.co[i] ?? '')]
       .map((ch) => COLOR_NAMES[COLOR_CODES.indexOf(ch)])
@@ -119,6 +127,7 @@ export function unpackShow(p: Packed): Show {
     else if (key === 'p') c.pattern = PATTERNS[num];
     else if (key === 'l') c.len = num;
     else if (key === 't') c.text = String(value).slice(0, 24);
+    else if (key === 'c') c.custom = String(value).slice(0, 24);
   }
   const show: Show = {
     version: 1,
@@ -137,6 +146,7 @@ export function unpackShow(p: Packed): Show {
   if (p.ve[4]) show.venue.sky = SKY_IDS[p.ve[4]];
   if (p.cd) show.countdown = true;
   if (p.se) show.seat = { id: p.se };
+  if (p.cs?.length) show.customShells = Object.fromEntries(p.cs.map((s) => [s.id, normalizeShell(s)]));
   return show;
 }
 
@@ -157,6 +167,22 @@ function fromBase64Url(s: string): Uint8Array {
   const out = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out;
+}
+
+/** 불꽃 코드: 내 불꽃 하나를 친구에게 보낼 수 있는 글자. 앞에 NSS1- 이 붙는다. */
+export async function encodeShellCode(shell: CustomShell): Promise<string> {
+  const json = new TextEncoder().encode(JSON.stringify(shell));
+  return `NSS1-${toBase64Url(await pipe(json, new CompressionStream('deflate-raw')))}`;
+}
+
+export async function decodeShellCode(code: string): Promise<CustomShell> {
+  const body = code.trim().replace(/^NSS1-/, '');
+  try {
+    const json = new TextDecoder().decode(await pipe(fromBase64Url(body), new DecompressionStream('deflate-raw')));
+    return normalizeShell(JSON.parse(json));
+  } catch {
+    throw new Error('불꽃 코드가 아니거나 잘렸습니다.');
+  }
 }
 
 /** 쇼 → 링크에 넣을 글자 */

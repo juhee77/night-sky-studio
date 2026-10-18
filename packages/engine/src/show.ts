@@ -13,6 +13,7 @@ import {
 } from './catalog.ts';
 import type { ColorName } from './colors.ts';
 import type { Commission } from './commission.ts';
+import { customLength, shellKey, type CustomShell } from './custom.ts';
 import type { Sky } from './weather.ts';
 import { hash32, hashString } from './rng.ts';
 
@@ -51,6 +52,8 @@ export interface Cue {
   len?: number;
   /** 틀불꽃 글자 */
   text?: string;
+  /** 내 불꽃: show.customShells의 id */
+  custom?: string;
 }
 
 /** 쇼에 쓴 음악. 음악 파일 자체는 쇼에 넣지 않는다. */
@@ -86,6 +89,8 @@ export interface Show {
   cues: Cue[];
   /** 의뢰 모드에서 받은 의뢰 (공유 링크에는 넣지 않는다) */
   commission?: Commission;
+  /** 이 쇼에 쓴 내 불꽃 정의 (공유 링크에 같이 담는다) */
+  customShells?: Record<string, CustomShell>;
 }
 
 /** cue 하나를 펼친 실제 발사 한 발 (케이크는 한 발마다 하나, 부채꼴도 한 발마다 하나) */
@@ -105,6 +110,9 @@ export interface Launch {
   /** 나이아가라를 거는 다리 양 끝 */
   span?: [Vec3, Vec3];
   text?: string;
+  /** 내 불꽃 정의와 그 지문 */
+  customDef?: CustomShell;
+  customKey?: string;
 }
 
 export interface ShowWarning {
@@ -133,7 +141,11 @@ export function cuePrefire(cue: Pick<Cue, 'type' | 'size'>): number {
 }
 
 /** 시간표에 그릴 길이: 터지기 시작해서 눈에 보이는 동안 */
-export function cueLength(cue: Cue): number {
+export function cueLength(cue: Cue, shells?: Record<string, CustomShell>): number {
+  if (cue.type === 'custom') {
+    const def = cue.custom ? shells?.[cue.custom] : undefined;
+    return def ? customLength(def) : visibleLength('custom');
+  }
   if (cue.type === 'niagara' || cue.type === 'lancework') return cue.len ?? LEN_DEFAULTS[cue.type];
   if (cue.type === 'cake') {
     const shots = cue.shots ?? CAKE_DEFAULTS.shots;
@@ -158,9 +170,15 @@ export function expandShow(show: Show): ExpandedShow {
   const warnings: ShowWarning[] = [];
   let duration = 0;
 
+  const keys = new Map<string, string>();
   show.cues.forEach((cue, cueIndex) => {
     const launcher = launchers.get(cue.at);
-    const label = typeLabel(cue.type);
+    const def = cue.type === 'custom' && cue.custom ? show.customShells?.[cue.custom] : undefined;
+    const label = def ? def.name : typeLabel(cue.type);
+    if (cue.type === 'custom' && !def) {
+      warnings.push({ cueIndex, message: `${cueIndex + 1}번째 불꽃(내 불꽃)의 설계가 이 쇼에 없습니다.` });
+      return;
+    }
     if (!launcher) {
       warnings.push({ cueIndex, message: `${cueIndex + 1}번째 불꽃의 발사 위치 "${cue.at}"가 없습니다.` });
       return;
@@ -172,7 +190,12 @@ export function expandShow(show: Show): ExpandedShow {
     // 시드를 cue 순서가 아니라 내용으로 만든다. 다른 cue를 지우거나 끼워 넣어도 이 불꽃 모양은 그대로다.
     const base = hash32(show.seed, Math.round(cue.t * 1000), hashString(cue.at));
     const colors: ColorName[] = cue.colors?.length ? cue.colors : ['gold'];
-    duration = Math.max(duration, cue.t + cueLength(cue) + 1.5);
+    duration = Math.max(duration, cue.t + cueLength(cue, show.customShells) + 1.5);
+    let customKey: string | undefined;
+    if (def) {
+      customKey = keys.get(def.id) ?? shellKey(def);
+      keys.set(def.id, customKey);
+    }
 
     if (cue.type === 'niagara' || cue.type === 'lancework') {
       const from = launcher.from ?? [launcher.pos[0] - 300, launcher.pos[1], launcher.pos[2]];
@@ -230,6 +253,7 @@ export function expandShow(show: Show): ExpandedShow {
         size: cue.size,
         colors,
         seed: hash32(base, sub, cue.size),
+        ...(def ? { customDef: def, customKey } : {}),
       });
     }
   });
@@ -242,7 +266,7 @@ export function expandShow(show: Show): ExpandedShow {
 export function launchKey(l: Launch): string {
   return [
     l.fireAt.toFixed(5), l.seed, l.type, l.size, l.angle, l.colors.join(','), l.origin.join(','),
-    l.len ?? '', l.text ?? '', l.span ? l.span.flat().join(',') : '',
+    l.len ?? '', l.text ?? '', l.span ? l.span.flat().join(',') : '', l.customKey ?? '',
   ].join('|');
 }
 

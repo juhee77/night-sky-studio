@@ -25,7 +25,7 @@ export const SIZE_SPECS: Record<Size, SizeSpec> = {
 /** 하늘로 쏘아 올려 터지는 불꽃. 케이크는 작은 알 여러 발을 차례로 쏜다. */
 export type ShellType =
   | 'chrysanthemum' | 'peony' | 'willow' | 'palm' | 'ring' | 'crossette'
-  | 'heart' | 'star' | 'smile' | 'cake';
+  | 'heart' | 'star' | 'smile' | 'cake' | 'custom';
 
 /** 시간표에 놓을 수 있는 모든 종류: 하늘 불꽃 + 다리 나이아가라 + 지상 틀불꽃 */
 export type FireworkType = ShellType | 'niagara' | 'lancework';
@@ -94,6 +94,11 @@ export const SHELLS: Record<ShellType, ShellSpec> = {
     label: '웃는 얼굴', pattern: 'smile', starsAt5: 56, starLife: 1.7, drag: 1.8, spreadScale: 0.85,
     starSize: 5.5, tail: 'none', ember: false, glitter: false, split: false,
   },
+  // 내 불꽃: 실제 모양은 쇼에 담긴 정의(CustomShell)로 정한다. 여기 값은 정의가 없을 때의 기본값이다.
+  custom: {
+    label: '내 불꽃', pattern: 'sphere', starsAt5: 100, starLife: 2, drag: 1.6, spreadScale: 1,
+    starSize: 5, tail: 'none', ember: false, glitter: false, split: false,
+  },
   // 케이크 한 발. 높이와 지름은 크기표 대신 shellSize()에서 정한다.
   cake: {
     label: '케이크', pattern: 'sphere', starsAt5: 22, starLife: 1.1, drag: 2.2, spreadScale: 1,
@@ -101,10 +106,14 @@ export const SHELLS: Record<ShellType, ShellSpec> = {
   },
 };
 
-export const SHELL_TYPES = Object.keys(SHELLS) as ShellType[];
+/** 기본 상품 (내 불꽃 제외) */
+export const SHELL_TYPES = (Object.keys(SHELLS) as ShellType[]).filter((t) => t !== 'custom');
 
 /** 팔레트에 보여 줄 순서 */
 export const FIREWORK_TYPES: FireworkType[] = [...SHELL_TYPES, 'niagara', 'lancework'];
+
+/** 쇼 파일에 쓸 수 있는 모든 종류 (공유 링크의 번호 순서. 뒤에만 더한다) */
+export const ALL_TYPES: FireworkType[] = [...FIREWORK_TYPES, 'custom'];
 
 const SPECIAL_LABEL = { niagara: '나이아가라', lancework: '지상 틀불꽃' } as const;
 

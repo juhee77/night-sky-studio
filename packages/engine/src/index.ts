@@ -17,3 +17,4 @@ export * from './score.ts';
 export * from './audience.ts';
 export * from './auto.ts';
 export * from './weather.ts';
+export * from './custom.ts';

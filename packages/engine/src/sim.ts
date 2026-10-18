@@ -2,7 +2,8 @@
 // 화면 주사율과 상관없이 STEP 간격으로만 계산한다. 그래서 같은 쇼는 어느 기기에서나 같게 재생된다.
 
 import { SHELLS, shellSize, starCount, type ShellType } from './catalog.ts';
-import { COLORS } from './colors.ts';
+import { COLORS, COLOR_NAMES } from './colors.ts';
+import type { CustomShell } from './custom.ts';
 import { hash32, rand01 } from './rng.ts';
 import {
   expandShow,
@@ -29,6 +30,8 @@ export const FLAG_SPARK = 32; // 꼬리에서 떨어져 나온 불티
 export const FLAG_PALM_TAIL = 64; // 야자: 굵은 줄기 꼬리
 export const FLAG_SPLIT = 128; // 크로세트: 수명이 끝나면 십자로 갈라진다
 export const FLAG_LANCE = 256; // 지상 틀불꽃의 심지 하나. 제자리에서 타오른다
+export const FLAG_STROBE = 512; // 내 불꽃 '깜빡임': 꺼졌다 켜졌다 하며 사라진다
+export const FLAG_SPLIT_BURST = 1024; // 내 불꽃 '두 번 터지기': 갈라질 때 작은 불꽃으로 한 번 더 터진다
 
 /** 렌더 버퍼에서 입자 하나가 차지하는 float 개수: x, y, z, 크기(m), r, g, b, a */
 export const RENDER_STRIDE = 8;
@@ -83,6 +86,8 @@ class ParticlePool {
   readonly grav: Float32Array;
   readonly flags: Uint16Array;
   readonly seed: Uint32Array;
+  /** 색이 바뀌는 별: (바뀌는 때 0~255) << 8 | (바뀐 색 번호 + 1). 0이면 바뀌지 않는다 */
+  readonly aux: Uint32Array;
 
   constructor(capacity: number) {
     this.capacity = capacity;
@@ -103,6 +108,7 @@ class ParticlePool {
     this.grav = f();
     this.flags = new Uint16Array(capacity);
     this.seed = new Uint32Array(capacity);
+    this.aux = new Uint32Array(capacity);
   }
 
   spawn(
@@ -111,10 +117,11 @@ class ParticlePool {
     life: number,
     r: number, g: number, b: number,
     size: number, damp: number, grav: number,
-    flags: number, seed: number,
+    flags: number, seed: number, aux = 0,
   ): boolean {
     const i = this.count;
     if (i >= this.capacity) return false;
+    this.aux[i] = aux;
     this.px[i] = x;
     this.py[i] = y;
     this.pz[i] = z;
@@ -158,6 +165,7 @@ class ParticlePool {
         this.grav[w] = this.grav[i];
         this.flags[w] = this.flags[i];
         this.seed[w] = this.seed[i];
+        this.aux[w] = this.aux[i];
       }
       w++;
     }
@@ -167,13 +175,14 @@ class ParticlePool {
   save(): PoolSnapshot {
     const n = this.count;
     const floats = FLOAT_FIELDS.map((k) => this[k].slice(0, n));
-    return { count: n, floats, flags: this.flags.slice(0, n), seed: this.seed.slice(0, n) };
+    return { count: n, floats, flags: this.flags.slice(0, n), seed: this.seed.slice(0, n), aux: this.aux.slice(0, n) };
   }
 
   load(s: PoolSnapshot): void {
     FLOAT_FIELDS.forEach((k, i) => this[k].set(s.floats[i]));
     this.flags.set(s.flags);
     this.seed.set(s.seed);
+    this.aux.set(s.aux);
     this.count = s.count;
   }
 }
@@ -183,6 +192,7 @@ interface PoolSnapshot {
   floats: Float32Array[];
   flags: Uint16Array;
   seed: Uint32Array;
+  aux: Uint32Array;
 }
 
 /** 올라가는 중인 불꽃 알 */
@@ -471,7 +481,73 @@ export class Simulation {
     });
   }
 
+  /** 내 불꽃: 층마다 모양·별·색·지연을 따로 정해 피운다. */
+  private burstCustom(l: Launch, def: CustomShell, at: Vec3): void {
+    const spec = shellSize('custom', l.size);
+    const radius = (spec.spread / 2) * def.motion.speed;
+    // 별이 오래 살수록 공기 저항을 줄여 너무 일찍 멈추지 않게 한다.
+    const drag = Math.max(0.8, 3.4 / def.motion.life);
+    const damp = Math.exp(-drag * STEP);
+    const grav = 9.8 * (0.25 + 1.75 * def.motion.droop);
+    def.layers.forEach((layer, li) => {
+      const seed = hash32(l.seed, li, 71);
+      let dirs: [number, number, number, number][];
+      if (layer.shape.kind === 'points') {
+        const pts = layer.shape.pts;
+        const max = Math.max(1e-6, ...pts.map(([x, y]) => Math.hypot(x, y)));
+        const [r, u] = planeAxes(seed);
+        dirs = pts.map(([x, y]) => {
+          const nx = x / max;
+          const ny = y / max;
+          const dx = r[0] * nx + u[0] * ny;
+          const dy = r[1] * nx + u[1] * ny;
+          const dz = r[2] * nx + u[2] * ny;
+          const mag = Math.hypot(dx, dy, dz) || 1;
+          return [dx / mag, dy / mag, dz / mag, mag];
+        });
+      } else {
+        const n = Math.max(6, Math.round(layer.shape.count * (layer.shape.kind === 'sphere' ? this.density : 1)));
+        dirs = starDirections(layer.shape.kind, n, seed);
+      }
+      let flags = 0;
+      if (layer.star === 'tail') flags |= FLAG_SPARK_TAIL;
+      if (layer.star === 'willow') flags |= FLAG_WILLOW_TAIL;
+      if (layer.star === 'glitter') flags |= FLAG_GLITTER;
+      if (def.motion.flicker) flags |= FLAG_STROBE;
+      if (def.split) flags |= FLAG_SPLIT | (def.split.into === 'burst' ? FLAG_SPLIT_BURST : 0);
+      const rgb = COLORS[layer.color];
+      const aux = layer.then ? (Math.round(layer.then.at * 255) << 8) | (COLOR_NAMES.indexOf(layer.then.color) + 1) : 0;
+      const life = def.split ? def.split.after : def.motion.life;
+      const precise = layer.shape.kind !== 'sphere';
+      for (let i = 0; i < dirs.length; i++) {
+        const s = hash32(seed, i, 11);
+        const [dx, dy, dz, mag] = dirs[i];
+        const jitter = precise ? 0.03 : 0.14;
+        const speed = drag * radius * layer.scale * mag * (1 - jitter / 2 + rand01(s, 4) * jitter);
+        const ok = this.pool.spawn(
+          at[0], at[1], at[2],
+          dx * speed, dy * speed, dz * speed,
+          life * (precise ? 1 : 0.9 + rand01(s, 5) * 0.2),
+          rgb[0], rgb[1], rgb[2],
+          layer.star === 'dot' ? 5.5 : 4.5, damp, grav, flags, s, aux,
+        );
+        // 늦게 피는 층: 나이를 음수로 두면 그때까지 보이지도 움직이지도 않는다.
+        if (ok && layer.delay > 0) this.pool.age[this.pool.count - 1] = -layer.delay;
+      }
+    });
+    const first = COLORS[def.layers[0]?.color ?? 'gold'];
+    this.pool.spawn(at[0], at[1], at[2], 0, 0, 0, 0.16, 1, 0.92, 0.8, spec.spread * 0.45, 1, 0, FLAG_FLASH, l.seed);
+    const light = (spec.spread / 320) * 0.35;
+    this.skyLight[0] += first[0] * light;
+    this.skyLight[1] += first[1] * light;
+    this.skyLight[2] += first[2] * light;
+  }
+
   private burst(l: Launch & { type: ShellType }, at: Vec3): void {
+    if (l.customDef) {
+      this.burstCustom(l, l.customDef, at);
+      return;
+    }
     const shell = SHELLS[l.type];
     const spec = shellSize(l.type, l.size);
     const pool = this.pool;
@@ -518,9 +594,26 @@ export class Simulation {
     this.skyLight[2] += first[2] * light;
   }
 
-  /** 크로세트 별 하나가 진행 방향에 수직인 네 갈래로 갈라진다. */
+  /** 크로세트 별 하나가 진행 방향에 수직인 네 갈래로 갈라진다. 두 번 터지기는 작은 불꽃으로 터진다. */
   private split(i: number): void {
     const p = this.pool;
+    if (p.flags[i] & FLAG_SPLIT_BURST) {
+      // 작게 한 번 더: 그 자리에서 작은 별 여섯 개가 사방으로
+      for (let k = 0; k < 6; k++) {
+        const s = hash32(p.seed[i], k, 17);
+        const a = (k / 6) * Math.PI * 2 + rand01(s) * 0.4;
+        const e = (rand01(s, 1) - 0.5) * 1.2;
+        const sp = 18 + rand01(s, 2) * 6;
+        p.spawn(
+          p.px[i], p.py[i], p.pz[i],
+          p.vx[i] * 0.2 + Math.cos(a) * Math.cos(e) * sp, p.vy[i] * 0.2 + Math.sin(e) * sp, p.vz[i] * 0.2 + Math.sin(a) * Math.cos(e) * sp,
+          0.7 + rand01(s, 3) * 0.3,
+          p.r[i], p.g[i], p.b[i],
+          3.2, SPLIT_DAMP, 9.8, FLAG_EMBER, s,
+        );
+      }
+      return;
+    }
     const vx = p.vx[i];
     const vy = p.vy[i];
     const vz = p.vz[i];
@@ -575,6 +668,8 @@ export class Simulation {
         if (f & FLAG_SPLIT) this.split(i);
         continue;
       }
+      // 아직 피지 않은 별(늦게 피는 층)은 그 자리에서 기다린다.
+      if (age < 0 && !(f & FLAG_LANCE)) continue;
       if (f & FLAG_LANCE) {
         // 심지는 움직이지 않고, 가끔 작은 불티를 튀긴다.
         if (age > 0) {
@@ -689,6 +784,18 @@ export class Simulation {
           a *= rand01(p.seed[i], Math.floor(age * 24), 9) > 0.45 ? 1.5 : 0.12;
         }
       }
+      // 색이 바뀌는 별
+      const aux = p.aux[i];
+      if (aux) {
+        const at = (aux >>> 8) / 255;
+        const to = COLORS[COLOR_NAMES[(aux & 0xff) - 1]];
+        const m = smoothstep(at - 0.06, at + 0.06, u);
+        r += (to[0] - r) * m;
+        g += (to[1] - g) * m;
+        b += (to[2] - b) * m;
+      }
+      if (f & FLAG_STROBE) a *= Math.floor(age * 9 + (p.seed[i] & 7)) % 2 ? 0.1 : 1.2;
+      if (age < 0) a = 0;
 
       // 구름 속은 빛이 퍼져 거의 보이지 않는다.
       if (p.py[i] > cloud) a *= 0.12;
@@ -759,13 +866,7 @@ function starDirections(pattern: string, n: number, seed: number): [number, numb
   const rot = rand01(seed, 1) * Math.PI * 2;
 
   if (pattern === 'ring' || pattern === 'heart' || pattern === 'star' || pattern === 'smile') {
-    // 평면 모양 불꽃. 실제처럼 터질 때마다 면이 향하는 방향이 달라진다.
-    // 관객(남쪽, -z)을 기준으로 좌우 ±70도, 앞뒤 ±25도 안에서 정한다.
-    const yaw = (rand01(seed, 2) - 0.5) * (Math.PI * 140) / 180;
-    const pitch = (rand01(seed, 3) - 0.5) * (Math.PI * 50) / 180;
-    // 면 위의 두 축: 오른쪽 r, 위쪽 u
-    const r: Vec3 = [Math.cos(yaw), 0, Math.sin(yaw)];
-    const u: Vec3 = [-Math.sin(yaw) * Math.sin(pitch), Math.cos(pitch), Math.cos(yaw) * Math.sin(pitch)];
+    const [r, u] = planeAxes(seed);
     const roll = pattern === 'ring' ? rot : (rand01(seed, 4) - 0.5) * 0.4;
     const cr = Math.cos(roll);
     const sr = Math.sin(roll);
@@ -817,6 +918,19 @@ function starDirections(pattern: string, n: number, seed: number): [number, numb
     out.push([dx, dy * ct - dz * st, dy * st + dz * ct, 1]);
   }
   return out;
+}
+
+/**
+ * 평면 모양 불꽃의 면 위 두 축 [오른쪽, 위쪽]. 실제처럼 터질 때마다 면이 향하는 방향이 달라진다.
+ * 관객(남쪽, -z)을 기준으로 좌우 ±70도, 앞뒤 ±25도 안에서 정한다.
+ */
+function planeAxes(seed: number): [Vec3, Vec3] {
+  const yaw = (rand01(seed, 2) - 0.5) * (Math.PI * 140) / 180;
+  const pitch = (rand01(seed, 3) - 0.5) * (Math.PI * 50) / 180;
+  return [
+    [Math.cos(yaw), 0, Math.sin(yaw)],
+    [-Math.sin(yaw) * Math.sin(pitch), Math.cos(pitch), Math.cos(yaw) * Math.sin(pitch)],
+  ];
 }
 
 /** 다섯 꼭짓점 별의 윤곽 위 한 점 (u: 0~1) */

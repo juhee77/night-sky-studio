@@ -46,6 +46,8 @@ export function cueCost(c: Cue): number {
   if (c.type === 'niagara') return 1.5 * (c.len ?? LEN_DEFAULTS.niagara);
   if (c.type === 'lancework') return (c.len ?? LEN_DEFAULTS.lancework) + 0.5 * [...(c.text ?? '')].length;
   if (c.type === 'cake') return 0.25 * (c.shots ?? CAKE_DEFAULTS.shots) * (c.size / 3);
+  // 내 불꽃은 개발비를 낸 대신 원가가 기본 불꽃보다 싸다.
+  if (c.type === 'custom') return SHELL_COST[c.size] * 0.8 * Math.max(1, c.fan?.count ?? 1);
   return SHELL_COST[c.size] * Math.max(1, c.fan?.count ?? 1);
 }
 
@@ -55,6 +57,9 @@ export function showCost(show: Show): number {
 
 /** 처음부터 쓸 수 있는 불꽃. 나머지는 번 돈으로 해금한다. */
 export const STARTER_TYPES: FireworkType[] = ['chrysanthemum', 'peony', 'willow', 'ring', 'heart'];
+
+/** 내 불꽃 하나를 의뢰에 쓰려면 한 번 내는 개발비 */
+export const DEVELOP_PRICE = 50;
 
 export const UNLOCK_PRICES: Partial<Record<FireworkType, number>> = {
   star: 40,
