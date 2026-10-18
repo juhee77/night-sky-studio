@@ -1,0 +1,14 @@
+{
+  "name": "@nss/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build:pages": "vite build --mode pages",
+    "preview": "vite preview --mode pages"
+  },
+  "dependencies": {
+    "@nss/engine": "*"
+  }
+}

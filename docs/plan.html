@@ -1,0 +1,910 @@
+<title>밤하늘 연출실 기획안</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans+KR:wght@400;600;700&display=swap">
+<style>
+/* 레이아웃: 한 줄 읽기 폭의 문서. 무대(밤하늘)만 어둡고 나머지는 밝다 — 이 기획의 디자인 원칙을 문서에도 그대로 쓴다. */
+:root {
+  --bg: #f6f5f9;
+  --surface: #ffffff;
+  --ink: #17152a;
+  --ink-2: #4a4760;
+  --muted: #5d5a72;
+  --line: #e3e1eb;
+  --accent: #b9400b;          /* 불씨 주황, 흰 바탕 5:1 이상 */
+  --accent-soft: #fdeee4;
+  --gold: #8a6206;
+  --ok: #2f6b3a;
+  --ok-soft: #e6f2e7;
+  --night: #0b0c1d;
+  --night-2: #151733;
+  --night-ink: #eceaf6;
+  --night-muted: #a6a3bd;
+  --font-display: 'Black Han Sans', 'IBM Plex Sans KR', sans-serif;
+  --font-body: 'IBM Plex Sans KR', 'Pretendard', -apple-system, 'Apple SD Gothic Neo', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  --measure: 68ch;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f0e1a; --surface: #18172a; --ink: #f1eff8; --ink-2: #c3bfd6; --muted: #a29fb8;
+    --line: #2d2b43; --accent: #fb923c; --accent-soft: #3a2116; --gold: #f3c24d;
+    --ok: #8fd19a; --ok-soft: #17301c;
+    --night: #07081a; --night-2: #121432;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f0e1a; --surface: #18172a; --ink: #f1eff8; --ink-2: #c3bfd6; --muted: #a29fb8;
+  --line: #2d2b43; --accent: #fb923c; --accent-soft: #3a2116; --gold: #f3c24d;
+  --ok: #8fd19a; --ok-soft: #17301c;
+  --night: #07081a; --night-2: #121432;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 16px/1.7 var(--font-body);
+  padding-inline: 16px;
+  padding-block: 0 64px;
+}
+.doc { max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 56px; }
+.prose { max-width: var(--measure); }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+h2 { font-size: 1.45rem; font-weight: 700; letter-spacing: -0.01em; }
+h3 { font-size: 1.05rem; font-weight: 700; }
+p { margin: 0; }
+section { display: flex; flex-direction: column; gap: 16px; }
+.eyebrow { font-size: .78rem; font-weight: 700; letter-spacing: .08em; color: var(--accent); }
+.note { font-size: .9rem; color: var(--muted); }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+code { font-family: var(--font-mono); font-size: .88em; background: var(--accent-soft); padding: 0 4px; border-radius: 4px; }
+strong { font-weight: 700; }
+ul, ol { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 6px; }
+
+/* ── 머리 ── */
+.hero { display: flex; flex-direction: column; gap: 18px; padding-top: 40px; }
+.hero h1 { font-family: var(--font-display); font-weight: 400; font-size: clamp(2.4rem, 7vw, 3.6rem); line-height: 1.05; letter-spacing: -0.01em; }
+.hero h1 small { font-family: var(--font-body); font-size: .9rem; font-weight: 600; color: var(--muted); margin-left: 8px; letter-spacing: 0; }
+.lede { font-size: 1.12rem; color: var(--ink-2); max-width: 60ch; }
+
+/* 무대 + 시간표 목업 */
+.studio { border-radius: 18px; overflow: hidden; background: var(--night); color: var(--night-ink); margin: 0; }
+.studio canvas { display: block; width: 100%; height: auto; aspect-ratio: 16 / 7; max-width: 100%; }
+.timeline { background: var(--night-2); padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 6px; font-size: .74rem; }
+.ruler, .track { display: grid; grid-template-columns: 76px 1fr; gap: 8px; align-items: center; }
+.ruler .ticks { display: flex; justify-content: space-between; color: var(--night-muted); font-family: var(--font-mono); }
+.track .label { color: var(--night-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lane { position: relative; height: 22px; border-radius: 6px; background: rgba(255,255,255,.05); overflow: hidden; }
+.lane .beat { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,.08); }
+.clip { position: absolute; top: 3px; bottom: 3px; border-radius: 4px; padding: 0 6px; font-size: .68rem; line-height: 16px; color: #120e05; white-space: nowrap; overflow: hidden; }
+.c-gold { background: #f5c451; } .c-pink { background: #f59ac8; } .c-cyan { background: #7dd8ee; } .c-white { background: #e9e7f5; } .c-orange { background: #fb9b54; }
+.wave { position: absolute; inset: 4px 0; display: flex; align-items: center; gap: 2px; }
+.wave i { flex: 1; background: rgba(166,163,189,.5); border-radius: 1px; }
+.playhead { position: absolute; top: -2px; bottom: -2px; left: 38%; width: 2px; background: #fb923c; }
+.studio-caption { padding: 10px 14px 12px; font-size: .8rem; color: var(--night-muted); background: var(--night-2); border-top: 1px solid rgba(255,255,255,.06); }
+
+/* 바뀐 점 */
+.changes { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+.changes h3 { font-size: .95rem; }
+.changes ul { font-size: .92rem; color: var(--ink-2); }
+.changes .ver { font-family: var(--font-mono); font-size: .78rem; color: var(--muted); }
+
+/* ── 결론 박스 ── */
+.verdict { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 22px; display: flex; flex-direction: column; gap: 12px; }
+.verdict .answer { font-size: 1.2rem; font-weight: 700; }
+.verdict .answer em { font-style: normal; color: var(--accent); }
+
+/* 표 */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: .92rem; }
+th, td { text-align: left; vertical-align: top; padding: 11px 14px; border-bottom: 1px solid var(--line); }
+tr:last-child td { border-bottom: none; }
+th { font-size: .78rem; font-weight: 700; color: var(--muted); letter-spacing: .04em; background: transparent; }
+td:first-child { font-weight: 600; white-space: nowrap; }
+td.num, td.id { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.id { font-size: .84rem; color: var(--muted); }
+
+/* 사용 장면 */
+.scenes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.scene { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.scene .when { font-size: .78rem; font-weight: 700; color: var(--accent); letter-spacing: .04em; }
+.scene p { font-size: .93rem; color: var(--ink-2); }
+
+/* 흐름 */
+.flow { list-style: none; padding: 0; counter-reset: step; display: flex; flex-direction: column; gap: 0; border-left: 2px solid var(--line); margin-left: 12px; }
+.flow li { counter-increment: step; position: relative; padding: 0 0 18px 26px; }
+.flow li:last-child { padding-bottom: 0; }
+.flow li::before { content: counter(step); position: absolute; left: -13px; top: 1px; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff; font: 700 .78rem/24px var(--font-mono); text-align: center; }
+.flow b { display: block; font-weight: 700; }
+.flow span { color: var(--ink-2); font-size: .95rem; }
+
+/* 두 칸 */
+.split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.panel.muted { background: transparent; border-style: dashed; }
+.panel ul { font-size: .94rem; color: var(--ink-2); }
+.panel .where { font-family: var(--font-mono); font-size: .8rem; color: var(--muted); }
+
+pre { margin: 0; overflow-x: auto; background: var(--night); color: var(--night-ink); border-radius: 14px; padding: 16px 18px; font: 500 .82rem/1.6 var(--font-mono); }
+pre .k { color: #f5c451; } pre .c { color: #8e8ba8; }
+
+/* 기술 메모 */
+.memos { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.memos li { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
+.memos li span { font-size: .93rem; color: var(--ink-2); }
+
+/* 단계 */
+.phases { display: flex; flex-direction: column; gap: 10px; }
+.phase { display: grid; grid-template-columns: 120px 1fr; gap: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+.phase .tag { font-family: var(--font-mono); font-size: .82rem; color: var(--accent); }
+.phase .dur { display: block; color: var(--muted); font-size: .78rem; margin-top: 2px; }
+.phase p { font-size: .94rem; color: var(--ink-2); }
+.phase h3 { margin-bottom: 4px; }
+.phase.server { border-style: dashed; }
+.phase.server .tag { color: var(--gold); }
+
+/* 정할 것 */
+.asks { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.asks li { background: var(--accent-soft); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
+.asks li.done { background: var(--ok-soft); }
+.asks .rec { font-size: .88rem; color: var(--ink-2); }
+.asks .rec b { color: var(--accent); }
+.asks li.done .rec b { color: var(--ok); }
+.badge { align-self: flex-start; font-size: .72rem; font-weight: 700; letter-spacing: .04em; padding: 1px 8px; border-radius: 999px; background: var(--ok); color: var(--surface); }
+
+/* 네 개의 방 */
+.rooms { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.room { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.room p { font-size: .9rem; color: var(--ink-2); }
+.room-phase { font-family: var(--font-mono); font-size: .74rem; color: var(--muted); }
+.room.new { border-color: var(--accent); background: var(--accent-soft); }
+.room.new .room-phase { color: var(--accent); }
+
+/* 공작소 단계 */
+.workshop { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.ws-step { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ws-n { align-self: flex-start; font-size: .74rem; font-weight: 700; letter-spacing: .04em; color: var(--accent); background: var(--accent-soft); padding: 2px 10px; border-radius: 999px; }
+.ws-step ul { font-size: .92rem; color: var(--ink-2); }
+.dotgrid { display: grid; grid-template-columns: repeat(13, 1fr); gap: 4px; max-width: 220px; padding: 10px; border-radius: 10px; background: var(--night); margin-top: 4px; }
+.dotgrid i { aspect-ratio: 1; border-radius: 50%; background: rgba(255,255,255,.08); }
+.dotgrid i.on { background: #f59ac8; box-shadow: 0 0 6px rgba(245,154,200,.7); }
+
+/* 상승 시간 막대: 점화 → 상승 → 터짐 → 지속 */
+.prefire { display: flex; flex-direction: column; gap: 8px; background: var(--night); color: var(--night-ink); border-radius: 14px; padding: 16px 18px; font-size: .82rem; }
+.pf-bar { display: grid; grid-template-columns: 4fr 3fr; height: 30px; border-radius: 6px; overflow: hidden; }
+.pf-bar .rise { background: linear-gradient(90deg, rgba(255,220,170,.10), rgba(255,220,170,.45)); display: flex; align-items: center; padding-left: 10px; color: var(--night-ink); }
+.pf-bar .burst { background: #f5c451; color: #120e05; display: flex; align-items: center; padding-left: 10px; font-weight: 700; }
+.pf-marks { display: grid; grid-template-columns: 4fr 3fr; font-family: var(--font-mono); color: var(--night-muted); }
+.pf-marks span:last-child { border-left: 2px solid #fb923c; padding-left: 6px; color: #fb923c; }
+.prefire p { color: var(--night-muted); }
+
+td.need { font-weight: 700; white-space: nowrap; }
+td.need.no { color: var(--muted); }
+td.need.yes { color: var(--accent); }
+
+@media (max-width: 720px) {
+  .scenes, .split, .workshop { grid-template-columns: 1fr; }
+  .rooms { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .phase { grid-template-columns: 1fr; gap: 6px; }
+  .ruler, .track { grid-template-columns: 58px 1fr; }
+}
+</style>
+
+<main class="doc">
+
+  <header class="hero">
+    <span class="eyebrow">새 프로젝트 기획안 · v5 · 2026년 10월 18일</span>
+    <h1>밤하늘 연출실<small>night-sky-studio</small></h1>
+    <p class="lede">음악을 고르고, 시간표 위에 불꽃을 한 발씩 놓아 나만의 불꽃축제를 연출하는 웹 시뮬레이터입니다. 완성한 쇼는 전체 화면으로 감상하고 링크로 보낼 수 있습니다.</p>
+
+    <figure class="studio" aria-label="편집 화면 예시: 위는 불꽃이 터지는 밤하늘 무대, 아래는 발사 위치별 시간표">
+      <canvas id="sky" width="1280" height="560"></canvas>
+      <div class="timeline">
+        <div class="ruler"><span></span><div class="ticks"><span>0:00</span><span>0:10</span><span>0:20</span><span>0:30</span><span>0:40</span></div></div>
+        <div class="track"><span class="label">음악</span><div class="lane" id="music"><div class="wave" id="wave"></div><div class="playhead"></div></div></div>
+        <div class="track"><span class="label">바지선 1</span><div class="lane">
+          <div class="clip c-gold" style="left:4%;width:7%">국화 5호</div>
+          <div class="clip c-gold" style="left:22%;width:7%">국화 5호</div>
+          <div class="clip c-white" style="left:52%;width:10%">버들 7호</div>
+          <div class="clip c-orange" style="left:84%;width:14%">케이크 ×40</div>
+        </div></div>
+        <div class="track"><span class="label">바지선 2</span><div class="lane">
+          <div class="clip c-pink" style="left:12%;width:7%">모란</div>
+          <div class="clip c-cyan" style="left:31%;width:8%">링</div>
+          <div class="clip c-pink" style="left:44%;width:9%">하트</div>
+          <div class="clip c-gold" style="left:70%;width:12%">야자 10호</div>
+        </div></div>
+        <div class="track"><span class="label">다리</span><div class="lane">
+          <div class="clip c-white" style="left:78%;width:21%">나이아가라</div>
+        </div></div>
+        <div class="track"><span class="label">지상 틀</span><div class="lane">
+          <div class="clip c-pink" style="left:88%;width:11%">HAPPY</div>
+        </div></div>
+      </div>
+      <figcaption class="studio-caption">편집 화면 예시. 세로 줄은 음악에서 찾아낸 박자입니다. 불꽃은 터지는 시각에 놓고, 발사 시각은 앱이 계산합니다.</figcaption>
+    </figure>
+
+    <div class="changes">
+      <h3>v5에서 바뀐 점 <span class="ver">2026-10-18</span></h3>
+      <ul>
+        <li>세계의 무대 첫 세 곳(서울·시드니·부산)과 서버판 언어(Spring Boot)를 정했습니다.</li>
+        <li>0단계를 시작했습니다. 진행 상황은 「진행 순서」의 0단계에 적었습니다.</li>
+        <li>패키지 관리는 pnpm 대신 Node에 기본으로 들어 있는 npm workspaces를 씁니다. 빌드 명령이 <code>npm run build:pages</code>로 바뀌었습니다.</li>
+      </ul>
+      <h3>v4에서 바뀐 점 <span class="ver">2026-10-18</span></h3>
+      <ul>
+        <li>한강 하나가 아니라 <b>세계 여러 곳의 불꽃축제 장소</b>를 무대로 고를 수 있게 했습니다. 새 섹션 「무대와 시점」을 보세요.</li>
+        <li><b>지도 무대</b>: 지도에서 장소를 고르고 발사 위치와 관람석을 직접 찍는 기능을 7단계에 넣었습니다.</li>
+        <li><b>보는 위치</b>: 2D 관람석 고르기, 3D 자유 카메라, 위에서 보기를 고를 수 있게 했습니다. 이를 위해 불꽃 계산은 처음부터 미터 단위 3D 좌표로 합니다.</li>
+        <li>제안 아이디어를 더했습니다: 장노출 사진 모드, 새해 카운트다운, 여러 자리에서 비교해 보기, 계절과 시간대, 관객 소리.</li>
+      </ul>
+      <h3>v3에서 바뀐 점 <span class="ver">2026-10-18</span></h3>
+      <ul>
+        <li>실제 불꽃쇼 연출 방식에 맞췄습니다. 새 섹션 「실제 불꽃쇼는 이렇게 짭니다」를 보세요.</li>
+        <li>시간표에는 <b>터지는 시각</b>을 놓고, 앱이 불꽃마다 정해진 상승 시간을 빼서 발사 시각을 계산합니다.</li>
+        <li>'연속 발사'를 실제 상품인 <b>케이크</b>로 바꾸고, 발사 각도와 부채꼴 묶음 놓기를 넣었습니다.</li>
+        <li>하늘에 글자를 쓰는 불꽃은 뺐습니다. 글자와 로고는 <b>지상 틀불꽃</b>으로 띄웁니다. 모양 불꽃은 터질 때마다 방향이 달라집니다.</li>
+        <li>의뢰 모드에 관람석 안전거리 조건을 넣었습니다. 팔레트는 상품 카탈로그로 보여 주고, 공작소는 신상품을 개발하는 방이 됩니다.</li>
+      </ul>
+      <h3>v2에서 바뀐 점 <span class="ver">2026-10-18</span></h3>
+      <ul>
+        <li>레포 이름을 <code>night-sky-studio</code>로 정했습니다.</li>
+        <li>배포를 두 가지로 나눴습니다. 서버 없이 GitHub Pages에 올리는 <b>정적판</b>과, 짧은 링크·클라우드 저장·갤러리가 있는 <b>서버판</b>입니다. 아래 「두 가지 배포 형태」를 보세요.</li>
+        <li>「기술 메모」를 새로 넣었습니다. 재현성, 공유 링크와 음악, 박자 찾기, 소리와 화면 맞추기를 다룹니다.</li>
+        <li>불꽃마다 코드에서 쓸 이름(type)을 정했고, 쇼 파일 예시를 거기에 맞게 고쳤습니다.</li>
+        <li>진행 순서에 서버 트랙을 넣었습니다.</li>
+      </ul>
+    </div>
+  </header>
+
+  <section>
+    <span class="eyebrow">결론</span>
+    <div class="verdict">
+      <p class="answer">미니게임 천국에 넣지 말고 <em>새 레포로 따로</em> 만듭니다.</p>
+      <p class="prose">미니게임 천국은 "모임에서 5분 안에 켜서 노는 것"을 모은 곳이고, 게임 하나가 HTML 파일 하나입니다. 불꽃쇼 연출은 혼자 오래 붙잡고 다듬는 창작 도구라서 쓰는 시간, 화면, 코드 규모가 모두 다릅니다. 한 레포에 두면 미니게임 쪽의 단순한 구조가 깨지고, 연출 앱은 그 구조에 묶여 자라지 못합니다.</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>기준</th><th>미니게임 천국</th><th>밤하늘 연출실</th></tr></thead>
+        <tbody>
+          <tr><td>한 번 쓰는 시간</td><td>5~15분, 켜자마자 시작</td><td>30분 이상 다듬고 다시 열어 고침</td></tr>
+          <tr><td>코드 구조</td><td>게임 하나 = HTML 하나, 빌드 없음</td><td>렌더러·시간표·오디오·저장이 나뉜 앱, 빌드 필요</td></tr>
+          <tr><td>화면</td><td>세로 휴대폰 중심</td><td>편집은 가로 화면 (PC·태블릿 우선), 감상은 세로도 지원</td></tr>
+          <tr><td>무게</td><td>페이지당 수십 KB</td><td>WebGL 렌더러, 효과음, 배경까지 수 MB</td></tr>
+          <tr><td>저장할 것</td><td>최고 기록 몇 개</td><td>쇼 파일 여러 개, 불러오기, 공유</td></tr>
+          <tr><td>자라는 방식</td><td>게임을 하나씩 추가</td><td>앱 하나를 계속 키움</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note prose">두 곳은 이렇게 이어 둡니다. 미니게임 천국 메인의 '시뮬' 탭에 바로가기 카드를 하나 두고, 기존 「불꽃놀이 메이커」는 탭하면 터지는 장난감으로 그대로 둔 채 화면 끝에 "쇼를 직접 짜 보기" 링크를 답니다. 디자인 시스템 파일(design-system.css)은 복사해 가서 밝은 화면에 무대만 어두운 같은 톤을 씁니다.</p>
+  </section>
+
+  <section>
+    <span class="eyebrow">누가, 언제 켜나</span>
+    <h2>세 가지 장면</h2>
+    <div class="scenes">
+      <div class="scene"><span class="when">축제 시즌</span><h3>"나라면 이렇게 했다"</h3><p>불꽃축제를 다녀온 날, 또는 가기 전 기대감으로 내 취향의 쇼를 짜 봅니다.</p></div>
+      <div class="scene"><span class="when">기념일</span><h3>링크로 보내는 선물</h3><p>생일이나 기념일에 하트 불꽃과 이름을 쓴 지상 틀불꽃을 넣은 1분짜리 쇼를 만들어 링크로 보냅니다. 받는 사람은 대개 세로 휴대폰으로 엽니다.</p></div>
+      <div class="scene"><span class="when">혼자 심심할 때</span><h3>연출 회사 운영</h3><p>의뢰 모드에서 예산과 날씨가 매번 다른 의뢰를 받아 점수와 평판을 올립니다.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <span class="eyebrow">핵심 흐름</span>
+    <h2>곡 고르기부터 공유까지</h2>
+    <ol class="flow">
+      <li><b>곡 고르기</b><span>기본 곡 또는 내 음악 파일을 고릅니다. 박자를 자동으로 찾아 시간표에 눈금을 깔아 줍니다. 틀리면 직접 두드려 맞춥니다.</span></li>
+      <li><b>불꽃 놓기</b><span>팔레트에서 불꽃을 끌어 시간표의 터질 자리에 놓습니다. 무대를 탭하면 그 자리, 지금 시간에 터지도록 바로 놓입니다. 꼬리가 언제부터 올라갈지는 앱이 계산합니다.</span></li>
+      <li><b>미리보기</b><span>구간을 반복 재생하면서 위치, 크기, 색을 고칩니다.</span></li>
+      <li><b>감상</b><span>전체 화면으로 재생합니다. 관람석이 멀수록 소리가 늦게 들립니다. 1km 떨어진 자리라면 빛이 보이고 약 3초 뒤에 '쿵' 소리가 납니다. 편집 중에는 이 지연을 끕니다.</span></li>
+      <li><b>공유</b><span>쇼를 링크로 보내거나 영상 파일로 저장합니다.</span></li>
+    </ol>
+  </section>
+
+  <section id="real">
+    <span class="eyebrow">실제 연출 방식 · v3 추가</span>
+    <h2>실제 불꽃쇼는 이렇게 짭니다</h2>
+    <p class="prose">음악에 맞춘 불꽃쇼는 실제로도 이 앱과 비슷한 방식으로 짭니다. 연출가가 전용 소프트웨어에서 음악 파형 위에 발사 cue를 놓아 쇼를 짜고, 다 짜면 발사 스크립트로 뽑습니다. 이 스크립트를 전자 점화 장치에 넣으면, 장치가 발사 위치마다 연결된 점화선에 0.01초 단위로 불을 붙입니다. 이 앱은 그중 연출가가 하는 일을 따라 하고, 점화 장치 대신 화면이 쇼를 재생합니다.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>실제 현장</th><th>이 앱</th></tr></thead>
+        <tbody>
+          <tr><td>제조사 상품 카탈로그</td><td>불꽃 팔레트. 종류·크기·색·상승 시간·원가가 정해진 상품 목록입니다.</td></tr>
+          <tr><td>바지선·지상 발사 위치</td><td>시간표의 트랙. 바지선, 다리, 지상 틀이 각각 한 줄입니다.</td></tr>
+          <tr><td>발사통 각도</td><td>cue의 <code>angle</code>. 부채꼴 묶음 놓기로 V자, 부채꼴을 한 번에 놓습니다.</td></tr>
+          <tr><td>터지는 시각 기준 연출</td><td>cue의 <code>t</code>. 발사 시각은 상승 시간을 빼서 자동 계산합니다.</td></tr>
+          <tr><td>케이크·체인 연결</td><td>케이크 상품. 한 번 점화로 정해진 발 수·간격·각도대로 나갑니다.</td></tr>
+          <tr><td>틀불꽃(지상 글자·그림)</td><td>지상 틀 트랙. 이름과 로고는 여기에 씁니다.</td></tr>
+          <tr><td>안전거리 규정</td><td>의뢰 모드 조건. 관람석이 가까우면 큰 불꽃을 쓸 수 없습니다.</td></tr>
+          <tr><td>발사 스크립트 → 점화 장치</td><td>쇼 파일(JSON) → 재생 엔진</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>불꽃은 박자보다 먼저 쏩니다</h3>
+    <p class="prose">불꽃 알은 발사통에서 나와 꼭대기에 닿을 때까지 몇 초가 걸리고, 그 순간 터집니다. 박자에 맞춰 터뜨리려면 그만큼 미리 쏴야 합니다. 실제 연출가도 터질 시각을 기준으로 짜고, 소프트웨어가 상품마다 정해진 상승 시간을 빼서 점화 시각을 계산합니다. 이 앱도 같은 방식으로 합니다.</p>
+    <div class="prefire" aria-label="5호 국화를 0:12.00에 터뜨리려면 0:08.00에 점화한다는 예시">
+      <div class="pf-bar"><div class="rise">상승 약 4초</div><div class="burst">국화 5호 터짐</div></div>
+      <div class="pf-marks"><span>0:08.00 점화 (앱이 계산)</span><span>0:12.00 박자 (연출가가 놓은 자리)</span></div>
+      <p>점화 시각이 쇼 시작보다 앞서게 되면 편집기가 경고합니다. 첫 박자에 10호를 놓을 수 없는 이유가 이것입니다.</p>
+    </div>
+
+    <h3>이 앱에서 실제와 다르게 둔 것</h3>
+    <ul class="prose">
+      <li><b>하늘에 글자 쓰기</b>: 실제 불꽃 알로는 거의 불가능해서 넣지 않았습니다. 글자와 로고는 지상 틀불꽃으로 쓰고, 요즘 축제처럼 드론 쇼를 섞는 기능은 확장 아이디어로 둡니다.</li>
+      <li><b>모양 불꽃의 방향</b>: 실제 하트·별 불꽃은 터질 때 방향을 정할 수 없어서, 관객을 정면으로 향하는 건 일부뿐입니다. 앱도 매번 방향이 조금씩 다르게 나옵니다. 방향은 쇼의 시드로 정해지므로 같은 쇼는 언제 틀어도 같게 보입니다.</li>
+      <li><b>숫자</b>: 높이, 지름, 상승 시간은 참고값입니다. 화면에서 보기 좋은 쪽으로 조정합니다.</li>
+    </ul>
+  </section>
+
+  <section>
+    <span class="eyebrow">불꽃 팔레트</span>
+    <h2>처음에 넣을 불꽃 10종</h2>
+    <p class="prose">실제 연화 분류를 따르고, 실제 연출가처럼 상품 카탈로그에서 고르는 방식으로 보여 줍니다. 이름만 봐도 어떤 모양인지 떠오르게 하고, 각 불꽃이 쇼에서 맡는 역할을 함께 보여 줍니다. 오른쪽 열은 쇼 파일에서 쓰는 이름입니다.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>이름</th><th>모양</th><th>쇼에서 쓰는 곳</th><th>type</th></tr></thead>
+        <tbody>
+          <tr><td>국화</td><td>꼬리를 끌며 둥글게 퍼지고 끝이 반짝이며 사라짐</td><td>기본 박자 강조</td><td class="id">chrysanthemum</td></tr>
+          <tr><td>모란</td><td>꼬리 없이 점으로 터지는 원</td><td>빠른 연속, 리듬</td><td class="id">peony</td></tr>
+          <tr><td>버들</td><td>금빛 꼬리가 길게 늘어져 천천히 떨어짐</td><td>느린 부분, 여운</td><td class="id">willow</td></tr>
+          <tr><td>야자</td><td>굵은 줄기 몇 가닥이 야자수처럼 뻗음</td><td>큰 한 방</td><td class="id">palm</td></tr>
+          <tr><td>링</td><td>고리 모양 한 겹</td><td>포인트</td><td class="id">ring</td></tr>
+          <tr><td>모양 불꽃</td><td>하트, 별, 웃는 얼굴. 터질 때마다 방향이 달라 정면으로 보이는 건 일부</td><td>이벤트, 포인트</td><td class="id">heart · star · smile</td></tr>
+          <tr><td>크로세트</td><td>터진 조각이 다시 십자로 갈라짐</td><td>고조되는 구간</td><td class="id">crossette</td></tr>
+          <tr><td>케이크</td><td>발사통 여러 개를 묶은 상품. 한 번 점화하면 수십 발이 정해진 순서와 각도로 나감</td><td>피날레, 빠른 연속</td><td class="id">cake</td></tr>
+          <tr><td>나이아가라</td><td>다리에 걸린 불꽃이 폭포처럼 흘러내림</td><td>피날레 배경</td><td class="id">niagara</td></tr>
+          <tr><td>지상 틀불꽃</td><td>지상에 세운 틀에서 글자나 그림이 불꽃으로 타오름</td><td>이름, 날짜, 로고 띄우기</td><td class="id">lancework</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>크기는 실제처럼 '호' 단위로</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>크기</th><th>알 지름</th><th>올라가는 높이</th><th>퍼지는 지름</th><th>상승 시간</th><th>게임 속 원가</th></tr></thead>
+        <tbody>
+          <tr><td>3호</td><td class="num">약 9 cm</td><td class="num">약 120 m</td><td class="num">약 60 m</td><td class="num">약 3 초</td><td class="num">1</td></tr>
+          <tr><td>5호</td><td class="num">약 15 cm</td><td class="num">약 190 m</td><td class="num">약 170 m</td><td class="num">약 4 초</td><td class="num">3</td></tr>
+          <tr><td>7호</td><td class="num">약 21 cm</td><td class="num">약 250 m</td><td class="num">약 240 m</td><td class="num">약 5 초</td><td class="num">8</td></tr>
+          <tr><td>10호</td><td class="num">약 30 cm</td><td class="num">약 330 m</td><td class="num">약 320 m</td><td class="num">약 6 초</td><td class="num">20</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">높이, 지름, 상승 시간은 흔히 쓰이는 대략적인 참고값이고, 화면 비율에 맞게 조정합니다. 원가는 의뢰 모드에서만 쓰는 게임 속 값입니다. 케이크, 나이아가라, 지상 틀불꽃은 '호' 대신 발 수나 길이로 정합니다.</p>
+  </section>
+
+  <section>
+    <span class="eyebrow">게임 요소</span>
+    <h2>의뢰 모드: 1인 불꽃 연출 회사</h2>
+    <p class="prose">편집기만 있으면 "무엇을 만들지" 막막할 수 있습니다. 의뢰 모드는 매번 다른 조건을 주고 결과를 점수로 돌려줍니다. 판마다 날씨와 의뢰가 바뀌어서 같은 정답이 반복되지 않습니다.</p>
+    <div class="split">
+      <div class="panel">
+        <h3>의뢰서 예시</h3>
+        <ul>
+          <li><b>강변 프러포즈</b> · 90초 · 예산 40 · 하트 필수, 지상 틀에 두 사람 이름, 마지막 10초는 금색만 · 관람석이 가까워 5호까지</li>
+          <li><b>지역 가을 축제</b> · 5분 · 예산 300 · 피날레 30초 이상</li>
+          <li><b>회사 창립 20주년</b> · 3분 · 예산 150 · 회사 색 두 가지로만</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>판마다 바뀌는 조건</h3>
+        <ul>
+          <li><b>바람</b>: 방향과 세기. 바람이 약하면 연기가 빠지지 않아 연속 발사가 가려집니다.</li>
+          <li><b>구름 높이</b>: 낮게 깔린 날은 10호가 구름에 묻힙니다.</li>
+          <li><b>관람석 위치</b>: 정면, 측면, 다리 위. 보이는 모양이 달라집니다.</li>
+          <li><b>안전거리</b>: 불꽃이 클수록 관람석에서 멀리 쏴야 합니다. 장소가 좁으면 큰 불꽃을 쓸 수 없습니다.</li>
+          <li><b>의뢰인 취향</b>: 화려함과 차분함, 좋아하는 색.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>점수 항목</th><th>보는 것</th></tr></thead>
+        <tbody>
+          <tr><td>박자</td><td>불꽃이 터지는 순간이 음악의 박자와 얼마나 맞는지</td></tr>
+          <tr><td>빈 하늘</td><td>5초 넘게 아무것도 없는 구간이 있으면 감점</td></tr>
+          <tr><td>다양성</td><td>같은 불꽃만 반복하지 않았는지</td></tr>
+          <tr><td>연기</td><td>바람을 고려하지 않아 연기에 가린 불꽃 수</td></tr>
+          <tr><td>피날레</td><td>마지막 구간의 밀도와 고조</td></tr>
+          <tr><td>예산과 조건</td><td>예산 안에서 의뢰 조건을 모두 지켰는지</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note prose">잘 해내면 평판이 올라 더 큰 의뢰가 들어오고, 번 돈으로 새 불꽃(크로세트, 나이아가라 등)을 해금합니다. 평판이 오르면 의뢰가 들어오는 무대도 강변 도시에서 항구, 초고층 빌딩, 초대형 강변 축제로 넓어집니다.</p>
+  </section>
+
+  <section id="stage">
+    <span class="eyebrow">무대와 시점 · v4 추가</span>
+    <h2>어디서 쏘고, 어디서 볼까</h2>
+    <p class="prose">불꽃축제는 장소마다 발사 방식이 다릅니다. 강 위 바지선, 다리, 빌딩 외벽, 해변이 각각 다른 연출을 만듭니다. 그래서 무대는 배경 그림만 바꾸는 게 아니라, 쏠 수 있는 곳과 볼 수 있는 곳, 날씨와 소리까지 함께 바꿉니다.</p>
+
+    <h3>세계의 무대: 미리 만들어 둔 장소</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>무대</th><th>본뜬 곳</th><th>발사 위치</th><th>이 무대만의 것</th></tr></thead>
+        <tbody>
+          <tr><td>강변 도시와 다리</td><td>서울 한강</td><td>강 위 바지선 여러 척, 다리</td><td>다리 나이아가라, 넓은 둔치 관람석</td></tr>
+          <tr><td>항구와 아치 다리</td><td>시드니 항구</td><td>항구 곳곳의 바지선, 다리 위</td><td>새해 자정 카운트다운, 다리에서 쏟아지는 폭포</td></tr>
+          <tr><td>좁은 강과 빽빽한 동네</td><td>도쿄 스미다강</td><td>강 위 작은 바지선 두 곳</td><td>관람석이 가까워 큰 불꽃 금지, 작은 불꽃으로 승부</td></tr>
+          <tr><td>넓은 강변 초대형 축제</td><td>일본 나가오카 시나노강</td><td>강변 둔치 긴 발사 라인</td><td>지름 약 90cm급 초대형 알, 아주 긴 연속 라인</td></tr>
+          <tr><td>초고층 빌딩</td><td>두바이, 타이베이</td><td>빌딩 외벽 여러 층</td><td>건물 높이에서 쏘는 불꽃, 빌딩에 울리는 소리</td></tr>
+          <tr><td>해변과 바다 위 다리</td><td>부산 광안리</td><td>바다 위 바지선, 해상 다리</td><td>모래사장 관람석, 바닷바람, 물 반사</td></tr>
+          <tr><td>산으로 둘러싼 호수</td><td>여러 호수 축제</td><td>호수 위 바지선</td><td>잔잔한 수면 반사, 산에 부딪혀 돌아오는 메아리</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note prose">장소 이름은 쓰되 축제 이름과 로고는 쓰지 않습니다. 건물과 다리는 사진이 아니라 직접 그린 단순한 실루엣으로 그립니다. 일부 랜드마크는 야간 조명 디자인까지 저작권 보호를 받기 때문입니다. 처음에는 세 곳(강변 도시, 항구, 해변)으로 시작하고 하나씩 늘립니다.</p>
+
+    <h3>지도 무대: 내가 고른 장소에서 쏘기 (7단계)</h3>
+    <ol class="flow">
+      <li><b>장소 찾기</b><span>지도에서 강, 호수, 바닷가, 공원을 찾아 무대로 쓸 영역을 네모로 고릅니다.</span></li>
+      <li><b>발사 위치 찍기</b><span>물 위나 빈 땅에 바지선, 발사대, 지상 틀을 찍습니다. 다리를 고르면 나이아가라를 걸 수 있습니다.</span></li>
+      <li><b>관람석 찍기</b><span>사람들이 볼 자리를 찍습니다. 발사 위치마다 불꽃 크기별 안전거리 원이 그려져서, 관람석이 원 안에 있으면 그 크기는 쓸 수 없다고 알려 줍니다.</span></li>
+      <li><b>배경 만들기</b><span>지도에 있는 건물 높이로 스카이라인 실루엣을 자동으로 만듭니다. 관람석에서 발사 위치까지 실제 거리로 소리 지연과 보이는 크기가 정해집니다.</span></li>
+      <li><b>연출실로</b><span>찍은 발사 위치가 시간표의 트랙이 됩니다. 이제부터는 세계의 무대와 똑같이 쇼를 짭니다.</span></li>
+    </ol>
+    <p class="note prose">지도는 MapLibre GL JS와 OpenStreetMap 데이터로 그립니다. OpenStreetMap 공식 타일 서버는 앱에서 많이 쓰는 걸 허락하지 않으므로, 무료 등급이 있는 타일 서비스나 직접 올린 타일 파일(Protomaps)을 씁니다. 정적판에서도 동작합니다. 지도 무대 화면에는 "실제 불꽃 발사 계획용이 아닙니다"를 늘 띄웁니다. 안전거리 원은 게임용 근사치라 실제 규정과 다릅니다.</p>
+
+    <h3>보는 위치: 2D와 3D</h3>
+    <p class="prose">불꽃 계산은 처음부터 미터 단위 3D 좌표로 합니다. 화면은 그 3D 세계를 어느 카메라로 보느냐만 다릅니다. 이렇게 해 두면 2D 화면으로 시작해도 관람석을 바꿀 수 있고, 나중에 3D 카메라를 붙일 때 엔진을 고치지 않아도 됩니다.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>시점</th><th>어떻게 보이나</th><th>쓰는 곳</th><th>단계</th></tr></thead>
+        <tbody>
+          <tr><td>2D 정면</td><td>정면 관람석에서 고정된 카메라로 봅니다</td><td>기본 편집, 휴대폰</td><td class="num">1</td></tr>
+          <tr><td>2D 관람석 고르기</td><td>정면 가까이, 정면 멀리, 측면, 다리 위, 높은 전망대. 같은 쇼가 자리마다 다르게 보이고 소리도 다르게 늦습니다</td><td>감상, 의뢰 모드</td><td class="num">2</td></tr>
+          <tr><td>위에서 보기</td><td>지도처럼 내려다본 평면도. 발사 위치, 각도, 안전거리를 확인합니다</td><td>배치 편집</td><td class="num">2</td></tr>
+          <tr><td>3D 자유 카메라</td><td>끌어서 돌리고 확대합니다. 하트 불꽃이 옆에서는 선으로 보입니다</td><td>감상, 시험 발사</td><td class="num">4</td></tr>
+          <tr><td>3D 날아다니기</td><td>정해 둔 경로를 따라 카메라가 쇼 사이를 지나갑니다</td><td>영상 저장</td><td class="num">4</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>더 넣으면 좋을 아이디어</h3>
+    <ul class="memos">
+      <li><b>장노출 사진 모드</b><span>불꽃 사진가처럼 셔터를 몇 초 열어 두면 불꽃 궤적이 한 장에 겹친 사진이 나옵니다. 마음에 드는 장면을 이미지로 저장합니다. 정지 이미지라 영상보다 공유하기 쉽습니다. (4단계)</span></li>
+      <li><b>새해 카운트다운</b><span>항구나 초고층 빌딩 무대에서 10초 카운트다운 후 자정에 맞춰 쇼가 시작됩니다. 연말에 쓸 이유가 생깁니다. (4단계)</span></li>
+      <li><b>여러 자리에서 비교해 보기</b><span>같은 쇼를 정면과 측면, 가까운 자리와 먼 자리로 나눠 동시에 재생합니다. 어느 자리가 명당인지 보입니다. (4단계)</span></li>
+      <li><b>계절과 시간대</b><span>해 질 녘 푸른 하늘, 한겨울 맑은 밤, 눈 오는 밤, 안개 낀 밤. 무대와 조합해서 분위기를 바꾸고, 의뢰 모드에서는 조건이 됩니다. (4단계)</span></li>
+      <li><b>관객 소리</b><span>큰 불꽃이나 피날레에서 함성과 박수가 커집니다. 의뢰 모드의 관객 반응 점수를 소리로도 들려줍니다. (3단계)</span></li>
+    </ul>
+  </section>
+
+  <section>
+    <span class="eyebrow">기술 설계</span>
+    <h2>어떻게 만들까</h2>
+    <div class="split">
+      <div class="panel">
+        <h3>화면과 소리</h3>
+        <ul>
+          <li><b>Vite + TypeScript</b>. 모듈이 많아서 빌드 도구를 씁니다.</li>
+          <li><b>WebGL2</b>로 입자를 그립니다. 휴대폰에서 동시 입자 1~2만 개를 60fps로 유지하는 것이 목표입니다.</li>
+          <li>불꽃 계산은 미터 단위 3D 좌표로 하고, 2D 화면은 고정된 카메라로 그립니다. 관람석과 3D 카메라는 카메라만 바꿉니다.</li>
+          <li>연기는 낮은 해상도의 별도 층으로 그려 비용을 줄입니다.</li>
+          <li><b>Web Audio API</b>로 재생하고, 소리 크기 변화로 박자를 찾습니다. 내 음악 파일은 기기 안에서만 처리하고 어디에도 올리지 않습니다.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>저장과 공유</h3>
+        <ul>
+          <li>같은 쇼는 언제 틀어도 같은 화면이 나오게 만듭니다. 난수 시드를 고정하고, 계산도 고정된 시간 간격으로 돌립니다.</li>
+          <li>작업 중인 쇼는 브라우저에 자동 저장합니다 (IndexedDB).</li>
+          <li>공유 링크에는 쇼 데이터만 압축해 담고 음악은 넣지 않습니다.</li>
+          <li>영상 저장은 미니게임 천국 사진 앱에서 쓴 MP4 만들기 방식(WebCodecs)을 다시 씁니다.</li>
+        </ul>
+      </div>
+    </div>
+    <h3>쇼 파일 모양</h3>
+<pre><span class="c">// 쇼 하나 = 이 JSON 하나. 공유 링크와 영상 저장이 모두 이걸 기준으로 재생합니다.</span>
+{
+  <span class="k">"version"</span>: 1,
+  <span class="k">"seed"</span>: 8231,
+  <span class="k">"music"</span>: { "id": "basic-03", "bpm": 112, "offset": 0.42, "duration": 184.2 },
+  <span class="c">// 무대는 미리 만든 장소(preset) 또는 지도에서 고른 장소(geo). 위치는 무대 원점 기준 미터 [동, 높이, 북].</span>
+  <span class="k">"venue"</span>: { "preset": "river-bridge-city", "time": "clear-autumn-night", "wind": { "dir": 250, "speed": 2.1 } },
+  <span class="k">"seat"</span>: { "id": "front-near", "pos": [0, 2, -600] },
+  <span class="k">"launchers"</span>: [
+    { "id": "barge-1", "kind": "barge",  "pos": [-180, 0, 0] },
+    { "id": "barge-2", "kind": "barge",  "pos": [ 160, 0, 40] },
+    { "id": "bridge",  "kind": "bridge", "from": [-400, 18, 120], "to": [400, 18, 120] },
+    { "id": "ground",  "kind": "frame",  "pos": [0, 0, -150] }
+  ],
+  <span class="c">// t = 터지는 시각(초). 케이크·나이아가라·틀불꽃은 시작 시각. 발사 시각은 엔진이 상품의 상승 시간을 빼서 계산합니다.</span>
+  <span class="k">"cues"</span>: [
+    { "t": 5.80, "at": "barge-1", "type": "chrysanthemum", "size": 5, "angle": 0, "colors": ["gold"] },
+    { "t": 8.95, "at": "barge-2", "type": "heart",         "size": 5, "colors": ["pink"] },
+    { "t": 12.0, "at": "barge-1", "type": "chrysanthemum", "size": 3, "colors": ["white"],
+      "fan": { "count": 5, "spread": 40 } },
+    { "t": 31.2, "at": "bridge",  "type": "niagara",   "len": 8.0 },
+    { "t": 34.0, "at": "ground",  "type": "lancework", "text": "HAPPY", "len": 20.0, "colors": ["pink"] },
+    { "t": 36.5, "at": "barge-2", "type": "cake", "shots": 40, "interval": 0.12, "pattern": "zigzag" }
+  ]
+}</pre>
+    <p class="note prose"><code>music.duration</code>은 v2에서, <code>angle</code>·<code>fan</code>(부채꼴 묶음)·<code>cake</code>·<code>lancework</code>는 v3에서, 미터 좌표 <code>pos</code>와 <code>seat</code>·<code>venue.preset</code>은 v4에서 추가했습니다. 지도 무대는 <code>"venue": { "geo": { "lat": 37.52, "lon": 126.93 } }</code>처럼 원점의 위도·경도만 더 적습니다. 관람석은 쇼에 저장된 기본 자리이고, 보는 사람이 감상 중에 바꿀 수 있습니다. 상승 시간은 cue에 적지 않고 상품 카탈로그에서 가져옵니다. 그래야 상품 값을 고쳐도 기존 쇼가 박자에 맞게 그대로 터집니다.</p>
+  </section>
+
+  <section>
+    <span class="eyebrow">기술 메모 · v2 추가</span>
+    <h2>만들기 전에 정해 둘 다섯 가지</h2>
+    <ul class="memos">
+      <li><b>재현성은 시드만으로는 부족합니다</b><span>입자 계산을 고정된 시간 간격(1/120초)으로 돌려야 60Hz와 120Hz 화면, 느린 휴대폰에서 같은 장면이 나옵니다. 영상 저장도 실시간 녹화가 아니라 한 프레임씩 계산해 인코딩해서 끊김이 없게 합니다. 0단계 렌더 시험에 이 구조를 같이 넣습니다.</span></li>
+      <li><b>공유 링크와 내 음악</b><span>링크에 음악이 없으니, 내 음악으로 만든 쇼를 받은 사람은 그 곡을 들을 수 없습니다. 선물용 쇼는 기본 곡을 쓰도록 안내하고, 내 음악 쇼는 받는 쪽에 "같은 곡 파일을 골라 주세요"를 띄워 길이로 맞는지 확인합니다. 곡이 없으면 영상 저장으로 보내도록 권합니다.</span></li>
+      <li><b>링크 길이</b><span>5분짜리 쇼에 발사가 수백 번 들어가면 압축해도 몇 KB가 됩니다. 쇼 데이터는 주소의 <code>#</code> 뒤에 담고(서버로 가지 않음), 시간은 앞 발사와의 차이를 정수로 담아 줄입니다. 메신저에서 링크가 잘리는지 2단계에서 확인하고, 잘리면 서버판의 짧은 링크로 해결합니다.</span></li>
+      <li><b>박자 자동 찾기는 자주 틀립니다</b><span>BPM이 두 배나 절반으로 잡히는 일이 흔합니다. 박자를 직접 두드려 맞추는 버튼과 시작 지점(offset) 슬라이더를 1단계에 같이 넣습니다.</span></li>
+      <li><b>소리와 화면 맞추기</b><span>화면 시각을 화면 갱신 시각이 아니라 오디오 시계(<code>AudioContext.currentTime</code>)에 맞춥니다. 블루투스 이어폰처럼 소리가 늦게 나는 경우는 <code>outputLatency</code>로 보정합니다. 영상 파일에 소리까지 넣는 기능은 Safari 지원이 불안해서 4단계에 여유를 둡니다.</span></li>
+    </ul>
+  </section>
+
+  <section id="deploy">
+    <span class="eyebrow">배포 · v2 추가</span>
+    <h2>두 가지 배포 형태</h2>
+    <p class="prose">코드는 하나이고, 빌드를 두 가지로 합니다. 불꽃을 계산하고 그리는 엔진과 화면은 똑같이 쓰고, <b>저장과 공유를 맡는 부분만 바꿔 끼웁니다.</b> 정적판에서 만든 쇼 링크는 서버판에서도 그대로 열립니다.</p>
+    <div class="split">
+      <div class="panel">
+        <h3>정적판</h3>
+        <span class="where">&lt;아이디&gt;.github.io/night-sky-studio</span>
+        <ul>
+          <li>GitHub Pages에 올리면 끝입니다. push하면 GitHub Actions가 빌드해서 올립니다.</li>
+          <li>저장은 브라우저 안(IndexedDB), 공유는 긴 링크.</li>
+          <li>다른 기기로 옮길 때는 쇼 파일 내보내기와 가져오기.</li>
+          <li>서버 기능 메뉴(로그인, 갤러리)는 보이지 않습니다.</li>
+          <li>비용 없음. 서버가 꺼질 일도 없습니다.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>서버판</h3>
+        <span class="where">별도 도메인 + API 서버 + DB</span>
+        <ul>
+          <li>정적판의 기능은 모두 그대로 있습니다.</li>
+          <li>짧은 공유 링크 (<code>/s/k3x9</code>).</li>
+          <li>로그인하면 쇼와 내 불꽃을 클라우드에 저장하고, 다른 기기에서 이어 합니다.</li>
+          <li>상영관 갤러리: 다른 사람의 쇼 구경, 좋아요, 내 서랍에 담기.</li>
+          <li>음악 파일은 서버판에서도 올리지 않습니다 (저작권).</li>
+        </ul>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>항목</th><th>정적판</th><th>서버판</th></tr></thead>
+        <tbody>
+          <tr><td>빌드 명령</td><td class="id">npm run build:pages</td><td class="id">npm run build:server</td></tr>
+          <tr><td>저장</td><td>브라우저 (IndexedDB)</td><td>브라우저 + 계정별 클라우드</td></tr>
+          <tr><td>공유</td><td>긴 링크 (쇼 데이터가 #에 들어감)</td><td>짧은 링크, 긴 링크도 계속 열림</td></tr>
+          <tr><td>기기 간 이어 하기</td><td>파일 내보내기·가져오기</td><td>로그인하면 자동</td></tr>
+          <tr><td>갤러리</td><td>없음</td><td>있음</td></tr>
+          <tr><td>비용</td><td>없음</td><td>서버·DB 월 비용 (무료 등급으로 시작 가능)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>레포 구조</h3>
+<pre><span class="k">night-sky-studio/</span>
+├─ packages/
+│  └─ engine/          <span class="c">// 불꽃 계산, WebGL 렌더러, 오디오, 쇼 파일 규격. 화면 코드 없음</span>
+├─ apps/
+│  └─ web/             <span class="c">// 연출실·상영관 화면 (Vite + TypeScript)</span>
+│     └─ src/store/
+│        ├─ local.ts   <span class="c">// IndexedDB + 긴 링크 → 정적판</span>
+│        └─ remote.ts  <span class="c">// 서버 API → 서버판</span>
+├─ server/             <span class="c">// 서버판 전용 API: 짧은 링크, 계정, 클라우드 저장, 갤러리</span>
+├─ docs/plan.html      <span class="c">// 이 기획서</span>
+└─ .github/workflows/
+   └─ pages.yml        <span class="c">// main에 push하면 정적판을 GitHub Pages에 배포</span></pre>
+    <p class="note prose">화면은 서버가 있는지만 보고 메뉴를 켜고 끕니다. 서버 주소(<code>VITE_API_URL</code>)가 비어 있으면 정적판, 들어 있으면 서버판입니다. 엔진과 화면이 서버에 대해 아무것도 모르게 두는 것이 이 구조의 핵심입니다. 정적판을 HTML 파일 하나로 뽑는 것도 가능합니다 (<code>vite-plugin-singlefile</code>). 다만 효과음과 기본 곡이 들어가면 파일이 커지므로, Pages에는 파일 묶음으로 올립니다.</p>
+  </section>
+
+  <section>
+    <span class="eyebrow">범위</span>
+    <h2>처음 버전에 넣을 것과 미룰 것</h2>
+    <div class="split">
+      <div class="panel">
+        <h3>첫 버전 (정적판)</h3>
+        <ul>
+          <li>불꽃 10종, 크기 4단계, 색 8가지</li>
+          <li>시간표 편집: 놓기, 옮기기, 복사, 지우기, 되돌리기, 부채꼴 묶음 놓기</li>
+          <li>터지는 시각 기준 배치와 발사 시각 자동 계산</li>
+          <li>기본 곡 3개 + 내 음악 파일</li>
+          <li>박자 눈금, 박자 직접 맞추기, 박자에 붙여 놓기</li>
+          <li>재생, 구간 반복, 전체 화면 감상</li>
+          <li>자동 저장, 공유 링크</li>
+        </ul>
+      </div>
+      <div class="panel muted">
+        <h3>다음 버전</h3>
+        <ul>
+          <li>의뢰 모드와 점수</li>
+          <li>"음악에 맞춰 자동 연출" 버튼 (편집의 출발점)</li>
+          <li>영상 파일 저장, 장노출 사진</li>
+          <li>세계의 무대, 관람석 고르기, 3D 카메라</li>
+          <li>새해 카운트다운, 계절과 시간대</li>
+          <li>지도 무대: 내가 고른 장소에서 쏘기</li>
+          <li>드론 쇼 섞기 (확장 아이디어)</li>
+          <li>내 불꽃 만들기 (아래 최종 구성안)</li>
+          <li>서버판: 짧은 링크, 클라우드 저장, 갤러리</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <span class="eyebrow">최종 구성안</span>
+    <h2>다 만들었을 때의 모습: 네 개의 방</h2>
+    <p class="prose">처음에는 연출실 하나로 시작하고, 단계마다 방을 하나씩 엽니다. 다 열리면 불꽃을 만들고, 쇼를 짜고, 일을 받고, 남의 쇼를 구경하는 흐름이 한 앱 안에서 이어집니다.</p>
+    <div class="rooms">
+      <div class="room"><span class="room-phase">1단계부터</span><h3>연출실</h3><p>음악과 시간표로 쇼를 짭니다. 이 앱의 중심입니다.</p></div>
+      <div class="room new"><span class="room-phase">5단계</span><h3>불꽃 공작소</h3><p>제조사가 되어 신상품을 개발합니다. 불꽃 모양과 색, 터지는 방식, 지상 틀의 글자와 그림을 직접 설계하고, 만든 상품은 연출실 팔레트에 그대로 들어갑니다.</p></div>
+      <div class="room"><span class="room-phase">3단계</span><h3>의뢰소</h3><p>조건이 매번 다른 의뢰를 받아 점수와 평판을 쌓습니다. 공작소에서 만든 신제품을 써 볼 수 있습니다.</p></div>
+      <div class="room"><span class="room-phase">2단계 · 6단계</span><h3>상영관</h3><p>내 쇼를 전체 화면으로 봅니다. 6단계 서버판에서는 다른 사람이 올린 쇼와 불꽃도 구경합니다.</p></div>
+    </div>
+
+    <h3>불꽃 공작소: 내 불꽃을 만드는 네 단계</h3>
+    <p class="prose">실제 불꽃 알은 종이 공 안에 '별'이라고 부르는 화약 알갱이를 층층이 채운 구조입니다. 공작소는 이 구조를 그대로 따라가서, 단계를 하나씩 채우면 내 불꽃 한 발이 완성됩니다. 실제 연출가가 카탈로그에서 상품을 고르듯, 여기서 만든 불꽃도 상승 시간과 원가가 붙은 상품이 됩니다.</p>
+    <div class="workshop">
+      <div class="ws-step">
+        <span class="ws-n">모양</span>
+        <h3>별을 어디에 놓을까</h3>
+        <ul>
+          <li>격자에 점을 찍거나 손가락으로 그립니다.</li>
+          <li>하늘 불꽃은 하트, 별처럼 단순한 모양까지만 됩니다. 실제처럼 점이 많고 복잡할수록 형태가 무너집니다.</li>
+          <li>글자와 로고는 '틀 만들기' 탭에서 지상 틀불꽃으로 만듭니다. 이름, 날짜, "LOVE".</li>
+          <li>사진에서 윤곽선을 따 오는 기능은 마지막에 틀 만들기에 붙입니다.</li>
+        </ul>
+        <div class="dotgrid" aria-hidden="true" id="dotgrid"></div>
+      </div>
+      <div class="ws-step">
+        <span class="ws-n">층</span>
+        <h3>몇 겹으로 쌓을까</h3>
+        <ul>
+          <li>바깥 층과 안쪽 심(芯)을 따로 정합니다. 심이 있으면 가운데에 작은 원이 하나 더 피어납니다.</li>
+          <li>층마다 색과 별 종류를 고릅니다. 꼬리 있는 별, 점 별, 반짝이는 별.</li>
+          <li>색이 바뀌는 별: 빨강으로 피었다가 초록으로 지는 식으로 시간에 따라 색을 바꿉니다.</li>
+        </ul>
+      </div>
+      <div class="ws-step">
+        <span class="ws-n">움직임</span>
+        <h3>어떻게 퍼지고 질까</h3>
+        <ul>
+          <li>퍼지는 속도, 아래로 늘어지는 정도, 사라지는 시간.</li>
+          <li>깜빡임: 꺼졌다 켜졌다 하며 사라집니다.</li>
+          <li>두 번 터지기: 퍼진 별이 다시 갈라지거나 작은 불꽃으로 한 번 더 터집니다.</li>
+        </ul>
+      </div>
+      <div class="ws-step">
+        <span class="ws-n">시험 발사</span>
+        <h3>쏴 보고 서랍에 넣기</h3>
+        <ul>
+          <li>정면, 측면, 바람 있는 날로 바꿔 가며 시험 발사합니다. 모양 불꽃은 터질 때마다 방향이 달라서, 옆을 향하면 납작한 선으로 보입니다. 이것도 실제와 같습니다.</li>
+          <li>마음에 들면 이름을 붙여 '내 불꽃 서랍'에 저장합니다. 연출실 팔레트에 바로 나타납니다.</li>
+          <li>불꽃 코드를 복사해 친구에게 보내면 친구 서랍에도 들어갑니다.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>의뢰 모드와 이어지는 방식</h3>
+    <ul class="prose">
+      <li><b>신제품 개발</b>: 공작소에서 만든 불꽃을 의뢰에 쓰려면 개발비를 냅니다. 대신 원가가 기본 불꽃보다 쌉니다.</li>
+      <li><b>맞춤 의뢰</b>: "회사 로고를 지상 틀불꽃으로 띄워 주세요" 같은 의뢰는 공작소에서 직접 만들어야 받을 수 있습니다.</li>
+      <li><b>반응 기록</b>: 내가 만든 불꽃을 쓴 쇼의 관객 반응이 쌓여, 어떤 불꽃이 잘 먹히는지 알 수 있습니다.</li>
+    </ul>
+
+    <h3>내 불꽃 파일 모양</h3>
+<pre><span class="c">// 직접 만든 불꽃 한 발. 쇼 파일의 cue에서 "type": "custom:별사탕" 처럼 이름으로 부릅니다.</span>
+{
+  <span class="k">"name"</span>: "별사탕",
+  <span class="k">"size"</span>: 5,
+  <span class="k">"layers"</span>: [
+    { <span class="k">"role"</span>: "outer", "shape": { "kind": "points", "pts": [[0,-1],[0.95,-0.31],[0.59,0.81]] },
+      "star": "tail", "colors": [{ "at": 0, "c": "pink" }, { "at": 0.6, "c": "white" }] },
+    { <span class="k">"role"</span>: "pistil", "shape": { "kind": "sphere", "count": 30 },
+      "star": "dot", "colors": [{ "at": 0, "c": "gold" }], "delay": 0.15 }
+  ],
+  <span class="k">"motion"</span>: { "speed": 1.0, "droop": 0.3, "life": 2.4, "flicker": true },
+  <span class="k">"split"</span>: { "after": 1.1, "into": "crossette" }
+}</pre>
+  </section>
+
+  <section>
+    <span class="eyebrow">웹으로 충분한가</span>
+    <h2>네, 브라우저만으로 돌아갑니다</h2>
+    <p class="prose">설치하는 앱이 아니라 웹 페이지로 만듭니다. 미니게임 천국처럼 "HTML 파일 하나"는 아니고, 코드를 여러 파일로 나눠 짠 뒤 빌드해서 나온 HTML과 JS 파일 묶음을 올립니다. 보는 사람 입장에서는 그냥 웹 페이지입니다. 아래 표에서 '필요'인 두 줄만 서버판에 들어갑니다.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>기능</th><th>무엇으로</th><th>서버</th></tr></thead>
+        <tbody>
+          <tr><td>불꽃 그리기</td><td>WebGL2. 휴대폰 브라우저도 지원합니다.</td><td class="need no">필요 없음</td></tr>
+          <tr><td>음악 재생, 박자 찾기, 폭발음</td><td>Web Audio API</td><td class="need no">필요 없음</td></tr>
+          <tr><td>내 음악 파일 열기</td><td>파일 선택. 기기 밖으로 나가지 않습니다.</td><td class="need no">필요 없음</td></tr>
+          <tr><td>쇼·내 불꽃 저장</td><td>브라우저 저장소 (IndexedDB)</td><td class="need no">필요 없음</td></tr>
+          <tr><td>영상 파일로 저장</td><td>WebCodecs. 사진 앱에서 이미 써 본 방식입니다.</td><td class="need no">필요 없음</td></tr>
+          <tr><td>쇼·불꽃 공유</td><td>데이터를 압축해 링크나 코드에 담기</td><td class="need no">필요 없음</td></tr>
+          <tr><td>다른 기기에서 이어 하기</td><td>파일로 내보내고 가져오기 (서버판은 로그인)</td><td class="need no">필요 없음</td></tr>
+          <tr><td>짧은 공유 링크</td><td>긴 링크를 짧은 주소로 바꾸려면 저장소가 필요</td><td class="need yes">필요</td></tr>
+          <tr><td>공개 갤러리, 좋아요, 랭킹</td><td>여러 사람의 쇼를 모아 두는 곳</td><td class="need yes">필요</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note prose">남는 걱정은 휴대폰 성능 하나라서 0단계에서 먼저 확인합니다.</p>
+  </section>
+
+  <section>
+    <span class="eyebrow">단계</span>
+    <h2>진행 순서</h2>
+    <p class="prose">실선은 정적판, 점선은 서버판입니다. 0~2단계는 정적판만 만들고, 공유 링크가 메신저에서 잘리는지 확인한 뒤 서버판을 시작합니다.</p>
+    <div class="phases">
+      <div class="phase"><div class="tag">0단계<span class="dur">약 1주</span></div><div><h3>렌더 시험</h3><p>불꽃 3종을 휴대폰에서 60fps로 터뜨려 봅니다. 고정 시간 간격 계산, 시드 재현, 미터 단위 3D 좌표계와 2D 카메라도 여기서 정합니다. 2D와 3D, 라이브러리를 결정하고, 안 되면 여기서 방향을 바꿉니다. 레포 골격(packages/engine, apps/web)과 Pages 자동 배포도 이때 만듭니다.</p><p><b>진행 중 (10월 18일)</b>: 라이브러리 없이 WebGL2로 직접 그리기로 했습니다. 레포 골격, 엔진(국화·모란·버들, 1/120초 고정 계산, 해시 난수, 미터 단위 3D 좌표), 강변 도시 배경, 물 반사, 관람석 4곳, 밀도 자동 낮춤, 재현성 검사, Pages 배포 설정을 만들었습니다. PC에서는 입자 3만 개에 계산 약 0.6ms, 그리기 약 0.2ms입니다. 남은 일은 휴대폰 실측과, 세로 화면에서 불꽃이 작게 보이는 구도 조정입니다.</p></div></div>
+      <div class="phase"><div class="tag">1단계<span class="dur">2~3주</span></div><div><h3>편집기 첫 버전</h3><p>시간표, 팔레트, 박자 찾기와 직접 맞추기, 재생과 저장. 이 단계가 끝나면 쇼를 처음부터 끝까지 만들 수 있습니다. 일정이 밀리면 "내 음악 파일"을 2단계로 넘깁니다.</p></div></div>
+      <div class="phase"><div class="tag">2단계<span class="dur">약 1주</span></div><div><h3>공유와 감상</h3><p>공유 링크, 전체 화면 감상(세로 포함), 관람석 고르기와 거리에 따른 소리 지연, 위에서 보기. 메신저에서 링크 길이를 확인합니다.</p></div></div>
+      <div class="phase server"><div class="tag">S1 서버판<span class="dur">약 2주</span></div><div><h3>서버판 시작</h3><p>server/ 골격, 짧은 링크, 로그인, 쇼 클라우드 저장. 화면에는 <code>remote.ts</code>만 추가합니다. 3단계와 나란히 진행할 수 있습니다.</p></div></div>
+      <div class="phase"><div class="tag">3단계<span class="dur">2~3주</span></div><div><h3>의뢰 모드</h3><p>의뢰서, 날씨 조건, 점수, 평판과 해금.</p></div></div>
+      <div class="phase"><div class="tag">4단계<span class="dur">2주 안팎</span></div><div><h3>넓히기</h3><p>자동 연출, 영상 저장(소리 포함), 장노출 사진. 세계의 무대 첫 세 곳, 3D 자유 카메라와 날아다니기, 새해 카운트다운, 계절과 시간대.</p></div></div>
+      <div class="phase"><div class="tag">5단계<span class="dur">3~4주</span></div><div><h3>불꽃 공작소</h3><p>모양 그리기, 층 쌓기, 움직임 조절, 시험 발사, 내 불꽃 서랍과 불꽃 코드 공유. 의뢰 모드의 신제품 개발과 맞춤 의뢰도 이때 붙입니다.</p></div></div>
+      <div class="phase server"><div class="tag">6단계 서버판<span class="dur">2~3주</span></div><div><h3>상영관 갤러리</h3><p>다른 사람이 올린 쇼와 불꽃을 구경하고, 좋아요를 누르고, 내 서랍에 담습니다. 신고와 숨기기 기능도 같이 넣습니다.</p></div></div>
+      <div class="phase"><div class="tag">7단계<span class="dur">3~4주</span></div><div><h3>지도 무대</h3><p>지도에서 장소 고르기, 발사 위치와 관람석 찍기, 안전거리 원, 건물 높이로 스카이라인 만들기. 서버 없이 동작합니다. 서버판에서는 내가 만든 무대를 갤러리에 올릴 수 있습니다.</p></div></div>
+    </div>
+  </section>
+
+  <section>
+    <span class="eyebrow">위험</span>
+    <h2>미리 막아 둘 것</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>위험</th><th>대응</th></tr></thead>
+        <tbody>
+          <tr><td>휴대폰 성능</td><td>0단계에서 먼저 검증합니다. 기기 성능에 맞춰 입자 수 상한을 자동으로 낮춥니다.</td></tr>
+          <tr><td>음악 저작권</td><td>내 음악은 기기 안에서만 씁니다. 공유 링크와 서버에 음악을 넣지 않고, 기본 곡은 저작권 걱정 없는 음원만 씁니다.</td></tr>
+          <tr><td>축제·기업 이름</td><td>장소 이름은 쓰되 특정 축제나 기업의 이름, 로고는 쓰지 않습니다. '불꽃축제'처럼 일반 명칭만 씁니다.</td></tr>
+          <tr><td>랜드마크 그림</td><td>사진을 쓰지 않고 직접 그린 단순한 실루엣만 씁니다. 야간 조명 디자인이 보호받는 건물도 있으니 조명 무늬는 그리지 않습니다.</td></tr>
+          <tr><td>지도 무대를 실제 발사 계획에 씀</td><td>"실제 불꽃 발사 계획용이 아닙니다"를 늘 띄우고, 안전거리는 게임용 근사치라고 밝힙니다.</td></tr>
+          <tr><td>지도 타일 비용과 규정</td><td>OpenStreetMap 공식 타일 서버는 쓰지 않고, 무료 등급 타일 서비스나 직접 올린 타일 파일을 씁니다.</td></tr>
+          <tr><td>휴대폰에서 편집이 복잡함</td><td>세로 휴대폰은 '무대를 탭해서 놓기'와 자동 연출 위주로 하고, 세밀한 편집은 가로 화면과 PC에서 합니다.</td></tr>
+          <tr><td>사실감과 재미의 충돌</td><td>실제 값은 참고만 하고, 화면에서 보기 좋은 쪽을 우선합니다.</td></tr>
+          <tr><td>두 판이 서로 어긋남</td><td>엔진과 쇼 파일 규격은 하나만 둡니다. 정적판 링크를 서버판에서 여는 테스트를 CI에 넣습니다.</td></tr>
+          <tr><td>갤러리 악용 (서버판)</td><td>글자 불꽃에 욕설이나 개인정보가 들어갈 수 있습니다. 신고·숨기기와 금칙어 검사를 갤러리와 함께 넣습니다.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <span class="eyebrow">정해 주실 것</span>
+    <h2>시작 전에 고를 것</h2>
+    <ul class="asks">
+      <li class="done"><span class="badge">정함</span><b>레포 이름</b><span class="rec"><b class="mono">night-sky-studio</b>. 로컬 폴더도 같은 이름으로 바꿨습니다.</span></li>
+      <li class="done"><span class="badge">정함</span><b>배포 형태</b><span class="rec"><b>정적판과 서버판 둘 다</b>. 코드 하나, 빌드 두 가지.</span></li>
+      <li class="done"><span class="badge">정함</span><b>2D와 3D</b><span class="rec"><b>둘 다 고를 수 있게</b>. 계산은 처음부터 3D, 화면은 2D 정면으로 시작해서 2단계에 관람석 고르기, 4단계에 3D 카메라를 붙입니다.</span></li>
+      <li class="done"><span class="badge">정함</span><b>무대</b><span class="rec"><b>세계의 무대 + 지도 무대</b>. 세계의 무대는 4단계, 지도 무대는 7단계.</span></li>
+      <li class="done"><span class="badge">정함</span><b>세계의 무대 첫 세 곳</b><span class="rec"><b>강변 도시와 다리(서울), 항구와 아치 다리(시드니), 해변과 바다 위 다리(부산)</b>. 강, 항구, 바다로 서로 다르고, 시드니는 새해 카운트다운과 바로 이어집니다.</span></li>
+      <li><b>창작 도구가 중심일까요, 의뢰 모드(게임)가 중심일까요?</b><span class="rec">추천: <b>도구로 시작해서 3단계에 의뢰 모드</b>. 편집기가 탄탄해야 의뢰 모드도 재미있습니다.</span></li>
+      <li class="done"><span class="badge">정함</span><b>서버판 언어</b><span class="rec"><b>Spring Boot</b>. 이미 익숙하고, 서버가 하는 일(짧은 링크, 계정, 저장, 갤러리)이 단순한 CRUD라 빨리 만들 수 있습니다. 쇼 파일 규격은 engine에서 JSON Schema로 뽑아 서버가 검증에 씁니다. 화면과 같은 TypeScript로 맞추고 싶다면 Node(Fastify) + Supabase도 좋은 선택입니다.</span></li>
+      <li><b>미니게임 천국에 바로가기 카드를 둘까요?</b><span class="rec">추천: <b>둡니다</b>. '시뮬' 탭에 외부 링크 카드 하나, 「불꽃놀이 메이커」 화면 끝에 안내 링크 하나.</span></li>
+    </ul>
+  </section>
+
+</main>
+
+<script>
+(function () {
+  // 음악 파형 막대
+  var wave = document.getElementById('wave');
+  var html = '';
+  for (var i = 0; i < 90; i++) {
+    var h = 20 + Math.round(70 * Math.abs(Math.sin(i * 0.37) * Math.cos(i * 0.11)) + (i > 70 ? 15 : 0));
+    html += '<i style="height:' + Math.min(h, 100) + '%"></i>';
+  }
+  wave.innerHTML = html;
+  // 박자 눈금
+  document.querySelectorAll('.lane').forEach(function (lane) {
+    for (var b = 1; b < 16; b++) {
+      var d = document.createElement('div');
+      d.className = 'beat';
+      d.style.left = (b * 100 / 16) + '%';
+      lane.insertBefore(d, lane.firstChild);
+    }
+  });
+
+  // 공작소 예시: 13×11 격자에 찍은 하트 모양 점
+  var dg = document.getElementById('dotgrid');
+  var on = {};
+  for (var hi = 0; hi < 200; hi++) {
+    var ht = hi / 200 * Math.PI * 2;
+    var hx = 16 * Math.pow(Math.sin(ht), 3);
+    var hy = -(13 * Math.cos(ht) - 5 * Math.cos(2 * ht) - 2 * Math.cos(3 * ht) - Math.cos(4 * ht));
+    on[Math.round(6 + hx / 16 * 5.6) + ',' + Math.round(5 + hy / 17 * 5.2)] = 1;
+  }
+  var cells = '';
+  for (var gy = 0; gy < 11; gy++) {
+    for (var gx = 0; gx < 13; gx++) cells += '<i' + (on[gx + ',' + gy] ? ' class="on"' : '') + '></i>';
+  }
+  dg.innerHTML = cells;
+
+  // 무대: 정지된 한 장면을 그린다 (움직임 없음)
+  var c = document.getElementById('sky');
+  var x = c.getContext('2d');
+  var W = c.width, H = c.height;
+  var g = x.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#05061a'); g.addColorStop(0.75, '#141640'); g.addColorStop(1, '#1d1a3a');
+  x.fillStyle = g; x.fillRect(0, 0, W, H);
+
+  var seed = 7;
+  function rnd() { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }
+
+  // 별
+  for (var s = 0; s < 120; s++) {
+    x.fillStyle = 'rgba(255,255,255,' + (0.15 + rnd() * 0.4) + ')';
+    x.fillRect(rnd() * W, rnd() * H * 0.6, 1.5, 1.5);
+  }
+
+  function glow(px, py, r, col, a) {
+    var rg = x.createRadialGradient(px, py, 0, px, py, r);
+    rg.addColorStop(0, col.replace('A', a)); rg.addColorStop(1, col.replace('A', 0));
+    x.fillStyle = rg; x.beginPath(); x.arc(px, py, r, 0, Math.PI * 2); x.fill();
+  }
+
+  // 국화: 꼬리 있는 방사형
+  function peony(cx, cy, R, col, n, droop) {
+    glow(cx, cy, R * 1.4, col, 0.18);
+    for (var i = 0; i < n; i++) {
+      var ang = (i / n) * Math.PI * 2 + rnd() * 0.05;
+      var r = R * (0.85 + rnd() * 0.2);
+      var steps = 14;
+      for (var k = 0; k < steps; k++) {
+        var t = k / steps;
+        var px = cx + Math.cos(ang) * r * t;
+        var py = cy + Math.sin(ang) * r * t + droop * t * t * R;
+        x.fillStyle = col.replace('A', (0.15 + 0.85 * t).toFixed(2));
+        x.beginPath(); x.arc(px, py, 1.2 + t * 1.8, 0, Math.PI * 2); x.fill();
+      }
+    }
+  }
+  // 버들: 늘어지는 금빛 줄기
+  function willow(cx, cy, R, n) {
+    glow(cx, cy, R, 'rgba(245,196,81,A)', 0.12);
+    for (var i = 0; i < n; i++) {
+      var ang = (i / n) * Math.PI * 2;
+      x.strokeStyle = 'rgba(245,196,81,0.55)'; x.lineWidth = 1.4;
+      x.beginPath(); x.moveTo(cx, cy);
+      var ex = cx + Math.cos(ang) * R * 0.7, ey = cy + Math.sin(ang) * R * 0.45;
+      x.quadraticCurveTo(ex + Math.cos(ang) * R * 0.3, ey, ex + Math.cos(ang) * R * 0.25, ey + R * 0.9);
+      x.stroke();
+    }
+  }
+  // 하트
+  function heart(cx, cy, s, col) {
+    glow(cx, cy, s * 1.6, col, 0.16);
+    for (var i = 0; i < 46; i++) {
+      var t = (i / 46) * Math.PI * 2;
+      var hx = 16 * Math.pow(Math.sin(t), 3);
+      var hy = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+      x.fillStyle = col.replace('A', 0.95);
+      x.beginPath(); x.arc(cx + hx * s / 16, cy + hy * s / 16, 3, 0, Math.PI * 2); x.fill();
+    }
+  }
+
+  peony(300, 190, 120, 'rgba(245,196,81,A)', 44, 0.25);
+  willow(690, 150, 150, 30);
+  heart(1010, 230, 70, 'rgba(245,154,200,A)');
+  peony(860, 330, 60, 'rgba(125,216,238,A)', 28, 0.15);
+  peony(160, 360, 45, 'rgba(251,155,84,A)', 24, 0.1);
+
+  // 상승 꼬리
+  x.strokeStyle = 'rgba(255,220,170,0.5)'; x.lineWidth = 2;
+  x.beginPath(); x.moveTo(520, H - 70); x.lineTo(530, 300); x.stroke();
+
+  // 강변 도시 실루엣과 물 반사
+  x.fillStyle = '#0a0a18';
+  var bx = 0;
+  while (bx < W) {
+    var bw = 30 + rnd() * 60, bh = 30 + rnd() * 90;
+    x.fillRect(bx, H - 70 - bh, bw, bh + 10);
+    bx += bw + 4;
+  }
+  x.fillStyle = '#0d0f26'; x.fillRect(0, H - 64, W, 64);
+  x.fillStyle = 'rgba(245,196,81,0.10)'; x.fillRect(240, H - 60, 140, 50);
+  x.fillStyle = 'rgba(245,154,200,0.08)'; x.fillRect(960, H - 60, 110, 46);
+  // 다리
+  x.fillStyle = '#16183a'; x.fillRect(0, H - 78, W, 8);
+  for (var p = 40; p < W; p += 160) x.fillRect(p, H - 78, 10, 22);
+})();
+</script>
