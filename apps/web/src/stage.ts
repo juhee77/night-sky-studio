@@ -134,6 +134,14 @@ export class Stage {
     });
   }
 
+  /** 자유 시점 카메라를 직접 정한다 (공작소의 옆에서 보기) */
+  setOrbit(yaw: number, pitch: number, dist: number, target: Vec3): void {
+    this.orbit = { yaw, pitch, dist, target };
+    this.seatId = 'free';
+    this.backdropKey = '';
+    this.layout();
+  }
+
   /** 자유 시점 돌리기 (화면 픽셀 기준) */
   orbitBy(dx: number, dy: number): void {
     if (this.seatId !== 'free') return;

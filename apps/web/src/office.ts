@@ -1,6 +1,7 @@
 // 의뢰소: 게시판(의뢰 받기), 해금 상점, 장부, 의뢰 진행 막대, 채점 결과.
 
 import {
+  DEVELOP_PRICE,
   FIREWORK_TYPES,
   UNLOCK_PRICES,
   VENUES,
@@ -9,6 +10,8 @@ import {
   showCost,
   typeLabel,
   type Commission,
+  type CustomShell,
+  type FireworkType,
   type ScoreResult,
   type Show,
 } from '@nss/engine';
@@ -30,6 +33,8 @@ export function weatherText(c: Commission): string {
 const stars = (n: number) => '★'.repeat(n) + '☆'.repeat(3 - n);
 
 export interface OfficeHost {
+  /** 서랍의 내 불꽃 (개발할 수 있는 것) */
+  shells(): CustomShell[];
   openShow(id: string, show: Show): Promise<void>;
   saveNewShow(show: Show): Promise<string>;
   say(message: string): void;
@@ -62,8 +67,9 @@ export class Office {
     career.on(() => this.board.open && this.renderBoard());
   }
 
-  /** 지금 쇼에서 쓸 수 없는 불꽃인가 (의뢰 쇼에서는 해금한 것만 쓴다) */
-  isLocked = (t: (typeof FIREWORK_TYPES)[number]): boolean => !!this.editor.show.commission && !this.career.isUnlocked(t);
+  /** 지금 쇼에서 쓸 수 없는 불꽃인가 (의뢰 쇼에서는 해금·개발한 것만 쓴다) */
+  isLocked = (t: FireworkType, custom?: string): boolean =>
+    !!this.editor.show.commission && !this.career.isUnlocked(t, custom);
 
   openBoard(): void {
     this.renderBoard();
@@ -100,6 +106,21 @@ export class Office {
           : '<li class="note">모든 불꽃을 해금했습니다.</li>'}
       </ul>
 
+      <h3>내 불꽃 개발</h3>
+      <p class="note">공작소에서 만든 불꽃을 의뢰에 쓰려면 개발비 ${DEVELOP_PRICE}을 한 번 냅니다. 대신 한 발 값이 기본 불꽃보다 20% 쌉니다.</p>
+      <ul class="shop">
+        ${this.host.shells().length
+          ? this.host
+              .shells()
+              .map((s) =>
+                this.career.isUnlocked('custom', s.id)
+                  ? `<li><span>${esc(s.name)}</span><span class="note">개발함</span></li>`
+                  : `<li><span>${esc(s.name)}</span><span class="num">${DEVELOP_PRICE}</span><button type="button" data-develop="${s.id}" ${st.money < DEVELOP_PRICE ? 'disabled' : ''}>개발</button></li>`,
+              )
+              .join('')
+          : '<li class="note">서랍이 비었습니다. 「공작소」에서 불꽃을 만들어 서랍에 넣으세요.</li>'}
+      </ul>
+
       ${st.history.length ? `<h3>지난 의뢰</h3><ul class="history">${st.history
         .slice(0, 8)
         .map((h) => `<li><span>${esc(h.title)}</span><span class="stars">${stars(h.stars)}</span><span class="num">${h.total}점 · +${h.reward}</span><span class="note">${fmtDate(h.at)}</span></li>`)
@@ -109,6 +130,15 @@ export class Office {
       b.addEventListener('click', () => void this.take(cards[Number(b.dataset.take)])),
     );
     body.querySelector('[data-act="refresh"]')?.addEventListener('click', () => this.career.refreshBoard());
+    body.querySelectorAll<HTMLButtonElement>('[data-develop]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const s = this.host.shells().find((x) => x.id === b.dataset.develop);
+        if (s && this.career.develop(s.id)) {
+          this.host.say(`「${s.name}」을 개발했습니다. 이제 의뢰 쇼에서도 쓸 수 있습니다.`);
+          this.editor.emit('template');
+        }
+      }),
+    );
     body.querySelectorAll<HTMLButtonElement>('[data-unlock]').forEach((b) =>
       b.addEventListener('click', () => {
         const t = b.dataset.unlock as (typeof FIREWORK_TYPES)[number];

@@ -24,7 +24,9 @@ import { demoShow } from './demo-show.ts';
 import { Editor, moveToVenue, newShow, round3, withDefaultLaunchers, type Snap } from './editor.ts';
 import { fmtDate, fmtTime } from './format.ts';
 import { importMusicFile, iphoneMusicHint, loadMusic, monoForTempo, musicErrorMessage, useDeviceFontForFrames } from './media.ts';
+import { Drawer } from './drawer.ts';
 import { Office } from './office.ts';
+import { Workshop } from './workshop.ts';
 import { Panel } from './panel.ts';
 import { runCountdown } from './countdown.ts';
 import { CAMERA_SEATS, Stage } from './stage.ts';
@@ -88,6 +90,8 @@ const el = {
   shareNative: $<HTMLButtonElement>('share-native'),
   shareInfo: $<HTMLParagraphElement>('share-info'),
   officeBtn: $<HTMLButtonElement>('office-btn'),
+  workshopBtn: $<HTMLButtonElement>('workshop-btn'),
+  workshopDialog: $<HTMLDialogElement>('workshop-dialog'),
   autoBtn: $<HTMLButtonElement>('auto-btn'),
   autoDialog: $<HTMLDialogElement>('auto-dialog'),
   autoDensity: $<HTMLInputElement>('auto-density'),
@@ -187,6 +191,7 @@ function rejectPlacement(why: 'kind' | 'locked'): void {
 // ── 의뢰소 ──
 const career = new Career();
 const office = new Office(editor, career, {
+  shells: () => drawer.list(),
   openShow: (id, show) => openShow(id, show),
   saveNewShow: async (show) => {
     const id = newId();
@@ -196,8 +201,25 @@ const office = new Office(editor, career, {
   say,
   watch: () => startWatching(),
 });
-editor.allowType = (t) => !office.isLocked(t);
+editor.allowType = (t, custom) => !office.isLocked(t, custom);
 el.officeBtn.addEventListener('click', () => office.openBoard());
+
+// ── 불꽃 공작소와 내 불꽃 서랍 ──
+const drawer = new Drawer();
+editor.findShell = (id) => drawer.get(id) ?? editor.show.customShells?.[id];
+const workshop = new Workshop(el.workshopDialog, drawer, {
+  useInShow: (id) => {
+    editor.select([]);
+    editor.setTemplate({ type: 'custom', custom: id });
+    say(`「${drawer.get(id)?.name}」을 골랐습니다. 시간표의 바지선 줄 빈 곳을 누르면 놓입니다.`);
+  },
+  say,
+});
+drawer.on(() => editor.emit('template'));
+el.workshopBtn.addEventListener('click', () => {
+  if (transport.playing) togglePlay();
+  workshop.open(editor.template.type === 'custom' ? editor.template.custom : undefined);
+});
 
 // ── 시간표와 설정 칸 ──
 const timeline: Timeline = new Timeline(el.timeline, editor, {
@@ -208,7 +230,7 @@ const timeline: Timeline = new Timeline(el.timeline, editor, {
   musicDuration: () => musicBuffer?.duration ?? 0,
   warnings: () => warnIdx,
 });
-new Panel(el.panel, editor, office.isLocked);
+new Panel(el.panel, editor, office.isLocked, () => drawer.list());
 timeline.onReject = rejectPlacement;
 
 el.snap.addEventListener('change', () => (editor.snap = el.snap.value as Snap));

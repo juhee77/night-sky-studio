@@ -181,7 +181,7 @@ export class Timeline {
     show.cues.forEach((cue, i) => {
       const lane = ed.laneOf(cue);
       const prefire = cuePrefire(cue);
-      const len = cueLength(cue);
+      const len = cueLength(cue, show.customShells);
       if (cue.t + len < t0 || cue.t - prefire > t1) return;
       const y = lanesTop + lane * LANE_H;
       const x = this.x(cue.t);
@@ -223,7 +223,7 @@ export class Timeline {
         g.stroke();
         g.setLineDash([]);
       }
-      const label = clipLabel(cue);
+      const label = clipLabel(cue, show.customShells?.[cue.custom ?? '']?.name);
       if (cw > 30) {
         g.save();
         g.beginPath();
@@ -404,8 +404,8 @@ export class Timeline {
   }
 }
 
-function clipLabel(cue: Cue): string {
-  const name = typeLabel(cue.type);
+function clipLabel(cue: Cue, customName?: string): string {
+  const name = customName ?? typeLabel(cue.type);
   if (cue.type === 'lancework') return `「${cue.text ?? ''}」 ${cue.len ?? 10}초`;
   if (cue.type === 'niagara') return `${name} ${cue.len ?? 8}초`;
   if (cue.type === 'cake') return `${name} ×${cue.shots ?? CAKE_DEFAULTS.shots}`;

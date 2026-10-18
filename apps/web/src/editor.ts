@@ -1,6 +1,7 @@
 // 편집 중인 쇼와 선택, 되돌리기. 화면 부품들은 여기서 바뀐 것을 듣고 다시 그린다.
 
 import {
+  type CustomShell,
   CAKE_DEFAULTS,
   LEN_DEFAULTS,
   VENUES,
@@ -30,6 +31,8 @@ export interface Template {
   /** 나이아가라·틀불꽃이 타는 시간 */
   len: number;
   text: string;
+  /** 내 불꽃 id (type이 custom일 때) */
+  custom?: string;
 }
 
 export type Snap = 'beat' | 'half' | 'off';
@@ -47,7 +50,9 @@ export class Editor {
   };
   snap: Snap = 'beat';
   /** 쓸 수 있는 불꽃인지 (의뢰 쇼에서 해금하지 않은 불꽃은 못 쓴다) */
-  allowType: (t: FireworkType) => boolean = () => true;
+  allowType: (t: FireworkType, custom?: string) => boolean = () => true;
+  /** 내 불꽃 설계를 서랍에서 찾는다 */
+  findShell: (id: string) => CustomShell | undefined = () => undefined;
 
   private undoStack: string[] = [];
   private redoStack: string[] = [];
@@ -174,7 +179,9 @@ export class Editor {
     if (launcher.kind === 'bridge') type = 'niagara';
     else if (launcher.kind === 'frame') type = 'lancework';
     else if (launcherKindFor(type) !== 'barge') return 'kind';
-    if (!this.allowType(type)) return 'locked';
+    if (!this.allowType(type, tpl.custom)) return 'locked';
+    const def = type === 'custom' && tpl.custom ? this.findShell(tpl.custom) : undefined;
+    if (type === 'custom' && !def) return 'kind';
 
     const cue: Cue = { t: round3(Math.max(0, t)), at: launcherId, type, size: tpl.size, colors: [...tpl.colors] };
     if (type === 'niagara' || type === 'lancework') {
@@ -187,7 +194,12 @@ export class Editor {
       if (tpl.angle) cue.angle = tpl.angle;
       if (tpl.fanCount > 1) cue.fan = { count: tpl.fanCount, spread: tpl.fanSpread };
     }
-    this.change((d) => d.cues.push(cue));
+    if (def) cue.custom = def.id;
+    this.change((d) => {
+      d.cues.push(cue);
+      // 내 불꽃은 설계를 쇼 안에 복사해 둔다 (서랍의 최신 설계로).
+      if (def) d.customShells = { ...d.customShells, [def.id]: structuredClone(def) };
+    });
     this.select([this.show.cues.length - 1]);
     return true;
   }

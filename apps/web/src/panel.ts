@@ -14,6 +14,7 @@ import {
   type CakePattern,
   type ColorName,
   type Cue,
+  type CustomShell,
   type FireworkType,
   type Size,
 } from '@nss/engine';
@@ -34,11 +35,18 @@ export class Panel {
   private title: HTMLElement;
   private body: HTMLElement;
   private editor: Editor;
-  private isLocked: (t: FireworkType) => boolean;
+  private isLocked: (t: FireworkType, custom?: string) => boolean;
+  private shells: () => CustomShell[];
 
-  constructor(root: HTMLElement, editor: Editor, isLocked: (t: FireworkType) => boolean = () => false) {
+  constructor(
+    root: HTMLElement,
+    editor: Editor,
+    isLocked: (t: FireworkType, custom?: string) => boolean = () => false,
+    shells: () => CustomShell[] = () => [],
+  ) {
     this.editor = editor;
     this.isLocked = isLocked;
+    this.shells = shells;
     root.innerHTML = `<h2 id="panel-title"></h2><div class="panel-body"></div>`;
     this.title = root.querySelector('#panel-title')!;
     this.body = root.querySelector('.panel-body')!;
@@ -66,6 +74,7 @@ export class Panel {
       cakePattern: c.pattern ?? CAKE_DEFAULTS.pattern,
       len: c.len ?? (c.type === 'lancework' ? LEN_DEFAULTS.lancework : LEN_DEFAULTS.niagara),
       text: c.text ?? tpl.text,
+      custom: c.custom,
     };
   }
 
@@ -95,6 +104,18 @@ export class Panel {
       const title = locked ? ' title="의뢰소에서 해금하면 쓸 수 있습니다"' : '';
       return `<button type="button" data-type="${t}" aria-pressed="${t === v.type}" ${allowed ? '' : 'disabled'}${title}>${typeLabel(t)}${locked ? ' <span class="lock">잠김</span>' : ''}</button>`;
     }).join('');
+    // 내 불꽃: 서랍의 불꽃과, 이 쇼에만 들어 있는 불꽃(받은 쇼 등)
+    const mine = new Map(this.shells().map((s) => [s.id, s]));
+    for (const s of Object.values(ed.show.customShells ?? {})) if (!mine.has(s.id)) mine.set(s.id, s);
+    const customButtons = [...mine.values()]
+      .map((s) => {
+        const locked = this.isLocked('custom', s.id);
+        const allowed = !locked && (!n || kind === 'barge');
+        const title = locked ? ' title="의뢰소에서 개발비를 내면 의뢰에 쓸 수 있습니다"' : '';
+        const pressed = v.type === 'custom' && v.custom === s.id;
+        return `<button type="button" class="custom-chip" data-custom="${s.id}" aria-pressed="${pressed}" ${allowed ? '' : 'disabled'}${title}><span class="dot" style="--c:${css(s.layers[0].color)}"></span>${s.name.replace(/[&<>"]/g, '')}${locked ? ' <span class="lock">잠김</span>' : ''}</button>`;
+      })
+      .join('');
 
     const isSpecial = v.type === 'niagara' || v.type === 'lancework';
     const sizeField = isSpecial
@@ -180,6 +201,7 @@ export class Panel {
 
     this.body.innerHTML = `
       <div class="field"><span class="label">종류</span><div class="chips types">${typeButtons}</div></div>
+      <div class="field"><span class="label">내 불꽃</span><div class="chips types">${customButtons || '<span class="note">「공작소」에서 만든 불꽃이 여기에 나옵니다.</span>'}</div></div>
       ${sizeField}
       <div class="field"><span class="label">색</span><div class="swatches">${swatches(0)}</div></div>
       <div class="field"><span class="label">두 번째 색</span><div class="swatches">${swatches(1)}</div></div>
@@ -210,6 +232,29 @@ export class Panel {
             delete c.pattern;
           }
         }, { type });
+      }),
+    );
+    all('[data-custom]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const id = b.dataset.custom!;
+        const def = this.shells().find((s) => s.id === id) ?? ed.show.customShells?.[id];
+        if (!def) return;
+        if (ed.selection.size) {
+          const sel = ed.selection;
+          ed.change((d) => {
+            for (const i of sel) {
+              const c = d.cues[i];
+              if (!c) continue;
+              c.type = 'custom';
+              c.custom = id;
+              delete c.shots;
+              delete c.interval;
+              delete c.pattern;
+            }
+            d.customShells = { ...d.customShells, [id]: structuredClone(def) };
+          });
+        }
+        ed.setTemplate({ type: 'custom', custom: id });
       }),
     );
     all('[data-size]').forEach((b) =>

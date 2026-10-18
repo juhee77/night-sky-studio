@@ -2,6 +2,7 @@
 // 이 기기의 브라우저에만 저장한다.
 
 import {
+  DEVELOP_PRICE,
   STARTER_TYPES,
   UNLOCK_PRICES,
   generateCommissions,
@@ -29,13 +30,15 @@ export interface CareerState {
   /** 받아 간 의뢰 (게시판에서 빠진다) */
   taken: string[];
   history: HistoryEntry[];
+  /** 개발비를 내서 의뢰에 쓸 수 있게 된 내 불꽃 id */
+  developed: string[];
 }
 
 const KEY = 'nss:career';
 const TIER_LABEL = ['동네 의뢰', '지역 의뢰', '큰 행사'];
 
 function fresh(): CareerState {
-  return { money: 100, reputation: 0, unlocked: [...STARTER_TYPES], boardSeed: Date.now() % 1e9, taken: [], history: [] };
+  return { money: 100, reputation: 0, unlocked: [...STARTER_TYPES], boardSeed: Date.now() % 1e9, taken: [], history: [], developed: [] };
 }
 
 export class Career {
@@ -90,8 +93,18 @@ export class Career {
     this.save();
   }
 
-  isUnlocked(t: FireworkType): boolean {
+  isUnlocked(t: FireworkType, custom?: string): boolean {
+    if (t === 'custom') return !!custom && this.state.developed.includes(custom);
     return this.state.unlocked.includes(t);
+  }
+
+  /** 내 불꽃 개발: 개발비를 한 번 내면 의뢰에 쓸 수 있다. */
+  develop(id: string): boolean {
+    if (this.state.developed.includes(id) || this.state.money < DEVELOP_PRICE) return false;
+    this.state.money -= DEVELOP_PRICE;
+    this.state.developed.push(id);
+    this.save();
+    return true;
   }
 
   unlock(t: FireworkType): boolean {

@@ -196,7 +196,7 @@ td.need.yes { color: var(--accent); }
 <main class="doc">
 
   <header class="hero">
-    <span class="eyebrow">새 프로젝트 기획안 · v10 · 2026년 10월 18일</span>
+    <span class="eyebrow">새 프로젝트 기획안 · v11 · 2026년 10월 19일</span>
     <h1>밤하늘 연출실<small>night-sky-studio</small></h1>
     <p class="lede">음악을 고르고, 시간표 위에 불꽃을 한 발씩 놓아 나만의 불꽃축제를 연출하는 웹 시뮬레이터입니다. 완성한 쇼는 전체 화면으로 감상하고 링크로 보낼 수 있습니다.</p>
 
@@ -228,6 +228,11 @@ td.need.yes { color: var(--accent); }
     </figure>
 
     <div class="changes">
+      <h3>v11에서 바뀐 점 <span class="ver">2026-10-19</span></h3>
+      <ul>
+        <li>5단계(불꽃 공작소)를 마쳤습니다. 내 불꽃 파일 모양을 실제 쓰는 형식으로 고쳤습니다 (cue는 <code>"type": "custom"</code>과 <code>"custom": id</code>).</li>
+        <li>휴대폰에서 내 음악 파일을 고를 수 없던 문제를 고쳤습니다. 위 막대가 화면 밖으로 넘쳐 버튼이 가려졌고, 아이폰은 메뉴에서 코드로 여는 파일 창을 막기 때문에, 「내 음악 파일」 버튼을 따로 두었습니다.</li>
+      </ul>
       <h3>v10에서 바뀐 점 <span class="ver">2026-10-18</span></h3>
       <ul>
         <li>4단계(넓히기)를 마쳤습니다. 다음은 5단계 불꽃 공작소입니다.</li>
@@ -716,17 +721,17 @@ td.need.yes { color: var(--accent); }
     </ul>
 
     <h3>내 불꽃 파일 모양</h3>
-<pre><span class="c">// 직접 만든 불꽃 한 발. 쇼 파일의 cue에서 "type": "custom:별사탕" 처럼 이름으로 부릅니다.</span>
+<pre><span class="c">// 직접 만든 불꽃 한 종류. 쇼 파일의 customShells에 담기고, cue는 { "type": "custom", "custom": "c1" }로 부릅니다.</span>
 {
+  <span class="k">"id"</span>: "c1",
   <span class="k">"name"</span>: "별사탕",
-  <span class="k">"size"</span>: 5,
   <span class="k">"layers"</span>: [
-    { <span class="k">"role"</span>: "outer", "shape": { "kind": "points", "pts": [[0,-1],[0.95,-0.31],[0.59,0.81]] },
-      "star": "tail", "colors": [{ "at": 0, "c": "pink" }, { "at": 0.6, "c": "white" }] },
+    { <span class="k">"role"</span>: "outer", "shape": { "kind": "points", "pts": [[0,1],[0.95,0.31],[0.59,-0.81]] },
+      "star": "tail", "color": "pink", "then": { "color": "white", "at": 0.6 }, "scale": 1, "delay": 0 },
     { <span class="k">"role"</span>: "pistil", "shape": { "kind": "sphere", "count": 30 },
-      "star": "dot", "colors": [{ "at": 0, "c": "gold" }], "delay": 0.15 }
+      "star": "dot", "color": "gold", "scale": 0.45, "delay": 0.15 }
   ],
-  <span class="k">"motion"</span>: { "speed": 1.0, "droop": 0.3, "life": 2.4, "flicker": true },
+  <span class="k">"motion"</span>: { "speed": 1.0, "droop": 0.3, "life": 2.4, "flicker": false },
   <span class="k">"split"</span>: { "after": 1.1, "into": "crossette" }
 }</pre>
   </section>
@@ -765,7 +770,7 @@ td.need.yes { color: var(--accent); }
       <div class="phase server"><div class="tag">S1 서버판<span class="dur">약 2주</span></div><div><h3>서버판 시작</h3><p>server/ 골격, 짧은 링크, 로그인, 쇼 클라우드 저장. 화면에는 <code>remote.ts</code>만 추가합니다. 3단계와 나란히 진행할 수 있습니다.</p></div></div>
       <div class="phase"><div class="tag">3단계<span class="dur">2~3주</span></div><div><h3>의뢰 모드</h3><p>의뢰서, 날씨 조건, 점수, 평판과 해금.</p><p><b>완료 (10월 18일)</b>: 「의뢰소」 게시판(의뢰 일곱 가지, 평판에 따라 동네 → 지역 → 큰 행사), 의뢰마다 다른 바람·구름·관람석·취향, 예산과 조건을 실시간으로 보여 주는 의뢰 막대, 미리 채점과 납품(한 번만), 장부(돈·평판·지난 의뢰), 불꽃 해금 상점(처음엔 국화·모란·버들·링·하트). 연기는 바람과 터지는 순서로 계산해서 연기 속 불꽃을 흐리게 그리고, 구름보다 높이 터지는 불꽃은 구름에 묻힙니다. 감상할 때는 큰 순간에 관객 함성, 끝나면 박수가 나옵니다. 점수는 박자·빈 하늘·다양성·연기와 구름·피날레·의뢰인 취향·예산과 조건 일곱 항목이고, 곡 대부분을 비워 두면 총점이 깎입니다.</p></div></div>
       <div class="phase"><div class="tag">4단계<span class="dur">2주 안팎</span></div><div><h3>넓히기</h3><p>자동 연출, 영상 저장(소리 포함), 장노출 사진. 세계의 무대 첫 세 곳, 3D 자유 카메라와 날아다니기, 새해 카운트다운, 계절과 시간대.</p><p><b>완료 (10월 18일)</b>: 자동 연출(곡의 박자와 박마다 소리 크기를 보고 조용한 곳은 띄엄띄엄, 커지는 곳은 촘촘하고 크게, 끝은 피날레로. 의뢰 쇼에서는 해금한 불꽃·조건·예산을 지킴), 세계의 무대 세 곳(강변 도시와 다리, 항구와 아치 다리, 해변과 바다 위 다리), 3D 자유 시점(끌어서 돌리기, 휠·두 손가락 확대)과 날아다니기, 장노출 사진(PNG), 영상 저장(MP4, 음악·불꽃 소리·관객 소리 포함, 60초 쇼 720p를 PC에서 약 16초에 만듦), 무대 설정(계절과 시간대 다섯 가지: 맑은 밤·해 질 녘·한겨울·눈·안개, 바람, 낮은 구름), 새해 카운트다운.</p></div></div>
-      <div class="phase"><div class="tag">5단계<span class="dur">3~4주</span></div><div><h3>불꽃 공작소</h3><p>모양 그리기, 층 쌓기, 움직임 조절, 시험 발사, 내 불꽃 서랍과 불꽃 코드 공유. 의뢰 모드의 신제품 개발과 맞춤 의뢰도 이때 붙입니다.</p></div></div>
+      <div class="phase"><div class="tag">5단계<span class="dur">3~4주</span></div><div><h3>불꽃 공작소</h3><p>모양 그리기, 층 쌓기, 움직임 조절, 시험 발사, 내 불꽃 서랍과 불꽃 코드 공유. 의뢰 모드의 신제품 개발과 맞춤 의뢰도 이때 붙입니다.</p><p><b>완료 (10월 19일)</b>: 「공작소」 버튼으로 엽니다. 바깥 층과 심(켜고 끄기), 층마다 모양(둥근 공·고리·격자에 직접 그리기, 하트·별·원·나비 본보기), 별 종류(꼬리·점·반짝이·버들 꼬리), 색과 색이 바뀌는 별, 심의 크기와 늦게 피기, 움직임(퍼지는 크기·늘어짐·사라지는 시간·깜빡임), 두 번 터지기(십자로 갈라지기·작게 한 번 더). 고칠 때마다 정면·옆에서·바람 부는 날로 시험 발사합니다. 서랍에 저장하면 팔레트의 「내 불꽃」에 나오고, 쇼에 놓으면 설계가 쇼 안에 복사되어 공유 링크로도 같은 불꽃이 터집니다. 불꽃 코드(NSS1-…)로 친구와 주고받고, 의뢰에 쓰려면 의뢰소에서 개발비 50을 한 번 냅니다(대신 한 발 값 20% 싸짐). 맞춤 의뢰와 지상 틀 그림 그리기는 다음으로 미뤘습니다.</p></div></div>
       <div class="phase server"><div class="tag">6단계 서버판<span class="dur">2~3주</span></div><div><h3>상영관 갤러리</h3><p>다른 사람이 올린 쇼와 불꽃을 구경하고, 좋아요를 누르고, 내 서랍에 담습니다. 신고와 숨기기 기능도 같이 넣습니다.</p></div></div>
       <div class="phase"><div class="tag">7단계<span class="dur">3~4주</span></div><div><h3>지도 무대</h3><p>지도에서 장소 고르기, 발사 위치와 관람석 찍기, 안전거리 원, 건물 높이로 스카이라인 만들기. 서버 없이 동작합니다. 서버판에서는 내가 만든 무대를 갤러리에 올릴 수 있습니다.</p></div></div>
     </div>
