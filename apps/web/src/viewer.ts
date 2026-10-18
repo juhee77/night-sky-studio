@@ -4,6 +4,7 @@ import './viewer.css';
 import { VENUES, audienceCues, decodeShow, type Launch, type Show } from '@nss/engine';
 import { fmtTime } from './format.ts';
 import { importMusicFile, loadMusic, useDeviceFontForFrames } from './media.ts';
+import { runCountdown } from './countdown.ts';
 import { CAMERA_SEATS, Stage } from './stage.ts';
 import { newId, putShow, rememberLastShow } from './storage.ts';
 import { Transport } from './transport.ts';
@@ -162,7 +163,8 @@ el.start.addEventListener('click', () => {
   transport.delayFor = stage.soundDelay;
   transport.crowd = audienceCues(stage.sim.launches);
   transport.seek(0);
-  setPlaying(true);
+  if (show?.countdown) runCountdown(transport, () => setPlaying(true));
+  else setPlaying(true);
   poke();
 });
 

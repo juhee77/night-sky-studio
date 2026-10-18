@@ -33,7 +33,7 @@ export const FLAG_LANCE = 256; // 지상 틀불꽃의 심지 하나. 제자리�
 /** 렌더 버퍼에서 입자 하나가 차지하는 float 개수: x, y, z, 크기(m), r, g, b, a */
 export const RENDER_STRIDE = 8;
 /** 입자 말고 더 그리는 것(올라가는 알, 연기)을 위한 여유 칸 */
-export const RENDER_EXTRA = 512;
+export const RENDER_EXTRA = 1100;
 const MAX_PUFFS = 300;
 
 /** 이 스텝마다 중간 저장점을 남긴다 (2초) */

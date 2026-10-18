@@ -5,17 +5,14 @@ import { NEAR, toClip, type Mat4 } from '../camera.ts';
 import { mulberry32 } from '../rng.ts';
 import type { Vec3 } from '../show.ts';
 import type { BridgeShape, Venue } from '../venues.ts';
+import { SKIES, type SkyLook } from '../weather.ts';
 
 type Ctx = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
-const SKY_TOP = '#03040c';
-const SKY_HORIZON = '#161a3e';
-const WATER = '#080b20';
 const GROUND = '#04050b';
 const BUILDING = '#06070f';
 const BRIDGE = '#0c0e22';
 const CABLE = 'rgba(120, 130, 190, 0.35)';
-const WINDOW = 'rgba(255, 196, 120, 0.35)';
 
 /** 사각형(또는 다각형)을 카메라 앞쪽만 남기고 잘라서 칠한다. */
 function fillWorld(ctx: Ctx, m: Mat4, pts: Vec3[], w: number, h: number, color: string): void {
@@ -106,17 +103,17 @@ export interface Marker {
 }
 
 export function paintBackdrop(
-  ctx: Ctx, w: number, h: number, m: Mat4, venue: Venue, markers: Marker[] = [], cloud?: number,
+  ctx: Ctx, w: number, h: number, m: Mat4, venue: Venue, markers: Marker[] = [], cloud?: number, look: SkyLook = SKIES.night,
 ): void {
   const sky = ctx.createLinearGradient(0, 0, 0, h);
-  sky.addColorStop(0, SKY_TOP);
-  sky.addColorStop(0.8, SKY_HORIZON);
-  sky.addColorStop(1, SKY_HORIZON);
+  sky.addColorStop(0, look.top);
+  sky.addColorStop(0.8, look.horizon);
+  sky.addColorStop(1, look.horizon);
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, w, h);
 
   const rnd = mulberry32(42);
-  for (let i = 0; i < 160; i++) {
+  for (let i = 0; i < look.stars; i++) {
     ctx.fillStyle = `rgba(255,255,255,${0.12 + rnd() * 0.35})`;
     const s = (0.6 + rnd()) * Math.max(1, h / 700);
     ctx.fillRect(rnd() * w, rnd() * h * 0.7, s, s);
@@ -132,7 +129,7 @@ export function paintBackdrop(
   if (venue.farShoreZ !== null) {
     fillWorld(ctx, m, [[-X, 0, far], [X, 0, far], [X, 0, 5000], [-X, 0, 5000]], w, h, GROUND);
   }
-  fillWorld(ctx, m, [[-X, 0, venue.nearShoreZ], [X, 0, venue.nearShoreZ], [X, 0, far], [-X, 0, far]], w, h, WATER);
+  fillWorld(ctx, m, [[-X, 0, venue.nearShoreZ], [X, 0, venue.nearShoreZ], [X, 0, far], [-X, 0, far]], w, h, look.water);
   if (venue.farShoreZ === null) {
     // 수평선: 바다 끝이 하늘과 만나는 곳을 조금 밝게
     fillWorld(ctx, m, [[-X * 3, 0, 8800], [X * 3, 0, 8800], [X * 3, 6, 8800], [-X * 3, 6, 8800]], w, h, 'rgba(70, 76, 130, 0.5)');
@@ -143,11 +140,17 @@ export function paintBackdrop(
   for (const b of buildings) {
     fillWorld(ctx, m, [[b.x0, 0, b.z], [b.x1, 0, b.z], [b.x1, b.height, b.z], [b.x0, b.height, b.z]], w, h, BUILDING);
     for (const [wx, wy] of b.windows) {
-      fillWorld(ctx, m, [[wx, wy, b.z - 0.5], [wx + 2.5, wy, b.z - 0.5], [wx + 2.5, wy + 2.5, b.z - 0.5], [wx, wy + 2.5, b.z - 0.5]], w, h, WINDOW);
+      fillWorld(ctx, m, [[wx, wy, b.z - 0.5], [wx + 2.5, wy, b.z - 0.5], [wx + 2.5, wy + 2.5, b.z - 0.5], [wx, wy + 2.5, b.z - 0.5]], w, h, `rgba(255, 196, 120, ${look.windows})`);
     }
   }
 
   drawBridge(ctx, m, w, h, venue.bridge);
+
+  // 안개: 먼 것일수록 흐리게 덮는다 (화면 전체에 옅은 막)
+  if (look.fog) {
+    ctx.fillStyle = 'rgba(46, 49, 68, 0.45)';
+    ctx.fillRect(0, 0, w, h);
+  }
 
   fillWorld(ctx, m, [[-X, 0, -5000], [X, 0, -5000], [X, 0, venue.nearShoreZ], [-X, 0, venue.nearShoreZ]], w, h, venue.nearGround);
 

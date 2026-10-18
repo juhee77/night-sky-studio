@@ -102,6 +102,21 @@ button.big { font-size: 18px; padding: 10px 28px; min-height: 52px; }
   font-size: 13px;
 }
 
+.countdown {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  font: 700 min(34vw, 260px) / 1 var(--mono);
+  color: #fff;
+  text-shadow: 0 0 40px rgba(251, 146, 60, 0.8);
+}
+.countdown.pop { animation: pop 0.9s ease-out; }
+@keyframes pop { from { transform: scale(1.25); opacity: 0.4; } to { transform: scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .countdown.pop { animation: none; } }
+
 @media (max-width: 600px) {
   .bar label span { display: none; }
   #import, #fullscreen { display: none; }

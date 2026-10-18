@@ -47,8 +47,7 @@
       </div>
 
       <div class="group view">
-        <label for="venue">무대</label>
-        <select id="venue"></select>
+        <button type="button" id="stage-btn">무대 설정</button>
         <label for="seat">관람석</label>
         <select id="seat"></select>
         <button type="button" id="sound" aria-pressed="true">효과음 켜짐</button>
@@ -145,6 +144,41 @@
       </div>
       <div class="dialog-actions">
         <button type="button" id="auto-run" class="primary">만들기</button>
+      </div>
+    </dialog>
+
+    <dialog id="stage-dialog" aria-labelledby="stage-title">
+      <form method="dialog" class="dialog-head">
+        <h2 id="stage-title">무대 설정</h2>
+        <button value="close" aria-label="닫기">닫기</button>
+      </form>
+      <p id="stage-locked" class="note" hidden>의뢰 쇼는 의뢰받은 무대와 날씨로 정해져 있어 바꿀 수 없습니다.</p>
+      <div class="settings">
+        <div class="field">
+          <label for="venue">무대</label>
+          <select id="venue"></select>
+        </div>
+        <div class="field">
+          <span class="label">계절과 시간대</span>
+          <div class="chips" id="sky-chips"></div>
+        </div>
+        <div class="field">
+          <label for="wind-speed">바람 <output id="wind-out"></output></label>
+          <div class="row">
+            <select id="wind-dir" aria-label="바람이 불어오는 방향"></select>
+            <input id="wind-speed" type="range" min="0" max="6" step="0.1" />
+          </div>
+          <p class="note">바람이 약하면 연기가 빠지지 않아 뒤에 터지는 불꽃이 흐려집니다.</p>
+        </div>
+        <div class="field">
+          <label class="check-label"><input type="checkbox" id="cloud-on" /> 낮은 구름 <output id="cloud-out"></output></label>
+          <input id="cloud-h" type="range" min="150" max="350" step="10" />
+          <p class="note">구름보다 높이 터지는 불꽃은 구름 속에 묻혀 거의 보이지 않습니다.</p>
+        </div>
+        <div class="field">
+          <label class="check-label"><input type="checkbox" id="countdown" /> 새해 카운트다운</label>
+          <p class="note">감상할 때와 링크로 볼 때, 10초를 센 뒤에 쇼가 시작됩니다.</p>
+        </div>
       </div>
     </dialog>
 

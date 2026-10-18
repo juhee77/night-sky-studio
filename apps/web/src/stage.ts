@@ -3,6 +3,8 @@
 
 import {
   RENDER_EXTRA,
+  SKIES,
+  writeSnow,
   RENDER_STRIDE,
   Simulation,
   StageRenderer,
@@ -149,7 +151,9 @@ export class Stage {
   /** 쇼를 바꾼다. 같은 쇼를 고친 것이면 고친 곳 이후만 다시 계산한다. */
   setShow(show: Show): void {
     const launchersChanged =
-      JSON.stringify(show.launchers) !== JSON.stringify(this.sim.show.launchers) || show.venue.cloud !== this.sim.show.venue.cloud;
+      JSON.stringify(show.launchers) !== JSON.stringify(this.sim.show.launchers) ||
+      show.venue.cloud !== this.sim.show.venue.cloud ||
+      show.venue.sky !== this.sim.show.venue.sky;
     this.sim.setShow(show);
     if (launchersChanged) this.backdropKey = '';
   }
@@ -178,7 +182,7 @@ export class Stage {
     const w = Math.max(1, Math.round(this.canvas.clientWidth * dpr));
     const h = Math.max(1, Math.round(this.canvas.clientHeight * dpr));
     const cam = this.seat;
-    const key = `${w}x${h}:${this.seatId}:${this.sim.show.venue.preset}:${cam.eye.map((v) => v.toFixed(1))}`;
+    const key = `${w}x${h}:${this.seatId}:${this.sim.show.venue.preset}:${this.sim.show.venue.sky}:${cam.eye.map((v) => v.toFixed(1))}`;
     if (key === this.backdropKey) return;
     this.backdropKey = key;
     this.canvas.width = w;
@@ -193,8 +197,12 @@ export class Stage {
     const markers: Marker[] = cam.plan
       ? this.sim.show.launchers.map((l, i) => ({ pos: l.pos, label: launcherLabel(l, i), from: l.from, to: l.to }))
       : [];
-    paintBackdrop(this.backdrop.getContext('2d')!, bw, bh, this.view.viewProj, this.venue, markers, this.sim.show.venue.cloud);
+    paintBackdrop(this.backdrop.getContext('2d')!, bw, bh, this.view.viewProj, this.venue, markers, this.sim.show.venue.cloud, this.look);
     this.renderer.setBackdrop(this.backdrop);
+  }
+
+  get look() {
+    return SKIES[this.sim.show.venue.sky ?? 'night'];
   }
 
   render(t: number, playing: boolean): void {
@@ -202,6 +210,11 @@ export class Stage {
     this.layout();
     this.sim.advanceTo(t);
     this.count = this.sim.writeRender(this.buffer);
+    const look = this.look;
+    if (look.snow) {
+      const light = this.sim.skyLight[0] + this.sim.skyLight[1] + this.sim.skyLight[2];
+      this.count += writeSnow(this.buffer, this.count, t, this.seat.eye, light);
+    }
     const venue = this.venue;
     this.renderer.render({
       buffer: this.buffer,
@@ -212,6 +225,7 @@ export class Stage {
       skyLight: this.sim.skyLight,
       reflection: !this.seat.plan,
       shore: waterSpan(venue),
+      fog: look.fog,
     });
     this.watchSpeed(playing);
   }

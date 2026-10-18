@@ -256,6 +256,30 @@ dialog.wide-dialog { width: min(760px, calc(100% - 32px)); max-height: min(88vh,
 .auto-form .chips button[aria-pressed='true'] { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 700; }
 .warn-text { color: #ffb4ad; }
 
+/* ── 무대 설정 ── */
+.settings { display: flex; flex-direction: column; gap: 16px; margin-top: 12px; }
+.settings .row { display: flex; gap: 10px; align-items: center; }
+.settings input[type='range'] { flex: 1; width: 100%; accent-color: var(--accent); }
+.settings .chips button[aria-pressed='true'] { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 700; }
+.check-label { display: flex; align-items: center; gap: 8px; color: var(--ink); }
+.check-label input { width: 18px; height: 18px; accent-color: var(--accent); }
+
+/* ── 카운트다운 ── */
+.countdown {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  font: 700 min(34vw, 260px) / 1 var(--mono);
+  color: #fff;
+  text-shadow: 0 0 40px rgba(251, 146, 60, 0.8);
+}
+.countdown.pop { animation: pop 0.9s ease-out; }
+@keyframes pop { from { transform: scale(1.25); opacity: 0.4; } to { transform: scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .countdown.pop { animation: none; } }
+
 /* ── 장노출 사진 ── */
 #photo-dialog { width: min(720px, calc(100% - 32px)); }
 #photo-dialog .field { margin: 12px 0; }

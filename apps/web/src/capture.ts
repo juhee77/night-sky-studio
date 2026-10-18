@@ -3,6 +3,7 @@
 
 import {
   RENDER_EXTRA,
+  SKIES,
   RENDER_STRIDE,
   Simulation,
   StageRenderer,
@@ -77,6 +78,7 @@ export async function longExposure(
       skyLight: [0, 0, 0],
       reflection: !cam.plan,
       shore: waterSpan(venue),
+      fog: SKIES[show.venue.sky ?? 'night'].fog,
     });
     ag.drawImage(gl, 0, 0);
     if (k % 12 === 0) {
@@ -89,7 +91,7 @@ export async function longExposure(
   out.width = w;
   out.height = h;
   const g = out.getContext('2d')!;
-  paintBackdrop(g, w, h, view.viewProj, venue, [], show.venue.cloud);
+  paintBackdrop(g, w, h, view.viewProj, venue, [], show.venue.cloud, SKIES[show.venue.sky ?? 'night']);
   g.globalCompositeOperation = 'lighter';
   g.drawImage(acc, 0, 0);
   g.globalCompositeOperation = 'source-over';

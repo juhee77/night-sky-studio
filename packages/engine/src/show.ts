@@ -13,6 +13,7 @@ import {
 } from './catalog.ts';
 import type { ColorName } from './colors.ts';
 import type { Commission } from './commission.ts';
+import type { Sky } from './weather.ts';
 import { hash32, hashString } from './rng.ts';
 
 /** 무대 원점 기준 미터 [동, 높이, 북] */
@@ -75,7 +76,11 @@ export interface Show {
     wind?: { dir: number; speed: number };
     /** 구름 바닥 높이(m). 이보다 높이 터지는 불꽃은 구름에 묻힌다. */
     cloud?: number;
+    /** 계절과 시간대 (없으면 맑은 밤) */
+    sky?: Sky;
   };
+  /** 감상할 때 10초 카운트다운 뒤에 시작한다 (새해 쇼) */
+  countdown?: boolean;
   seat?: { id: string };
   launchers: Launcher[];
   cues: Cue[];

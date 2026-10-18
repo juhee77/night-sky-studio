@@ -2,6 +2,8 @@
 
 import './style.css';
 import {
+  SKIES,
+  SKY_IDS,
   VENUES,
   analyzeMusic,
   audienceCues,
@@ -25,6 +27,7 @@ import { importMusicFile, loadMusic, monoForTempo, useDeviceFontForFrames } from
 import { Office } from './office.ts';
 import { Panel } from './panel.ts';
 import { longExposure } from './capture.ts';
+import { runCountdown } from './countdown.ts';
 import { CAMERA_SEATS, Stage } from './stage.ts';
 import {
   deleteShow,
@@ -96,6 +99,17 @@ const el = {
   autoReplace: $<HTMLParagraphElement>('auto-replace'),
   autoRun: $<HTMLButtonElement>('auto-run'),
   venue: $<HTMLSelectElement>('venue'),
+  stageBtn: $<HTMLButtonElement>('stage-btn'),
+  stageDialog: $<HTMLDialogElement>('stage-dialog'),
+  stageLocked: $<HTMLParagraphElement>('stage-locked'),
+  skyChips: $<HTMLDivElement>('sky-chips'),
+  windDir: $<HTMLSelectElement>('wind-dir'),
+  windSpeed: $<HTMLInputElement>('wind-speed'),
+  windOut: $<HTMLOutputElement>('wind-out'),
+  cloudOn: $<HTMLInputElement>('cloud-on'),
+  cloudH: $<HTMLInputElement>('cloud-h'),
+  cloudOut: $<HTMLOutputElement>('cloud-out'),
+  countdown: $<HTMLInputElement>('countdown'),
   photoBtn: $<HTMLButtonElement>('photo-btn'),
   photoDialog: $<HTMLDialogElement>('photo-dialog'),
   photoFrom: $<HTMLSpanElement>('photo-from'),
@@ -212,6 +226,7 @@ editor.on((c) => {
   // 의뢰 쇼는 의뢰 곡을 바꿀 수 없다.
   el.music.disabled = !!editor.show.commission;
   syncVenueInputs();
+  if (el.stageDialog.open) syncStageSettings();
   el.music.title = editor.show.commission ? '의뢰 곡은 바꿀 수 없습니다' : '';
   el.saveState.textContent = '저장 중…';
   clearTimeout(saveTimer);
@@ -401,6 +416,67 @@ function syncVenueInputs(): void {
   if (stage.seatId !== el.seat.value) stage.setSeat(el.seat.value);
 }
 
+// ── 무대 설정: 계절과 시간대, 바람, 구름, 카운트다운 ──
+const COMPASS = ['북', '북동', '동', '남동', '남', '남서', '서', '북서'];
+COMPASS.forEach((name, i) => el.windDir.add(new Option(`${name}풍`, String(i * 45))));
+for (const id of SKY_IDS) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.dataset.sky = id;
+  b.textContent = SKIES[id].label;
+  b.addEventListener('click', () =>
+    editor.change((d) => {
+      if (id === 'night') delete d.venue.sky;
+      else d.venue.sky = id;
+    }),
+  );
+  el.skyChips.append(b);
+}
+
+function syncStageSettings(): void {
+  const s = editor.show;
+  const locked = !!s.commission;
+  el.stageLocked.hidden = !locked;
+  for (const input of [el.venue, el.windDir, el.windSpeed, el.cloudOn, el.cloudH]) input.disabled = locked;
+  el.skyChips.querySelectorAll<HTMLButtonElement>('[data-sky]').forEach((b) => {
+    b.setAttribute('aria-pressed', String((s.venue.sky ?? 'night') === b.dataset.sky));
+    b.disabled = locked;
+  });
+  const wind = s.venue.wind ?? { dir: 0, speed: 0 };
+  el.windDir.value = String((Math.round((((wind.dir % 360) + 360) % 360) / 45) % 8) * 45);
+  if (document.activeElement !== el.windSpeed) el.windSpeed.value = String(wind.speed);
+  el.windOut.value = wind.speed < 0.5 ? '거의 없음' : `${wind.speed.toFixed(1)}m/s`;
+  el.cloudOn.checked = !!s.venue.cloud;
+  el.cloudH.disabled = locked || !s.venue.cloud;
+  if (document.activeElement !== el.cloudH) el.cloudH.value = String(s.venue.cloud ?? 250);
+  el.cloudOut.value = s.venue.cloud ? `${s.venue.cloud}m` : '';
+  el.countdown.checked = !!s.countdown;
+}
+
+const setWind = () =>
+  editor.change((d) => (d.venue.wind = { dir: Number(el.windDir.value), speed: Number(el.windSpeed.value) }));
+el.windDir.addEventListener('change', setWind);
+el.windSpeed.addEventListener('input', () => (el.windOut.value = `${Number(el.windSpeed.value).toFixed(1)}m/s`));
+el.windSpeed.addEventListener('change', setWind);
+el.cloudOn.addEventListener('change', () =>
+  editor.change((d) => {
+    if (el.cloudOn.checked) d.venue.cloud = Number(el.cloudH.value) || 250;
+    else delete d.venue.cloud;
+  }),
+);
+el.cloudH.addEventListener('input', () => (el.cloudOut.value = `${el.cloudH.value}m`));
+el.cloudH.addEventListener('change', () => editor.change((d) => (d.venue.cloud = Number(el.cloudH.value))));
+el.countdown.addEventListener('change', () =>
+  editor.change((d) => {
+    if (el.countdown.checked) d.countdown = true;
+    else delete d.countdown;
+  }),
+);
+el.stageBtn.addEventListener('click', () => {
+  syncStageSettings();
+  el.stageDialog.showModal();
+});
+
 el.venue.addEventListener('change', () => {
   const id = el.venue.value;
   editor.change((d) => moveToVenue(d, id));
@@ -425,12 +501,16 @@ function startWatching(): void {
   transport.crowd = audienceCues(stage.sim.launches);
   if (transport.playing) togglePlay();
   transport.seek(0);
-  togglePlay();
+  if (editor.show.countdown) cancelCountdown = runCountdown(transport, () => togglePlay());
+  else togglePlay();
 }
+let cancelCountdown: (() => void) | null = null;
 
 function stopWatching(): void {
   if (!document.body.classList.contains('watching')) return;
   document.body.classList.remove('watching');
+  cancelCountdown?.();
+  cancelCountdown = null;
   if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
   transport.delayFor = null;
   transport.crowd = null;

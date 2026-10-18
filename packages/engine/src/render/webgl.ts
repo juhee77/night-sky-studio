@@ -35,6 +35,7 @@ uniform float uMirror;   // 1: 그대로, -1: 수면 아래로 뒤집기
 uniform float uFade;
 uniform vec3 uEye;
 uniform vec2 uShore;     // 물이 있는 북쪽 범위 (가까운 강가 z, 먼 강가 z)
+uniform float uFog;      // 안개: 이 거리마다 빛이 1/e로 줄어든다 (0이면 안개 없음)
 out vec4 vColor;
 void main() {
   vec3 p = vec3(aPos.x, aPos.y * uMirror, aPos.z);
@@ -45,6 +46,7 @@ void main() {
   // 최소 크기로 키운 점은 그만큼 어둡게 해서, 멀리 있는 작은 불티가 과하게 밝지 않게 한다.
   float energy = min(1.0, (px * px) / (size * size));
   float a = aColor.a * energy * uFade;
+  if (uFog > 0.0) a *= exp(-clip.w / uFog);
   if (uMirror < 0.0) {
     // 비친 모습이 실제로 물 위에 떨어지는지 확인한다. 강가 땅 위라면 그리지 않는다.
     float t = uEye.y / max(uEye.y - p.y, 0.001);
@@ -95,6 +97,8 @@ export interface FrameInput {
   reflection: boolean;
   /** [가까운 강가 z, 먼 강가 z] */
   shore: [number, number];
+  /** 안개 거리(m). 0이면 없음 */
+  fog?: number;
 }
 
 export class StageRenderer {
@@ -140,7 +144,7 @@ export class StageRenderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
-    const names = ['uViewProj', 'uPxPerMeter', 'uMaxPoint', 'uMirror', 'uFade', 'uEye', 'uShore'];
+    const names = ['uViewProj', 'uPxPerMeter', 'uMaxPoint', 'uMirror', 'uFade', 'uEye', 'uShore', 'uFog'];
     this.u = Object.fromEntries(names.map((n) => [n, gl.getUniformLocation(this.pointProg, n)]));
     this.u.uSkyLight = gl.getUniformLocation(this.quadProg, 'uSkyLight');
     this.u.uBackdrop = gl.getUniformLocation(this.quadProg, 'uBackdrop');
@@ -185,6 +189,7 @@ export class StageRenderer {
     gl.uniform1f(this.u.uMaxPoint, this.maxPoint);
     gl.uniform3f(this.u.uEye, f.eye[0], f.eye[1], f.eye[2]);
     gl.uniform2f(this.u.uShore, f.shore[0], f.shore[1]);
+    gl.uniform1f(this.u.uFog, f.fog ?? 0);
 
     if (f.reflection) {
       gl.uniform1f(this.u.uMirror, -1);

@@ -6,6 +6,7 @@
 import { FIREWORK_TYPES, type FireworkType, type Size } from './catalog.ts';
 import { COLOR_NAMES, type ColorName } from './colors.ts';
 import type { CakePattern, Cue, Launcher, Show } from './show.ts';
+import { SKY_IDS } from './weather.ts';
 
 const KINDS: Launcher['kind'][] = ['barge', 'bridge', 'frame'];
 const PATTERNS: CakePattern[] = ['fan', 'zigzag', 'straight'];
@@ -17,7 +18,8 @@ interface Packed {
   seed: number;
   ti?: string;
   mu?: [string, string, number, number, number];
-  ve: [string, number?, number?, number?];
+  ve: [string, number?, number?, number?, number?];
+  cd?: 1;
   se?: string;
   la: (string | number)[][];
   /** 터지는 시각 차이(ms), 발사 위치 번호, 종류 번호, 크기, 색 글자 */
@@ -57,7 +59,8 @@ export function packShow(show: Show): Packed {
     p.mu = [m.id, m.title, round(m.bpm, 2), round(m.offset), round(m.duration, 2)];
   }
   p.ve.push(round(show.venue.wind?.dir ?? 0, 1), round(show.venue.wind?.speed ?? 0, 2));
-  if (show.venue.cloud) p.ve.push(Math.round(show.venue.cloud));
+  p.ve.push(Math.round(show.venue.cloud ?? 0), Math.max(0, SKY_IDS.indexOf(show.venue.sky ?? 'night')));
+  if (show.countdown) p.cd = 1;
   if (show.seat) p.se = show.seat.id;
 
   let prev = 0;
@@ -131,6 +134,8 @@ export function unpackShow(p: Packed): Show {
   }
   if (p.ve[1] !== undefined && p.ve[2] !== undefined && (p.ve[1] || p.ve[2])) show.venue.wind = { dir: p.ve[1], speed: p.ve[2] };
   if (p.ve[3]) show.venue.cloud = p.ve[3];
+  if (p.ve[4]) show.venue.sky = SKY_IDS[p.ve[4]];
+  if (p.cd) show.countdown = true;
   if (p.se) show.seat = { id: p.se };
   return show;
 }

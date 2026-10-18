@@ -188,6 +188,21 @@ export class Transport {
     this.track(o, when + 0.18);
   }
 
+  /** 카운트다운 소리: 짧은 삐 소리 (마지막은 높고 길게) */
+  beep(last = false): void {
+    const ctx = this.ensureContext();
+    const when = ctx.currentTime + 0.01;
+    const o = ctx.createOscillator();
+    o.frequency.value = last ? 1320 : 880;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(0.25, when + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + (last ? 0.6 : 0.15));
+    o.connect(g).connect(this.sfx!);
+    o.start(when);
+    o.stop(when + 0.7);
+  }
+
   /** 관객 함성: 사람 목소리 높이의 잡음이 부풀었다 가라앉는다. */
   private cheer(when: number, level: number): void {
     const ctx = this.ctx!;
