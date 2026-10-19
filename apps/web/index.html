@@ -248,6 +248,15 @@
         <button type="button" id="site-reset">무대 기본 위치로</button>
       </div>
       <ul id="site-warnings" class="site-warnings"></ul>
+      <section id="deck" class="deck" hidden>
+        <h3 id="deck-title">갑판</h3>
+        <p class="note">갑판 위에 랙을 놓습니다. 작은 알은 여러 통을 묶은 랙에, 큰 알은 모래 드럼에 묻은 단통에 넣습니다. 랙을 눌러 고르고 끌어서 옮기세요.</p>
+        <canvas id="deck-canvas" class="deck-canvas" aria-label="바지선 갑판을 위에서 본 모습"></canvas>
+        <p id="deck-stats" class="note" aria-live="polite"></p>
+        <div class="chips" id="deck-palette"></div>
+        <div id="deck-rack" class="deck-rack"></div>
+        <ul id="deck-problems" class="site-warnings"></ul>
+      </section>
     </dialog>
 
     <dialog id="workshop-dialog" class="workshop-dialog" aria-labelledby="ws-title">

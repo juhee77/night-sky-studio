@@ -16,6 +16,7 @@ import type { ColorName } from './colors.ts';
 import type { Commission } from './commission.ts';
 import { customLength, shellKey, type CustomShell } from './custom.ts';
 import type { Sky } from './weather.ts';
+import type { Rig } from './rig.ts';
 import { hash32, hashString } from './rng.ts';
 
 /** 무대 원점 기준 미터 [동, 높이, 북] */
@@ -94,6 +95,8 @@ export interface Show {
   commission?: Commission;
   /** 이 쇼에 쓴 내 불꽃 정의 (공유 링크에 같이 담는다) */
   customShells?: Record<string, CustomShell>;
+  /** 발사장 장비: 바지선 갑판 위 랙 */
+  rig?: Rig;
 }
 
 /** cue 하나를 펼친 실제 발사 한 발 (케이크는 한 발마다 하나, 부채꼴도 한 발마다 하나) */
