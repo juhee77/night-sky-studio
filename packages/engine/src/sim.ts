@@ -16,6 +16,7 @@ import {
   type Vec3,
 } from './show.ts';
 import { SMOKE_LIFE, analyzeSmoke, puffAt, type Puff } from './smoke.ts';
+import { burstHeightAt } from './build.ts';
 import { textShape } from './text.ts';
 
 /** 고정 계산 간격(초) */
@@ -401,7 +402,10 @@ export class Simulation {
       const s = this.rising[i];
       s.age += STEP;
       const spec = shellSize(s.launch.type, s.launch.size);
-      risePosition(s.launch, Math.min(s.age, spec.prefire), this.wind, s.pos);
+      // 도화선이 알맞지 않으면 꼭대기 전후에 터진다 (내 불꽃 제작 공방).
+      const flight = s.launch.customDef?.flight;
+      const burstAge = spec.prefire * (flight?.burstAt ?? 1);
+      risePosition(s.launch, Math.min(s.age, burstAge), this.wind, s.pos, flight?.height ?? 1);
 
       const seed = hash32(s.launch.seed, this.step, 3);
       if (rand01(seed) < 0.6 * this.density) {
@@ -414,7 +418,7 @@ export class Simulation {
         );
       }
 
-      if (s.age >= spec.prefire) {
+      if (s.age >= burstAge) {
         this.burst(s.launch, s.pos);
         this.rising.splice(i, 1);
       } else {
@@ -497,7 +501,16 @@ export class Simulation {
     def.layers.forEach((layer, li) => {
       const seed = hash32(l.seed, li, 71);
       let dirs: [number, number, number, number][];
-      if (layer.shape.kind === 'points') {
+      if (layer.shape.kind === 'dirs') {
+        // 알은 날아가며 구르므로, 붙인 자리 그대로지만 알 전체가 아무 방향으로 돌아가 있다.
+        const m = tumble(hash32(l.seed, 0, 93));
+        dirs = layer.shape.dirs.map(([x, y, z]) => [
+          m[0] * x + m[1] * y + m[2] * z,
+          m[3] * x + m[4] * y + m[5] * z,
+          m[6] * x + m[7] * y + m[8] * z,
+          1,
+        ]);
+      } else if (layer.shape.kind === 'points') {
         const pts = layer.shape.pts;
         const max = Math.max(1e-6, ...pts.map(([x, y]) => Math.hypot(x, y)));
         const [r, u] = planeAxes(seed);
@@ -524,7 +537,7 @@ export class Simulation {
       const rgb = COLORS[layer.color].map((v) => v * cool);
       const aux = layer.then ? (Math.round(layer.then.at * 255) << 8) | (COLOR_NAMES.indexOf(layer.then.color) + 1) : 0;
       const life = def.split ? def.split.after : baseLife;
-      const precise = layer.shape.kind !== 'sphere';
+      const precise = layer.shape.kind !== 'sphere' && layer.shape.kind !== 'dirs';
       for (let i = 0; i < dirs.length; i++) {
         const s = hash32(seed, i, 11);
         let [dx, dy, dz, mag] = dirs[i];
@@ -990,14 +1003,30 @@ function smileFace(i: number, n: number): [number, number] {
 }
 
 /** 올라가는 불꽃 알의 위치. 꼭대기에 가까울수록 느려진다. */
-function risePosition(l: Launch & { type: ShellType }, age: number, wind: Vec3, out: Vec3): void {
+function risePosition(l: Launch & { type: ShellType }, age: number, wind: Vec3, out: Vec3, heightMul = 1): void {
   const spec = shellSize(l.type, l.size);
-  const u = Math.min(age / spec.prefire, 1);
-  const e = 1 - (1 - u) * (1 - u);
+  const h = spec.height * heightMul;
+  // 같은 감속으로 올라가므로, 낮게 쏘면 꼭대기에 더 일찍 닿는다.
+  const apex = spec.prefire * Math.sqrt(heightMul);
+  const y = burstHeightAt(h, apex, age);
+  const e = y / spec.height;
   const tilt = (l.angle * Math.PI) / 180;
   out[0] = l.origin[0] + Math.sin(tilt) * spec.height * e + wind[0] * age * 0.25;
   out[1] = l.origin[1] + Math.cos(tilt) * spec.height * e;
   out[2] = l.origin[2] + wind[2] * age * 0.25;
+}
+
+/** 시드로 정하는 회전 행렬 (3×3, 행 우선) */
+function tumble(seed: number): number[] {
+  const a = rand01(seed, 1) * Math.PI * 2;
+  const b = Math.acos(rand01(seed, 2) * 2 - 1);
+  const c = rand01(seed, 3) * Math.PI * 2;
+  const [ca, sa, cb, sb, cc, sc] = [Math.cos(a), Math.sin(a), Math.cos(b), Math.sin(b), Math.cos(c), Math.sin(c)];
+  return [
+    ca * cc - sa * cb * sc, -ca * sc - sa * cb * cc, sa * sb,
+    sa * cc + ca * cb * sc, -sa * sc + ca * cb * cc, -ca * sb,
+    sb * sc, sb * cc, cb,
+  ];
 }
 
 function smoothstep(a: number, b: number, x: number): number {

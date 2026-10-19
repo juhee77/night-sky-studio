@@ -6,7 +6,9 @@ import {
   COLOR_NAMES,
   DEFAULT_CRAFT,
   SHELL_COST,
+  buildToShell,
   craftReport,
+  defaultBuild,
   customLength,
   customStarCount,
   decodeShellCode,
@@ -14,12 +16,12 @@ import {
   newCustomShell,
   type ColorName,
   type CustomShell,
-  type LayerShape,
   type ShellLayer,
   type Show,
   type StarKind,
 } from '@nss/engine';
 import { shortId, type Drawer } from './drawer.ts';
+import { forgeControls, wireForge } from './forge.ts';
 import { Stage } from './stage.ts';
 
 const COLOR_LABEL: Record<ColorName, string> = {
@@ -87,6 +89,8 @@ export class Workshop {
   private shell: CustomShell = newCustomShell(shortId(), '내 불꽃');
   private layer = 0;
   private view: View = 'front';
+  /** 빠른 설계(슬라이더) 또는 제작 공방(알 구조) */
+  private mode: 'quick' | 'build' = 'quick';
   private stage: Stage | null = null;
   private seed = 3;
   private started = 0;
@@ -131,6 +135,7 @@ export class Workshop {
   private load(shell: CustomShell): void {
     this.shell = shell;
     this.layer = 0;
+    this.mode = shell.build ? 'build' : 'quick';
     this.dirty = false;
     this.renderControls();
     this.renderDrawer();
@@ -145,7 +150,7 @@ export class Workshop {
       venue: { preset: 'river-bridge-city', wind: this.view === 'wind' ? { dir: 270, speed: 6 } : { dir: 250, speed: 0.5 } },
       seat: { id: 'front-near' },
       launchers: [{ id: 'barge-1', kind: 'barge', pos: [0, 0, 0] }],
-      cues: [{ t: 4, at: 'barge-1', type: 'custom', custom: s.id, size: 5 }],
+      cues: [{ t: 4, at: 'barge-1', type: 'custom', custom: s.id, size: s.build?.size ?? 5 }],
       customShells: { [s.id]: s },
     };
   }
@@ -209,6 +214,62 @@ export class Workshop {
   }
 
   private renderControls(): void {
+    const box = this.dialog.querySelector('.ws-controls')!;
+    const tabs = `
+      <div class="ws-tabs ws-mode" role="tablist" aria-label="만드는 방식">
+        <button type="button" role="tab" data-mode="quick" aria-selected="${this.mode === 'quick'}">빠른 설계</button>
+        <button type="button" role="tab" data-mode="build" aria-selected="${this.mode === 'build'}">제작 공방</button>
+      </div>`;
+    if (this.mode === 'build') {
+      const b = (this.shell.build ??= defaultBuild());
+      box.innerHTML = `${tabs}
+        <div class="field"><label for="ws-name">이름</label><input id="ws-name" maxlength="16" value="${esc(this.shell.name)}" /></div>
+        <p class="note">실제 불꽃 알처럼 종이 반구 안쪽 벽에 별을 붙이고, 가운데에 할약을 채우고, 도화선과 발사약을 답니다. 별을 붙인 자리가 곧 날아가는 방향이라 빈 곳은 하늘에도 빕니다.</p>
+        ${forgeControls(b)}
+        <p id="ws-count" class="note"></p>`;
+      this.wireMode(box);
+      box.querySelector<HTMLInputElement>('#ws-name')!.addEventListener('input', (e) => {
+        this.shell.name = (e.target as HTMLInputElement).value.slice(0, 16);
+        this.dirty = true;
+      });
+      wireForge(box, b, (fn, rerender) => {
+        fn(b);
+        this.shell = buildToShell(b, this.shell);
+        this.dirty = true;
+        if (rerender) this.renderControls();
+        this.refreshPreview();
+      });
+      this.updateCount();
+      return;
+    }
+    this.renderQuick(box, tabs);
+  }
+
+  private wireMode(box: Element): void {
+    box.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const mode = b.dataset.mode as 'quick' | 'build';
+        if (mode === this.mode) return;
+        this.mode = mode;
+        if (mode === 'build') {
+          // 지금 설계의 색과 별 종류로 알을 하나 만든다.
+          const outer = this.shell.layers[0];
+          const b0 = this.shell.build ?? { ...defaultBuild(), starColor: outer.color, starKind: outer.star };
+          this.shell = buildToShell(b0, this.shell);
+        } else {
+          // 빠른 설계로 돌아가면 알 구조와 비행은 버리고 슬라이더로 다룬다.
+          delete this.shell.build;
+          delete this.shell.flight;
+          this.shell.layers = this.shell.layers.map((l) => (l.shape.kind === 'dirs' ? { ...l, shape: { kind: 'sphere', count: l.shape.dirs.length } } : l));
+        }
+        this.dirty = true;
+        this.renderControls();
+        this.refreshPreview();
+      }),
+    );
+  }
+
+  private renderQuick(box: Element, tabs: string): void {
     const s = this.shell;
     const L = this.cur;
     const hasPistil = s.layers.length > 1;
@@ -218,8 +279,7 @@ export class Workshop {
         (c) =>
           `<button type="button" class="swatch" data-${name}="${c}" style="--c:${css(c)}" aria-label="${COLOR_LABEL[c]}" title="${COLOR_LABEL[c]}" aria-pressed="${selected === c}"></button>`,
       ).join('');
-    const box = this.dialog.querySelector('.ws-controls')!;
-    box.innerHTML = `
+    box.innerHTML = `${tabs}
       <div class="field"><label for="ws-name">이름</label><input id="ws-name" maxlength="16" value="${esc(s.name)}" /></div>
       <p id="ws-count" class="note"></p>
 
@@ -287,6 +347,7 @@ export class Workshop {
         <div id="ws-report"></div>
       </fieldset>`;
     this.updateCount();
+    this.wireMode(box);
     this.wire(box);
   }
 
@@ -322,15 +383,17 @@ export class Workshop {
     });
     all('[data-shape]').forEach((b) =>
       b.addEventListener('click', () => {
-        const kind = b.dataset.shape as LayerShape['kind'];
+        const kind = b.dataset.shape as 'sphere' | 'ring' | 'points';
         this.change(() => {
-          const count = this.cur.shape.kind === 'points' ? 60 : (this.cur.shape as { count: number }).count;
+          const cur = this.cur.shape;
+          const count = cur.kind === 'sphere' || cur.kind === 'ring' ? cur.count : cur.kind === 'dirs' ? cur.dirs.length : 60;
           this.cur.shape = kind === 'points' ? { kind, pts: PRESETS['하트']() } : { kind, count };
         }, true);
       }),
     );
     slider('ws-stars', (x) => `${x}개`, (x) => {
-      if (this.cur.shape.kind !== 'points') this.cur.shape.count = x;
+      const cur = this.cur.shape;
+      if (cur.kind === 'sphere' || cur.kind === 'ring') cur.count = x;
     });
     slider('ws-scale', (x) => `${Math.round(x * 100)}%`, (x) => (this.cur.scale = x));
     slider('ws-delay', (x) => `${x.toFixed(2)}초`, (x) => (this.cur.delay = x));
