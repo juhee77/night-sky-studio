@@ -8,6 +8,7 @@ import {
   typeLabel,
   visibleLength,
   type FireworkType,
+  type RiseEffect,
   type ShellType,
   type Size,
 } from './catalog.ts';
@@ -54,6 +55,8 @@ export interface Cue {
   text?: string;
   /** 내 불꽃: show.customShells의 id */
   custom?: string;
+  /** 올라가는 모습 (없으면 희미한 불티 꼬리) */
+  rise?: RiseEffect;
 }
 
 /** 쇼에 쓴 음악. 음악 파일 자체는 쇼에 넣지 않는다. */
@@ -113,6 +116,8 @@ export interface Launch {
   /** 내 불꽃 정의와 그 지문 */
   customDef?: CustomShell;
   customKey?: string;
+  /** 올라가는 모습 */
+  rise?: RiseEffect;
 }
 
 export interface ShowWarning {
@@ -254,6 +259,7 @@ export function expandShow(show: Show): ExpandedShow {
         colors,
         seed: hash32(base, sub, cue.size),
         ...(def ? { customDef: def, customKey } : {}),
+        ...(cue.rise ?? def?.rise ? { rise: cue.rise ?? def?.rise } : {}),
       });
     }
   });
@@ -266,7 +272,7 @@ export function expandShow(show: Show): ExpandedShow {
 export function launchKey(l: Launch): string {
   return [
     l.fireAt.toFixed(5), l.seed, l.type, l.size, l.angle, l.colors.join(','), l.origin.join(','),
-    l.len ?? '', l.text ?? '', l.span ? l.span.flat().join(',') : '', l.customKey ?? '',
+    l.len ?? '', l.text ?? '', l.span ? l.span.flat().join(',') : '', l.customKey ?? '', l.rise ?? '',
   ].join('|');
 }
 

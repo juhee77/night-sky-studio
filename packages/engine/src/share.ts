@@ -3,7 +3,7 @@
 // JSON으로 만든 뒤 deflate로 압축하고, 주소에 쓸 수 있는 base64로 바꾼다.
 // 음악 파일은 넣지 않는다. 곡 이름과 길이만 넣어서 받는 사람이 같은 파일을 고를 수 있게 한다.
 
-import { ALL_TYPES, type FireworkType, type Size } from './catalog.ts';
+import { ALL_TYPES, RISE_EFFECTS, type FireworkType, type Size } from './catalog.ts';
 import { COLOR_NAMES, type ColorName } from './colors.ts';
 import { normalizeShell, type CustomShell } from './custom.ts';
 import type { CakePattern, Cue, Launcher, Show } from './show.ts';
@@ -83,6 +83,7 @@ export function packShow(show: Show): Packed {
     if (c.len !== undefined) p.ex.push([i, 'l', c.len]);
     if (c.text !== undefined) p.ex.push([i, 't', c.text]);
     if (c.custom !== undefined) p.ex.push([i, 'c', c.custom]);
+    if (c.rise) p.ex.push([i, 'r', RISE_EFFECTS.indexOf(c.rise)]);
   });
   // 실제로 쓴 내 불꽃만 담는다.
   const used = new Set(cues.map((c) => c.custom).filter(Boolean));
@@ -128,6 +129,7 @@ export function unpackShow(p: Packed): Show {
     else if (key === 'l') c.len = num;
     else if (key === 't') c.text = String(value).slice(0, 24);
     else if (key === 'c') c.custom = String(value).slice(0, 24);
+    else if (key === 'r' && RISE_EFFECTS[num]) c.rise = RISE_EFFECTS[num];
   }
   const show: Show = {
     version: 1,

@@ -36,6 +36,21 @@ export type Pattern = 'sphere' | 'ring' | 'palm' | 'heart' | 'star' | 'smile';
 
 export type Tail = 'none' | 'spark' | 'willow' | 'palm';
 
+/** 알이 올라가는 동안의 모습 */
+export type RiseEffect = 'gold' | 'silver' | 'color' | 'flowers' | 'whistle' | 'branches';
+
+/** 공유 링크 번호 순서 (뒤에만 더한다) */
+export const RISE_EFFECTS: RiseEffect[] = ['gold', 'silver', 'color', 'flowers', 'whistle', 'branches'];
+
+export const RISE_LABEL: Record<RiseEffect, string> = {
+  gold: '금빛 꼬리',
+  silver: '은빛 꼬리',
+  color: '색 꼬리',
+  flowers: '올라가며 꽃 피기',
+  whistle: '휘파람 내며 오르기',
+  branches: '갈라지는 줄기',
+};
+
 /** 별 자체가 내는 소리나 특이한 움직임 */
 export type ShellEffect = 'crackle' | 'hummer' | 'fish' | 'leaf' | 'whistle';
 

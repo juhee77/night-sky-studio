@@ -5,7 +5,7 @@
 // 별을 붙인 자리가 곧 별이 날아가는 방향이다. 별 간격이 벌어진 곳은 하늘에 빈 자리로 보인다.
 // 값은 게임용 근사이고 실제 제조 수치가 아니다.
 
-import { SIZE_SPECS, type Size } from './catalog.ts';
+import { RISE_EFFECTS, SIZE_SPECS, type RiseEffect, type Size } from './catalog.ts';
 import type { ColorName } from './colors.ts';
 import { normalizeSequence, type CustomShell, type Sequence, type StarKind } from './custom.ts';
 import { evaluateMix, normalizeComposition, type Composition } from './chem.ts';
@@ -45,6 +45,8 @@ export interface ShellBuild {
   breaks?: number;
   /** 바깥 별이 켜지는 순서 (별마다 넣은 지연 도화선) */
   sequence?: Sequence;
+  /** 알 겉에 붙인 상승 효과 */
+  rise?: RiseEffect;
 }
 
 /** 알 조립: 할약 채우기, 반구 맞붙이기, 종이 바르기 */
@@ -277,6 +279,8 @@ export function buildToShell(b: ShellBuild, base: CustomShell): CustomShell {
     shell.assembly = { offset: [b.assembly.chargeOffset * 0.5, 0, 0], seam: 1 - b.assembly.seam };
   } else delete shell.assembly;
   // 조립을 직접 한 알만 불발이 난다 (보통 솜씨 알은 늘 터진다).
+  if (b.rise) shell.rise = b.rise;
+  else delete shell.rise;
   if (b.form === 'cylinder' && (b.breaks ?? 1) > 1) shell.chain = b.breaks;
   else delete shell.chain;
   const dud = b.assembly ? dudChance(b) : 0;
@@ -321,6 +325,7 @@ export function normalizeBuild(raw: ShellBuild): ShellBuild {
           },
         }
       : {}),
+    ...(raw.rise && RISE_EFFECTS.includes(raw.rise) ? { rise: raw.rise } : {}),
     ...(raw.sequence ? { sequence: normalizeSequence(raw.sequence) } : {}),
     ...(raw.breaks !== undefined && raw.breaks > 1 ? { breaks: Math.round(clamp(raw.breaks, 2, 4)) } : {}),
     ...(raw.assembly

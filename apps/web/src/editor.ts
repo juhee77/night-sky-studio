@@ -13,6 +13,7 @@ import {
   type Launcher,
   type Show,
   type Size,
+  type RiseEffect,
 } from '@nss/engine';
 
 export type Change = 'show' | 'selection' | 'template';
@@ -33,6 +34,8 @@ export interface Template {
   text: string;
   /** 내 불꽃 id (type이 custom일 때) */
   custom?: string;
+  /** 올라가는 모습 (없으면 기본 불티 꼬리) */
+  rise?: RiseEffect;
 }
 
 export type Snap = 'beat' | 'half' | 'off';
@@ -193,6 +196,7 @@ export class Editor {
     } else {
       if (tpl.angle) cue.angle = tpl.angle;
       if (tpl.fanCount > 1) cue.fan = { count: tpl.fanCount, spread: tpl.fanSpread };
+      if (tpl.rise) cue.rise = tpl.rise;
     }
     if (def) cue.custom = def.id;
     this.change((d) => {
