@@ -8,6 +8,9 @@ import { VENUES, waterSpan, type Venue } from './venues.ts';
 /** 크기별 관람객 안전거리(m): 대략 알 지름의 크기만큼 */
 export const SAFETY_RADIUS: Record<Size, number> = { 3: 100, 5: 170, 7: 220, 10: 280 };
 
+/** 큰 알이 터지지 않고 떨어질 수 있는 구역 반지름(m) (실전 모드에서 보인다) */
+export const FALL_ZONE: Record<Size, number> = { 3: 30, 5: 60, 7: 90, 10: 120 };
+
 /** 바지선끼리 적어도 이만큼 떨어져야 한다(m) */
 export const MIN_BARGE_GAP = 40;
 

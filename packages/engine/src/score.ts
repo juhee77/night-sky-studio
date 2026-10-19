@@ -7,6 +7,7 @@ import { COLOR_LABEL, colorList, showCost, type Commission, type Rule } from './
 import { cueLength, expandShow, isShellLaunch, windVector, type Launch, type Show } from './show.ts';
 import { analyzeSmoke } from './smoke.ts';
 import { craftReport } from './custom.ts';
+import { applyLive, isLive } from './live.ts';
 
 export interface ScoreItem {
   key: 'beat' | 'gaps' | 'variety' | 'smoke' | 'finale' | 'taste' | 'rules' | 'craft';
@@ -58,6 +59,8 @@ export function ruleLabel(r: Rule): string {
       return `피날레 ${r.seconds}초 이상 꽉 차게`;
     case 'maxSize':
       return `${r.size}호보다 큰 불꽃 쓰지 않기 (안전거리)`;
+    case 'live':
+      return '실전 모드로 장비까지 맞추기 (발사장)';
   }
 }
 
@@ -98,6 +101,11 @@ function checkRule(r: Rule, show: Show, launches: Launch[], end: number): RuleRe
       const bad = cues.filter((c) => isShell(c.type) && c.type !== 'cake' && c.size > r.size);
       return { rule: r, label, ok: !bad.length, detail: bad.length ? `${r.size}호보다 큰 불꽃 ${bad.length}개` : undefined };
     }
+    case 'live': {
+      if (!isLive(show)) return { rule: r, label, ok: false, detail: '실전 모드가 꺼져 있습니다.' };
+      const blocked = applyLive(show, expandShow(show).launches).blocked;
+      return { rule: r, label, ok: !blocked.length, detail: blocked.length ? `쏘아지지 않는 불꽃 ${new Set(blocked.map((b) => b.cueIndex)).size}개` : undefined };
+    }
   }
 }
 
@@ -108,7 +116,8 @@ function countCues(ls: Launch[]): number {
 const clamp = (x: number, a = 0, b = 100) => Math.min(b, Math.max(a, x));
 
 export function scoreShow(show: Show, c: Commission): ScoreResult {
-  const { launches } = expandShow(show);
+  // 실전 모드면 실제로 쏘아지는 발사만 채점한다.
+  const launches = applyLive(show, expandShow(show).launches).launches;
   const end = endOf(show, launches);
   const shells = launches.filter(isShellLaunch);
   const items: ScoreItem[] = [];
