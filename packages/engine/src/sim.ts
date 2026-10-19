@@ -534,7 +534,7 @@ export class Simulation {
       if (def.motion.flicker) flags |= FLAG_STROBE;
       if (def.split) flags |= FLAG_SPLIT | (def.split.into === 'burst' ? FLAG_SPLIT_BURST : 0);
       const cool = layer.color === 'blue' || layer.color === 'purple' ? craft.coolDim : 1;
-      const rgb = COLORS[layer.color].map((v) => v * cool);
+      const rgb = layer.tint ?? COLORS[layer.color].map((v) => v * cool);
       const aux = layer.then ? (Math.round(layer.then.at * 255) << 8) | (COLOR_NAMES.indexOf(layer.then.color) + 1) : 0;
       const life = def.split ? def.split.after : baseLife;
       const precise = layer.shape.kind !== 'sphere' && layer.shape.kind !== 'dirs';

@@ -27,6 +27,8 @@ export interface ShellLayer {
   scale: number;
   /** 터지고 나서 이 층이 피어나기까지 기다리는 시간(초) */
   delay: number;
+  /** 배합으로 정해진 실제 빛 (순도·밝기 반영). 없으면 color의 기본 빛 */
+  tint?: [number, number, number];
 }
 
 /**
@@ -58,6 +60,10 @@ export interface CustomShell {
   flight?: { height: number; burstAt: number };
   /** 제작 공방에서 만든 알 구조 (다시 열어 고칠 때 쓴다) */
   build?: ShellBuild;
+  /** 배합에 따른 연기 양 (1이 보통) */
+  smoke?: number;
+  /** 배합에 따른 한 발 값 배율 */
+  costMul?: number;
   motion: {
     /** 퍼지는 속도 배율 (0.5~1.5) */
     speed: number;
@@ -117,6 +123,7 @@ export function normalizeShell(raw: CustomShell): CustomShell {
       delay: clamp(l.delay ?? 0, 0, 1.5),
     };
     if (l.then) out.then = { color: color(l.then.color), at: clamp(l.then.at, 0.1, 0.9) };
+    if (l.tint) out.tint = l.tint.slice(0, 3).map((v) => clamp(v, 0, 1.5)) as [number, number, number];
     return out;
   });
   const shell: CustomShell = {
@@ -131,6 +138,8 @@ export function normalizeShell(raw: CustomShell): CustomShell {
     },
   };
   if (raw.split) shell.split = { after: clamp(raw.split.after, 0.4, 3), into: raw.split.into === 'burst' ? 'burst' : 'crossette' };
+  if (raw.smoke !== undefined) shell.smoke = clamp(raw.smoke, 0.2, 1.5);
+  if (raw.costMul !== undefined) shell.costMul = clamp(raw.costMul, 0.6, 2.5);
   if (raw.flight) shell.flight = { height: clamp(raw.flight.height, 0.4, 1.3), burstAt: clamp(raw.flight.burstAt, 0.6, 1.5) };
   if (raw.build) shell.build = normalizeBuild(raw.build);
   if (raw.craft) {

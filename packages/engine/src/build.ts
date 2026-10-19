@@ -8,6 +8,7 @@
 import { SIZE_SPECS, type Size } from './catalog.ts';
 import type { ColorName } from './colors.ts';
 import type { CustomShell, StarKind } from './custom.ts';
+import { evaluateMix, normalizeComposition, type Composition } from './chem.ts';
 
 export type ShellForm = 'round' | 'cylinder';
 export type Dir = [number, number, number];
@@ -32,6 +33,10 @@ export interface ShellBuild {
   fuse: number;
   /** 발사약 양: 알맞은 양에 대한 비율 (1이면 크기표 높이) */
   lift: number;
+  /** 바깥 별의 화약 배합 (없으면 별 색만 고른 기본 화약) */
+  comp?: Composition;
+  /** 별이 사는 기본 시간(초). 배합의 타는 빠르기가 여기에 곱해진다 */
+  life?: number;
 }
 
 const GOLDEN = Math.PI * (3 - Math.sqrt(5));
@@ -154,12 +159,14 @@ export function flightOf(b: ShellBuild): { height: number; burstAt: number } {
 
 /** 알 구조를 불꽃 설계로 바꾼다. 이름·움직임은 기존 설계(base)를 따른다. */
 export function buildToShell(b: ShellBuild, base: CustomShell): CustomShell {
+  const mix = b.comp ? evaluateMix(b.comp) : null;
   const layers: CustomShell['layers'] = [
     {
       role: 'outer',
       shape: { kind: 'dirs', dirs: b.stars.map((d) => [...d] as Dir) },
       star: b.starKind,
-      color: b.starColor,
+      color: mix ? mix.color : b.starColor,
+      ...(mix ? { tint: [...mix.rgb] as [number, number, number] } : {}),
       ...(b.then ? { then: { ...b.then } } : {}),
       scale: 1,
       delay: 0,
@@ -168,9 +175,12 @@ export function buildToShell(b: ShellBuild, base: CustomShell): CustomShell {
   if (b.pistil) {
     layers.push({ role: 'pistil', shape: { kind: 'sphere', count: b.pistil.count }, star: b.pistil.kind, color: b.pistil.color, scale: 0.42, delay: 0.08 });
   }
-  return {
+  const life = b.life ?? 2.2;
+  const shell: CustomShell = {
     ...base,
     layers,
+    // 빨리 타는 배합일수록 별이 짧게 산다.
+    motion: { ...base.motion, life: mix ? Math.max(0.8, Math.min(5, life * (1.35 - 0.7 * mix.burnRate))) : life },
     // 원통 알은 터지는 압력이 고르지 않아 할약을 더 넣은 것처럼 찌그러진다.
     craft: {
       starSize: base.craft?.starSize ?? 'medium',
@@ -182,6 +192,14 @@ export function buildToShell(b: ShellBuild, base: CustomShell): CustomShell {
     flight: flightOf(b),
     build: b,
   };
+  if (mix) {
+    shell.smoke = mix.smoke;
+    shell.costMul = mix.cost;
+  } else {
+    delete shell.smoke;
+    delete shell.costMul;
+  }
+  return shell;
 }
 
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, Number.isFinite(x) ? x : a));
@@ -208,5 +226,7 @@ export function normalizeBuild(raw: ShellBuild): ShellBuild {
     paper: Math.round(clamp(raw.paper, 2, 12)),
     fuse: clamp(raw.fuse, 0.6, 1.5),
     lift: clamp(raw.lift, 0.5, 1.4),
+    ...(raw.comp ? { comp: normalizeComposition(raw.comp) } : {}),
+    ...(raw.life !== undefined ? { life: clamp(raw.life, 0.8, 5) } : {}),
   };
 }

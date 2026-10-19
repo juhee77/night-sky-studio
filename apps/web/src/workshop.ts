@@ -9,6 +9,7 @@ import {
   buildToShell,
   craftReport,
   defaultBuild,
+  isDangerous,
   customLength,
   customStarCount,
   decodeShellCode,
@@ -541,6 +542,10 @@ export class Workshop {
   }
 
   private save(): void {
+    if (this.shell.build?.comp && isDangerous(this.shell.build.comp)) {
+      this.host.say('위험한 배합이라 서랍에 저장할 수 없습니다. 산화제를 줄여 주세요.');
+      return;
+    }
     if (!this.shell.name.trim()) this.shell.name = '내 불꽃';
     this.drawer.put(this.shell);
     this.dirty = false;
