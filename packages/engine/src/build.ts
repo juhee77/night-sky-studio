@@ -41,6 +41,8 @@ export interface ShellBuild {
   star?: StarMaking;
   /** 조립 솜씨 (없으면 보통 솜씨) */
   assembly?: Assembly;
+  /** 원통 알의 칸 수: 2 이상이면 칸마다 차례로 터진다 */
+  breaks?: number;
 }
 
 /** 알 조립: 할약 채우기, 반구 맞붙이기, 종이 바르기 */
@@ -272,6 +274,8 @@ export function buildToShell(b: ShellBuild, base: CustomShell): CustomShell {
     shell.assembly = { offset: [b.assembly.chargeOffset * 0.5, 0, 0], seam: 1 - b.assembly.seam };
   } else delete shell.assembly;
   // 조립을 직접 한 알만 불발이 난다 (보통 솜씨 알은 늘 터진다).
+  if (b.form === 'cylinder' && (b.breaks ?? 1) > 1) shell.chain = b.breaks;
+  else delete shell.chain;
   const dud = b.assembly ? dudChance(b) : 0;
   if (dud > 0.01) shell.dud = dud;
   else delete shell.dud;
@@ -314,6 +318,7 @@ export function normalizeBuild(raw: ShellBuild): ShellBuild {
           },
         }
       : {}),
+    ...(raw.breaks !== undefined && raw.breaks > 1 ? { breaks: Math.round(clamp(raw.breaks, 2, 4)) } : {}),
     ...(raw.assembly
       ? { assembly: { chargeOffset: clamp(raw.assembly.chargeOffset, 0, 1), seam: clamp(raw.assembly.seam, 0, 1), paste: clamp(raw.assembly.paste, 0, 1) } }
       : {}),

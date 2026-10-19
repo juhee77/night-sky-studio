@@ -454,6 +454,7 @@ export function forgeControls(b: ShellBuild): string {
         <button type="button" data-form="round" aria-pressed="${b.form === 'round'}">둥근 알 (일본식)</button>
         <button type="button" data-form="cylinder" aria-pressed="${b.form === 'cylinder'}">원통 알 (서양식)</button>
       </div></div>
+      ${b.form === 'cylinder' ? `<div class="field"><label for="forge-breaks">칸 수 (여러 단 터지기) <output>${b.breaks ?? 1}단</output></label><input id="forge-breaks" type="range" min="1" max="4" step="1" value="${b.breaks ?? 1}" /></div>` : ''}
       <div class="field"><span class="label">크기</span><div class="chips">
         ${SIZES.map((s) => `<button type="button" data-bsize="${s}" aria-pressed="${b.size === s}">${s}호</button>`).join('')}
       </div></div>
@@ -544,6 +545,7 @@ export function wireForge(box: Element, b: ShellBuild, apply: (fn: (b: ShellBuil
       }, true),
     ),
   );
+  slider('forge-breaks', (v) => `${v}단`, (x, v) => (v > 1 ? (x.breaks = v) : delete x.breaks));
   slider('forge-count', (v) => `${v}알`, (x, v) => (x.stars = evenStars(v)));
   all('[data-bkind]').forEach((el) => el.addEventListener('click', () => apply((x) => (x.starKind = el.dataset.bkind as StarKind), true)));
   all('[data-bcolor]').forEach((el) => el.addEventListener('click', () => apply((x) => (x.starColor = el.dataset.bcolor as ColorName), true)));

@@ -70,6 +70,8 @@ export interface CustomShell {
   assembly?: { offset: [number, number, number]; seam: number };
   /** 알이 아예 터지지 않을 확률 */
   dud?: number;
+  /** 여러 단 터지기: 원통 알의 칸이 차례로 떨어지며 터진다 (2~4) */
+  chain?: number;
   motion: {
     /** 퍼지는 속도 배율 (0.5~1.5) */
     speed: number;
@@ -152,6 +154,7 @@ export function normalizeShell(raw: CustomShell): CustomShell {
     shell.assembly = { offset: [o[0] ?? 0, o[1] ?? 0, o[2] ?? 0], seam: clamp(raw.assembly.seam, 0, 1) };
   }
   if (raw.dud !== undefined) shell.dud = clamp(raw.dud, 0, 0.5);
+  if (raw.chain !== undefined && raw.chain > 1) shell.chain = Math.round(clamp(raw.chain, 2, 4));
   if (raw.flight) shell.flight = { height: clamp(raw.flight.height, 0.4, 1.3), burstAt: clamp(raw.flight.burstAt, 0.6, 1.5) };
   if (raw.build) shell.build = normalizeBuild(raw.build);
   if (raw.craft) {

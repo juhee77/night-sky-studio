@@ -13,6 +13,9 @@ import {
   customLength,
   customStarCount,
   decodeShellCode,
+  diagnose,
+  testFire,
+  type TestRecord,
   encodeShellCode,
   newCustomShell,
   type ColorName,
@@ -81,7 +84,7 @@ export interface WorkshopHost {
   say(message: string): void;
 }
 
-type View = 'front' | 'side' | 'wind';
+type View = 'front' | 'side' | 'top' | 'wind';
 
 export class Workshop {
   private dialog: HTMLDialogElement;
@@ -95,6 +98,8 @@ export class Workshop {
   private stage: Stage | null = null;
   private seed = 3;
   private started = 0;
+  /** 시험 기록: 최근 것부터 */
+  private tests: { name: string; rec: TestRecord }[] = [];
   private raf = 0;
   private dirty = false;
 
@@ -116,6 +121,7 @@ export class Workshop {
       this.seed = Math.floor(Math.random() * 1e6);
       this.refreshPreview();
     });
+    dialog.querySelector('#ws-test')!.addEventListener('click', () => this.runTest());
     dialog.querySelector('#ws-save')!.addEventListener('click', () => this.save());
     dialog.querySelector('#ws-new')!.addEventListener('click', () => this.load(newCustomShell(shortId(), '내 불꽃')));
     dialog.querySelector('#ws-copy')!.addEventListener('click', () => void this.copyCode());
@@ -161,8 +167,33 @@ export class Workshop {
     if (!this.stage) return;
     this.stage.load(this.previewShow());
     if (this.view === 'side') this.stage.setOrbit(1.25, 0.18, 620, [0, 170, 0]);
+    else if (this.view === 'top') this.stage.setOrbit(0, 1.35, 560, [0, 190, 0]);
     else this.stage.setSeat('front-near');
     this.started = performance.now();
+  }
+
+  /** 시험장: 지금 설계를 한 발 쏘아 재고, 결함과 원인을 보여 준다. */
+  private runTest(): void {
+    const rec = testFire(this.shell, this.seed);
+    this.tests = [{ name: this.shell.name, rec }, ...this.tests].slice(0, 5);
+    const defects = diagnose(this.shell, rec);
+    const pct = (v: number) => `${v}`;
+    const row = (t: { name: string; rec: TestRecord }, i: number) => {
+      const r = t.rec;
+      return `<tr${i === 0 ? ' class="now"' : ''}><td>${esc(t.name)}</td>${
+        r.burst
+          ? `<td>${pct(r.roundness)}</td><td>${r.holeDeg}°</td><td>${pct(r.sync)}</td><td>${pct(r.brightness)}</td><td>${r.lit}/${r.planned}</td><td>${r.height}m</td>`
+          : '<td colspan="6">불발</td>'
+      }</tr>`;
+    };
+    this.dialog.querySelector('#ws-test-out')!.innerHTML = `
+      <table class="ws-test-table">
+        <thead><tr><th>알</th><th>둥근 정도</th><th>빈 자리</th><th>같이 꺼짐</th><th>밝기</th><th>불붙은 별</th><th>높이</th></tr></thead>
+        <tbody>${this.tests.map(row).join('')}</tbody>
+      </table>
+      ${defects.length
+        ? `<ul class="ws-defects">${defects.map((d) => `<li><b>${d.title}</b><span>${d.cause} → ${d.fix}</span></li>`).join('')}</ul>`
+        : '<p class="note">결함이 없습니다. 이대로 써도 됩니다.</p>'}`;
   }
 
   private loop = (): void => {

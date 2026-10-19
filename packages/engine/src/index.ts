@@ -20,3 +20,4 @@ export * from './weather.ts';
 export * from './custom.ts';
 export * from './build.ts';
 export * from './chem.ts';
+export * from './testfire.ts';
