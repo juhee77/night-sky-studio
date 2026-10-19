@@ -8,6 +8,7 @@ import { cueLength, expandShow, isShellLaunch, windVector, type Launch, type Sho
 import { analyzeSmoke } from './smoke.ts';
 import { craftReport } from './custom.ts';
 import { applyLive, isLive } from './live.ts';
+import { artCount } from './art.ts';
 
 export interface ScoreItem {
   key: 'beat' | 'gaps' | 'variety' | 'smoke' | 'finale' | 'taste' | 'rules' | 'craft';
@@ -61,6 +62,10 @@ export function ruleLabel(r: Rule): string {
       return `${r.size}호보다 큰 불꽃 쓰지 않기 (안전거리)`;
     case 'live':
       return '실전 모드로 장비까지 맞추기 (발사장)';
+    case 'frameArt':
+      return `지상 틀에 그림 세우기: ${r.subject}`;
+    case 'workshopShell':
+      return '제작 공방에서 만든 우리만의 불꽃 쓰기';
   }
 }
 
@@ -100,6 +105,15 @@ function checkRule(r: Rule, show: Show, launches: Launch[], end: number): RuleRe
     case 'maxSize': {
       const bad = cues.filter((c) => isShell(c.type) && c.type !== 'cake' && c.size > r.size);
       return { rule: r, label, ok: !bad.length, detail: bad.length ? `${r.size}호보다 큰 불꽃 ${bad.length}개` : undefined };
+    }
+    case 'frameArt': {
+      // 그림다운 그림: 심지 30개 이상
+      const ok = cues.some((c) => c.type === 'lancework' && c.art && artCount(c.art) >= 30);
+      return { rule: r, label, ok, detail: ok ? undefined : '지상 틀에 그린 그림이 없습니다 (심지 30개 이상).' };
+    }
+    case 'workshopShell': {
+      const ok = cues.some((c) => c.type === 'custom' && c.custom && !!show.customShells?.[c.custom]?.build);
+      return { rule: r, label, ok, detail: ok ? undefined : '제작 공방에서 만든 불꽃이 없습니다.' };
     }
     case 'live': {
       if (!isLive(show)) return { rule: r, label, ok: false, detail: '실전 모드가 꺼져 있습니다.' };

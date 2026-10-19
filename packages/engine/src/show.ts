@@ -18,6 +18,7 @@ import { customLength, shellKey, type CustomShell } from './custom.ts';
 import type { Sky } from './weather.ts';
 import type { Rig } from './rig.ts';
 import type { MapVenue } from './mapvenue.ts';
+import type { FrameArt } from './art.ts';
 import { hash32, hashString } from './rng.ts';
 
 /** 무대 원점 기준 미터 [동, 높이, 북] */
@@ -55,6 +56,8 @@ export interface Cue {
   len?: number;
   /** 틀불꽃 글자 */
   text?: string;
+  /** 틀불꽃 그림 (있으면 글자 대신 그림) */
+  art?: FrameArt;
   /** 내 불꽃: show.customShells의 id */
   custom?: string;
   /** 올라가는 모습 (없으면 희미한 불티 꼬리) */
@@ -121,6 +124,7 @@ export interface Launch {
   /** 나이아가라를 거는 다리 양 끝 */
   span?: [Vec3, Vec3];
   text?: string;
+  art?: FrameArt;
   /** 내 불꽃 정의와 그 지문 */
   customDef?: CustomShell;
   customKey?: string;
@@ -219,6 +223,7 @@ export function expandShow(show: Show): ExpandedShow {
         len: cue.len ?? LEN_DEFAULTS[cue.type],
         span: cue.type === 'niagara' ? [from, to] : undefined,
         text: cue.type === 'lancework' ? (cue.text ?? '').slice(0, 24) : undefined,
+        ...(cue.type === 'lancework' && cue.art ? { art: cue.art } : {}),
       });
       return;
     }
@@ -280,7 +285,7 @@ export function expandShow(show: Show): ExpandedShow {
 export function launchKey(l: Launch): string {
   return [
     l.fireAt.toFixed(5), l.seed, l.type, l.size, l.angle, l.colors.join(','), l.origin.join(','),
-    l.len ?? '', l.text ?? '', l.span ? l.span.flat().join(',') : '', l.customKey ?? '', l.rise ?? '',
+    l.len ?? '', l.text ?? '', l.art?.cells ?? '', l.span ? l.span.flat().join(',') : '', l.customKey ?? '', l.rise ?? '',
   ].join('|');
 }
 

@@ -34,6 +34,7 @@ import { Workshop } from './workshop.ts';
 import { SitePlanner } from './siteplan.ts';
 import { AccountPanel } from './account.ts';
 import { Gallery } from './gallery.ts';
+import { ArtEditor } from './artedit.ts';
 import { remoteEnabled, shortLink } from './remote.ts';
 import { Panel } from './panel.ts';
 import { runCountdown } from './countdown.ts';
@@ -273,7 +274,12 @@ const timeline: Timeline = new Timeline(el.timeline, editor, {
   musicDuration: () => musicBuffer?.duration ?? 0,
   warnings: () => warnIdx,
 });
-new Panel(el.panel, editor, office.isLocked, () => drawer.list());
+const panel = new Panel(el.panel, editor, office.isLocked, () => drawer.list());
+const artEditor = new ArtEditor($<HTMLDialogElement>('art-dialog'));
+panel.editArt = (art) => {
+  if (transport.playing) togglePlay();
+  return artEditor.edit(art);
+};
 timeline.onReject = rejectPlacement;
 
 el.snap.addEventListener('change', () => (editor.snap = el.snap.value as Snap));

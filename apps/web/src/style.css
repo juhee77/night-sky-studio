@@ -334,6 +334,8 @@ dialog.map-dialog { width: min(1000px, calc(100% - 24px)); max-height: min(94vh,
 .map-pin.barge { background: #f4a261; }
 .map-pin.seat { background: #e8d8a8; }
 .map-pin.frame { background: #c4b5fd; }
+.art-canvas { width: 100%; display: block; border-radius: 10px; border: 1px solid var(--line); margin: 8px 0; touch-action: none; cursor: crosshair; }
+.commission-card .custom-badge { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 11px; background: rgba(251, 191, 36, 0.18); color: #fbbf24; }
 dialog.workshop-dialog { width: min(1080px, calc(100% - 24px)); max-height: min(94vh, 1000px); }
 .ws-layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px; margin: 12px 0; }
 .ws-preview { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
