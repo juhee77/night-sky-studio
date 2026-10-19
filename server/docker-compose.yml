@@ -1,0 +1,24 @@
+# 서버와 PostgreSQL을 함께 띄운다: docker compose up --build
+# 화면은 VITE_API_URL=http://localhost:8080 으로 빌드하거나 개발 서버를 띄우면 서버 메뉴가 보인다.
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: nss
+      POSTGRES_USER: nss
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-nss-local}
+    volumes:
+      - db:/var/lib/postgresql/data
+  server:
+    build: .
+    depends_on:
+      - db
+    ports:
+      - "8080:8080"
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/nss
+      DB_USER: nss
+      DB_PASSWORD: ${DB_PASSWORD:-nss-local}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://127.0.0.1:5173,http://localhost:5173,https://juhee77.github.io}
+volumes:
+  db:

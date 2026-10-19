@@ -4,8 +4,52 @@
     {
       "name": "web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "-w", "@nss/web", "--", "--port", "5173", "--strictPort"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "-w",
+        "@nss/web",
+        "--",
+        "--port",
+        "5173",
+        "--strictPort"
+      ],
       "port": 5173
+    },
+    {
+      "name": "server",
+      "runtimeExecutable": "./server/gradlew",
+      "runtimeArgs": [
+        "-p",
+        "server",
+        "bootRun",
+        "--console=plain"
+      ],
+      "env": {
+        "CORS_ORIGINS": "http://127.0.0.1:5174"
+      },
+      "port": 8080
+    },
+    {
+      "name": "web-api",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "-w",
+        "@nss/web",
+        "--",
+        "--port",
+        "5174",
+        "--strictPort",
+        "--host",
+        "127.0.0.1"
+      ],
+      "env": {
+        "VITE_API_URL": "http://127.0.0.1:8080"
+      },
+      "port": 5174,
+      "url": "http://127.0.0.1:5174"
     }
   ]
 }

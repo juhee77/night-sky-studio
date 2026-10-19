@@ -2,6 +2,7 @@
 
 import './viewer.css';
 import { VENUES, audienceCues, decodeShow, type Launch, type Show } from '@nss/engine';
+import { openLink, remoteEnabled } from './remote.ts';
 import { fmtTime } from './format.ts';
 import { importMusicFile, iphoneMusicHint, loadMusic, musicErrorMessage, useDeviceFontForFrames } from './media.ts';
 import { runCountdown } from './countdown.ts';
@@ -67,9 +68,12 @@ let duration = 0;
 let started = false;
 
 async function boot(): Promise<void> {
-  const code = new URLSearchParams(location.hash.slice(1)).get('s');
-  if (!code) return fail('링크에 쇼가 들어 있지 않습니다.');
+  const params = new URLSearchParams(location.hash.slice(1));
+  const short = params.get('l');
   try {
+    // 짧은 링크(#l=)는 서버에서 쇼를 받아 온다.
+    const code = short && remoteEnabled() ? await openLink(short) : params.get('s');
+    if (!code) return fail(short ? '이 짧은 링크는 서버판에서만 열 수 있습니다.' : '링크에 쇼가 들어 있지 않습니다.');
     show = await decodeShow(code);
   } catch (err) {
     return fail(`${(err as Error).message} 보낸 사람에게 링크를 다시 받아 주세요.`);

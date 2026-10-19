@@ -18,6 +18,7 @@
         <button type="button" id="shows-btn">내 쇼</button>
         <button type="button" id="office-btn">의뢰소</button>
         <button type="button" id="workshop-btn">공작소</button>
+        <button type="button" id="account-btn" hidden>계정</button>
         <button type="button" id="site-btn" title="위에서 내려다보며 바지선·다리·지상 틀 자리를 정합니다">발사장</button>
         <input id="title" aria-label="쇼 제목" maxlength="60" />
         <span id="save-state" class="save-state" role="status">저장됨</span>
@@ -107,6 +108,34 @@
       <p class="note">쇼는 이 브라우저 안에만 저장됩니다. 다른 기기로 옮기려면 파일로 내보낸 뒤 가져오세요.</p>
     </dialog>
 
+    <dialog id="account-dialog" aria-labelledby="account-title">
+      <form method="dialog" class="dialog-head">
+        <h2 id="account-title">계정과 클라우드</h2>
+        <button value="close" aria-label="닫기">닫기</button>
+      </form>
+      <section id="account-out">
+        <p class="note">로그인하면 쇼와 내 불꽃을 클라우드에 저장해 다른 기기에서 열 수 있습니다. 이메일은 받지 않습니다.</p>
+        <div class="field"><label for="account-name">이름</label><input id="account-name" maxlength="24" autocomplete="username" /></div>
+        <div class="field"><label for="account-pass">암호 (8자 이상)</label><input id="account-pass" type="password" maxlength="72" autocomplete="current-password" /></div>
+        <div class="dialog-actions">
+          <button type="button" id="account-login" class="primary">로그인</button>
+          <button type="button" id="account-signup">가입하기</button>
+        </div>
+      </section>
+      <section id="account-in" hidden>
+        <p id="account-who" class="note"></p>
+        <div class="dialog-actions">
+          <button type="button" id="cloud-save-show" class="primary">지금 쇼를 클라우드에 저장</button>
+          <button type="button" id="cloud-save-shells">내 불꽃 서랍을 클라우드에 저장</button>
+          <button type="button" id="cloud-load-shells">클라우드의 내 불꽃을 서랍으로</button>
+          <button type="button" id="account-logout">로그아웃</button>
+        </div>
+        <h3>클라우드의 쇼</h3>
+        <ul id="cloud-shows" class="show-list"></ul>
+      </section>
+      <p id="account-msg" class="note" aria-live="polite"></p>
+    </dialog>
+
     <dialog id="share-dialog" aria-labelledby="share-title">
       <form method="dialog" class="dialog-head">
         <h2 id="share-title">링크로 쇼 보내기</h2>
@@ -118,6 +147,7 @@
       <div class="dialog-actions">
         <button type="button" id="share-copy" class="primary">링크 복사</button>
         <button type="button" id="share-native">다른 앱으로 보내기</button>
+        <button type="button" id="share-short" hidden>짧은 링크 만들기</button>
       </div>
       <p id="share-info" class="note"></p>
     </dialog>
