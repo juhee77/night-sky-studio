@@ -6,6 +6,7 @@ import { loadPlan } from './loading.ts';
 import { allTubes, tubeWorldPos } from './rig.ts';
 import type { Launch, Show, ShowWarning } from './show.ts';
 import { wirePlan } from './wiring.ts';
+import { siteBlock } from './site.ts';
 
 export interface Blocked {
   cueIndex: number;
@@ -36,6 +37,12 @@ export function applyLive(show: Show, launches: Launch[]): { launches: Launch[];
     const barge = cue ? barges.get(cue.at) : undefined;
     let next = l;
     if (barge) {
+      // 허가·안전거리·간격을 어긴 바지선의 불꽃은 쏘지 않는다.
+      const why = siteBlock(show, barge.id, l.type === 'cake' ? null : l.size);
+      if (why) {
+        blocked.push({ cueIndex: l.cueIndex, sub: l.sub, reason: why });
+        continue;
+      }
       const row = rows.get(key);
       const tube = row?.tube ? tubes.get(row.tube) : undefined;
       if (!tube) {

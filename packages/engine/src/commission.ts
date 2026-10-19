@@ -6,6 +6,7 @@ import type { ColorName } from './colors.ts';
 import { craftEffect, type CustomShell } from './custom.ts';
 import { mulberry32 } from './rng.ts';
 import { CAKE_DEFAULTS, LEN_DEFAULTS, type Cue, type Show } from './show.ts';
+import { BARGE_RENT } from './site.ts';
 
 export type Rule =
   | { kind: 'include'; type: FireworkType }
@@ -65,7 +66,10 @@ export function cueCost(c: Cue, shells?: Record<string, CustomShell>): number {
 }
 
 export function showCost(show: Show): number {
-  return Math.round(show.cues.reduce((sum, c) => sum + cueCost(c, show.customShells), 0) * 10) / 10;
+  let total = show.cues.reduce((sum, c) => sum + cueCost(c, show.customShells), 0);
+  // 실전 모드: 바지선 한 척마다 임대·예인 비용
+  if (show.rig?.live) total += BARGE_RENT * show.launchers.filter((l) => l.kind === 'barge').length;
+  return Math.round(total * 10) / 10;
 }
 
 /** 처음부터 쓸 수 있는 불꽃. 나머지는 번 돈으로 해금한다. */

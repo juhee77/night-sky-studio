@@ -12,8 +12,64 @@ export const SAFETY_RADIUS: Record<Size, number> = { 3: 100, 5: 170, 7: 220, 10:
 /** 큰 알이 터지지 않고 떨어질 수 있는 구역 반지름(m) (실전 모드에서 보인다) */
 export const FALL_ZONE: Record<Size, number> = { 3: 30, 5: 60, 7: 90, 10: 120 };
 
-/** 바지선끼리 적어도 이만큼 떨어져야 한다(m) */
+/** 바지선끼리 적어도 이만큼 떨어져야 한다(m). 큰 알을 쏘는 바지선일수록 더 띄운다. */
 export const MIN_BARGE_GAP = 40;
+
+/** 바지선 한 척 임대·예인 비용 (실전 모드에서 의뢰 예산에 들어간다) */
+export const BARGE_RENT = 12;
+
+/** 두 바지선 사이에 필요한 간격: 둘 중 큰 알의 낙하 구역만큼, 적어도 40m */
+export function bargeGap(a: Size | null, b: Size | null): number {
+  const big = Math.max(a ?? 3, b ?? 3) as Size;
+  return Math.max(MIN_BARGE_GAP, FALL_ZONE[big]);
+}
+
+const SIZES_DESC: Size[] = [10, 7, 5, 3];
+
+/** 이 자리에서 쏠 수 있는 가장 큰 알: 관람석·관람석 물가까지 거리가 안전거리보다 길어야 한다 (없으면 null) */
+export function allowedSizeAt(show: Show, l: Launcher): Size | null {
+  const venue = venueOf(show);
+  if (!venue) return 10;
+  let d = l.pos[2] - venue.nearShoreZ;
+  for (const seat of Object.values(venue.seats)) {
+    if (seat.plan) continue;
+    d = Math.min(d, Math.hypot(seat.eye[0] - l.pos[0], seat.eye[2] - l.pos[2]));
+  }
+  return SIZES_DESC.find((s) => SAFETY_RADIUS[s] <= d) ?? null;
+}
+
+/** 허가 구역 안인지 */
+export function inPermitZone(show: Show, l: Launcher): boolean {
+  const venue = venueOf(show);
+  if (!venue) return true;
+  return venue.permit.zones.some(([x0, z0, x1, z1]) => l.pos[0] >= x0 && l.pos[0] <= x1 && l.pos[2] >= z0 && l.pos[2] <= z1);
+}
+
+/**
+ * 실전 모드에서 이 바지선이 이 크기의 알을 쏠 수 없는 이유 (쏠 수 있으면 null).
+ * 허가 구역 밖, 허가 척수를 넘는 바지선(뒤에 더한 것부터), 안전거리, 다른 바지선과 간격.
+ */
+export function siteBlock(show: Show, launcherId: string, size: Size | null): string | null {
+  const venue = venueOf(show);
+  const l = show.launchers.find((x) => x.id === launcherId);
+  if (!venue || !l || l.kind !== 'barge') return null;
+  const barges = show.launchers.filter((x) => x.kind === 'barge');
+  const name = label(l, show);
+  if (barges.indexOf(l) >= venue.permit.maxBarges) return `${name}은 이 무대의 허가 척수(${venue.permit.maxBarges}척)를 넘습니다`;
+  if (!inPermitZone(show, l)) return `${name}이 허가 구역 밖에 있습니다`;
+  if (size !== null) {
+    const allowed = allowedSizeAt(show, l);
+    if (allowed === null || size > allowed) return `${name} 자리에서는 ${allowed ? `${allowed}호까지` : '어떤 알도'} 쏠 수 있습니다 (관람석 안전거리)`;
+  }
+  for (const o of barges) {
+    if (o === l) continue;
+    const need = bargeGap(largestSizeAt(show, l.id), largestSizeAt(show, o.id));
+    const d = Math.hypot(o.pos[0] - l.pos[0], o.pos[2] - l.pos[2]);
+    // 둘 다 막지 않고, 뒤에 더한 바지선을 막는다.
+    if (d < need && barges.indexOf(o) < barges.indexOf(l)) return `${name}이 ${label(o, show)}과 ${Math.round(d)}m로 너무 가깝습니다 (${need}m 이상)`;
+  }
+  return null;
+}
 
 export interface SiteWarning {
   launcher: string;
@@ -57,9 +113,12 @@ export function siteCheck(show: Show): SiteWarning[] {
     }
     for (const o of barges) {
       if (o.id <= l.id) continue;
+      const need = bargeGap(size, largestSizeAt(show, o.id));
       const d = Math.hypot(o.pos[0] - l.pos[0], o.pos[2] - l.pos[2]);
-      if (d < MIN_BARGE_GAP) out.push({ launcher: l.id, level: 'warn', message: `${name}과 ${label(o, show)}이 ${Math.round(d)}m로 너무 가깝습니다 (${MIN_BARGE_GAP}m 이상).` });
+      if (d < need) out.push({ launcher: l.id, level: 'warn', message: `${name}과 ${label(o, show)}이 ${Math.round(d)}m로 너무 가깝습니다 (${need}m 이상).` });
     }
+    if (!inPermitZone(show, l)) out.push({ launcher: l.id, level: 'error', message: `${name}이 허가 구역(평면도의 초록 칸) 밖에 있습니다.` });
+    if (barges.indexOf(l) >= venue.permit.maxBarges) out.push({ launcher: l.id, level: 'error', message: `${name}: 이 무대는 바지선을 ${venue.permit.maxBarges}척까지 띄울 수 있습니다.` });
   }
   return out;
 }

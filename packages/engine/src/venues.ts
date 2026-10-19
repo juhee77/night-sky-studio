@@ -45,6 +45,8 @@ export interface Venue {
   seats: Record<string, Seat>;
   /** 새 쇼를 만들 때 놓는 발사 위치 */
   launchers: Launcher[];
+  /** 실전 모드의 허가: 바지선을 묶어 둘 수 있는 물 위 구역 [x0, z0, x1, z1]과 띄울 수 있는 척수 */
+  permit: { zones: [number, number, number, number][]; maxBarges: number };
 }
 
 interface Row {
@@ -108,6 +110,8 @@ export const RIVER_CITY: Venue = {
     { id: 'bridge', kind: 'bridge', pos: [0, 18, 258], from: [-500, 18, 258], to: [500, 18, 258] },
     { id: 'ground', kind: 'frame', pos: [0, 0, -330] },
   ],
+  // 강 가운데, 다리에서 80m 넘게 떨어진 곳
+  permit: { zones: [[-900, -450, 900, 180]], maxBarges: 5 },
 };
 
 export const HARBOUR: Venue = {
@@ -137,6 +141,8 @@ export const HARBOUR: Venue = {
     { id: 'bridge', kind: 'bridge', pos: [0, 50, 518], from: [-250, 50, 518], to: [250, 50, 518] },
     { id: 'ground', kind: 'frame', pos: [0, 0, -380] },
   ],
+  // 항구 안쪽, 아치 다리 앞
+  permit: { zones: [[-1000, -350, 1000, 420]], maxBarges: 6 },
 };
 
 export const BEACH: Venue = {
@@ -164,6 +170,8 @@ export const BEACH: Venue = {
     { id: 'bridge', kind: 'bridge', pos: [0, 30, 898], from: [-420, 30, 898], to: [420, 30, 898] },
     { id: 'ground', kind: 'frame', pos: [0, 0, -280] },
   ],
+  // 모래사장 앞바다, 해상 다리 앞
+  permit: { zones: [[-900, -250, 900, 750]], maxBarges: 4 },
 };
 
 export const VENUES: Record<string, Venue> = {
