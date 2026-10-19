@@ -53,6 +53,13 @@ export interface PlacedRack {
 /** 쇼의 장비: 바지선마다 갑판 위 랙 */
 export interface Rig {
   decks: Record<string, PlacedRack[]>;
+  /** 점화 모듈 하나의 핀 수 (기본 18) */
+  pins?: number;
+  /** 같은 때 같은 불꽃(부채꼴)은 한 핀에 묶는다 (기본 켬) */
+  chain?: boolean;
+  /** 회로 점검을 했는지, 고친 핀 ("모듈-핀") */
+  checked?: boolean;
+  fixed?: string[];
 }
 
 export interface Tube {
@@ -201,7 +208,12 @@ export function normalizeRig(raw: Rig, launcherIds: string[]): Rig {
       ...(r.kind === 'fan5' ? { spread: clamp(r.spread ?? 40, 10, 80) } : {}),
     }));
   }
-  return { decks };
+  const out: Rig = { decks };
+  if (raw?.pins) out.pins = [12, 18, 32].includes(raw.pins) ? raw.pins : 18;
+  if (raw?.chain === false) out.chain = false;
+  if (raw?.checked) out.checked = true;
+  if (Array.isArray(raw?.fixed)) out.fixed = raw.fixed.slice(0, 400).map((x) => String(x).slice(0, 8));
+  return out;
 }
 
 /** 쇼에 장비가 있는지 (갑판에 랙이 하나라도) */
