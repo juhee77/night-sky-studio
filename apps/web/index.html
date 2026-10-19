@@ -257,6 +257,13 @@
         <div id="deck-rack" class="deck-rack"></div>
         <ul id="deck-problems" class="site-warnings"></ul>
       </section>
+      <section class="loading">
+        <h3>장전 계획</h3>
+        <p class="note">시간표의 불꽃 한 발마다 크기와 각도가 맞는 통을 배정합니다. 전자 점화 쇼는 쇼 중에 다시 넣지 않으므로 한 통에 한 발입니다.</p>
+        <div class="chips"><button type="button" id="load-fill">쇼에 맞게 랙 채우기</button><button type="button" id="load-clear">장비 모두 비우기</button></div>
+        <ul id="load-shortages" class="site-warnings"></ul>
+        <div class="load-table-wrap"><table class="load-table"><thead><tr><th>점화</th><th>위치</th><th>불꽃</th><th>크기</th><th>각도</th><th>통</th></tr></thead><tbody id="load-rows"></tbody></table></div>
+      </section>
     </dialog>
 
     <dialog id="workshop-dialog" class="workshop-dialog" aria-labelledby="ws-title">

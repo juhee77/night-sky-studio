@@ -58,6 +58,8 @@ export interface Cue {
   custom?: string;
   /** 올라가는 모습 (없으면 희미한 불티 꼬리) */
   rise?: RiseEffect;
+  /** 손으로 고른 통 (부채꼴은 발마다, 케이크는 하나) */
+  tubes?: string[];
 }
 
 /** 쇼에 쓴 음악. 음악 파일 자체는 쇼에 넣지 않는다. */
