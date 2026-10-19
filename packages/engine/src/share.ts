@@ -9,6 +9,7 @@ import { normalizeShell, type CustomShell } from './custom.ts';
 import type { CakePattern, Cue, Launcher, Show } from './show.ts';
 import { SKY_IDS } from './weather.ts';
 import { hasRig, normalizeRig, type Rig } from './rig.ts';
+import { normalizeMapVenue, type MapVenue } from './mapvenue.ts';
 
 const KINDS: Launcher['kind'][] = ['barge', 'bridge', 'frame'];
 const PATTERNS: CakePattern[] = ['fan', 'zigzag', 'straight'];
@@ -36,6 +37,8 @@ interface Packed {
   cs?: CustomShell[];
   /** 발사장 장비 */
   rg?: Rig;
+  /** 지도 무대 */
+  vm?: MapVenue;
 }
 
 const round = (x: number, d = 3) => Math.round(x * 10 ** d) / 10 ** d;
@@ -94,6 +97,7 @@ export function packShow(show: Show): Packed {
   const shells = Object.values(show.customShells ?? {}).filter((s) => used.has(s.id));
   if (shells.length) p.cs = shells;
   if (hasRig(show)) p.rg = show.rig;
+  if (show.venue.map) p.vm = show.venue.map;
   return p;
 }
 
@@ -155,6 +159,7 @@ export function unpackShow(p: Packed): Show {
   if (p.cd) show.countdown = true;
   if (p.se) show.seat = { id: p.se };
   if (p.cs?.length) show.customShells = Object.fromEntries(p.cs.map((s) => [s.id, normalizeShell(s)]));
+  if (p.vm) show.venue.map = normalizeMapVenue(p.vm);
   if (p.rg) show.rig = normalizeRig(p.rg, launchers.map((l) => l.id));
   return show;
 }

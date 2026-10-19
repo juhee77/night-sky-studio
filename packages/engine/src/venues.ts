@@ -25,7 +25,9 @@ export interface Seat extends Camera {
 export type BridgeShape =
   | { kind: 'girder'; z: number; deckY: number; x0: number; x1: number; piers: number[] }
   | { kind: 'arch'; z: number; deckY: number; x0: number; x1: number; span: number; rise: number }
-  | { kind: 'suspension'; z: number; deckY: number; x0: number; x1: number; towers: number[]; towerH: number };
+  | { kind: 'suspension'; z: number; deckY: number; x0: number; x1: number; towers: number[]; towerH: number }
+  /** 다리 없음 (지도에서 고른 무대) */
+  | { kind: 'none'; z: number; deckY: number; x0: number; x1: number };
 
 export interface Venue {
   id: string;

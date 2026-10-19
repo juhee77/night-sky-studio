@@ -3,7 +3,8 @@
 
 import { isShell, type Size } from './catalog.ts';
 import type { Launcher, Show, Vec3 } from './show.ts';
-import { VENUES, waterSpan, type Venue } from './venues.ts';
+import { waterSpan, type Venue } from './venues.ts';
+import { venueOf } from './mapvenue.ts';
 
 /** 크기별 관람객 안전거리(m): 대략 알 지름의 크기만큼 */
 export const SAFETY_RADIUS: Record<Size, number> = { 3: 100, 5: 170, 7: 220, 10: 280 };
@@ -32,7 +33,7 @@ const label = (l: Launcher, show: Show) =>
 
 /** 평면도 점검: 물 위에 있는지, 관람석과 안전거리, 바지선 간격 */
 export function siteCheck(show: Show): SiteWarning[] {
-  const venue = VENUES[show.venue.preset];
+  const venue = venueOf(show);
   if (!venue) return [];
   const [near, far] = waterSpan(venue);
   const out: SiteWarning[] = [];
@@ -65,7 +66,7 @@ export function siteCheck(show: Show): SiteWarning[] {
 
 /** 바지선 하나를 더한다. 다른 바지선과 겹치지 않는 물 위 자리에 놓는다. */
 export function addBarge(show: Show): string {
-  const venue = VENUES[show.venue.preset];
+  const venue = venueOf(show);
   const used = new Set(show.launchers.map((l) => l.id));
   let n = 1;
   while (used.has(`barge-${n}`)) n++;
@@ -105,7 +106,7 @@ function clampToWater(venue: Venue | undefined, p: Vec3): Vec3 {
 export function moveLauncher(show: Show, id: string, x: number, z: number): void {
   const l = show.launchers.find((s) => s.id === id);
   if (!l) return;
-  const venue = VENUES[show.venue.preset];
+  const venue = venueOf(show);
   const r = (v: number) => Math.round(v);
   if (l.kind === 'bridge') {
     const dx = r(x) - l.pos[0];
@@ -126,8 +127,9 @@ export function moveLauncher(show: Show, id: string, x: number, z: number): void
 
 /** 무대의 기본 발사 위치로 되돌린다 (없어진 바지선의 불꽃은 가까운 바지선으로) */
 export function resetSite(show: Show): void {
-  const venue = VENUES[show.venue.preset];
-  if (!venue) return;
+  const venue = venueOf(show);
+  // 지도 무대는 기본 위치가 없다 (찍은 자리가 곧 기본)
+  if (!venue || !venue.launchers.length) return;
   show.launchers = structuredClone(venue.launchers);
   const ids = new Set(show.launchers.map((l) => l.id));
   const first = show.launchers.find((l) => l.kind === 'barge')!;

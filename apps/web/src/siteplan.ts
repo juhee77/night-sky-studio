@@ -26,7 +26,7 @@ import {
   type PlacedRack,
   type RackKind,
   SAFETY_RADIUS,
-  VENUES,
+  venueOf,
   addBarge,
   largestSizeAt,
   moveLauncher,
@@ -447,10 +447,19 @@ export class SitePlanner {
 
   /** 평면도 범위: 동서 ±1400m, 남북은 관람석 물가 앞부터 다리 너머까지 */
   private bounds() {
-    const venue = VENUES[this.editor.show.venue.preset];
+    const venue = venueOf(this.editor.show);
     const near = venue ? venue.nearShoreZ : -640;
-    const far = Math.max(venue?.bridge.z ?? 300, Math.min(venue?.farShoreZ ?? 1200, 1300)) + 200;
-    return { x0: -1400, x1: 1400, z0: near - 260, z1: far };
+    const far = Math.max(venue?.bridge.kind === 'none' ? 300 : (venue?.bridge.z ?? 300), Math.min(venue?.farShoreZ ?? 1200, 1300)) + 200;
+    // 지도 무대처럼 발사 위치·관람석이 멀리 있으면 그만큼 넓힌다.
+    const pts = [...this.editor.show.launchers.map((l) => l.pos), ...Object.values(venue?.seats ?? {}).filter((s) => !s.plan).map((s) => s.eye)];
+    const xs = pts.map((p) => p[0]);
+    const zs = pts.map((p) => p[2]);
+    return {
+      x0: Math.min(-1400, ...xs.map((x) => x - 300)),
+      x1: Math.max(1400, ...xs.map((x) => x + 300)),
+      z0: Math.min(near - 260, ...zs.map((z) => z - 200)),
+      z1: Math.max(far, ...zs.map((z) => z + 300)),
+    };
   }
 
   private layout() {
@@ -491,7 +500,7 @@ export class SitePlanner {
 
   render(): void {
     const show = this.editor.show;
-    const venue = VENUES[show.venue.preset];
+    const venue = venueOf(show);
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const { w, h, scale, sx, sy, b } = this.layout();
     this.canvas.width = Math.round(w * dpr);
@@ -507,12 +516,14 @@ export class SitePlanner {
       g.fillRect(sx(b.x0), sy(Math.min(far, b.z1)), sx(b.x1) - sx(b.x0), sy(near) - sy(Math.min(far, b.z1)));
       // 다리
       const br = venue.bridge;
-      g.strokeStyle = '#6b6478';
-      g.lineWidth = 4;
-      g.beginPath();
-      g.moveTo(sx(Math.max(br.x0, b.x0)), sy(br.z));
-      g.lineTo(sx(Math.min(br.x1, b.x1)), sy(br.z));
-      g.stroke();
+      if (br.kind !== 'none') {
+        g.strokeStyle = '#6b6478';
+        g.lineWidth = 4;
+        g.beginPath();
+        g.moveTo(sx(Math.max(br.x0, b.x0)), sy(br.z));
+        g.lineTo(sx(Math.min(br.x1, b.x1)), sy(br.z));
+        g.stroke();
+      }
       // 관람석
       for (const seat of Object.values(venue.seats)) {
         if (seat.plan) continue;

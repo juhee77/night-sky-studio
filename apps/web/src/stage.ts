@@ -9,6 +9,7 @@ import {
   Simulation,
   StageRenderer,
   VENUES,
+  venueOf,
   makeView,
   paintBackdrop,
   projectPoint,
@@ -72,7 +73,7 @@ export class Stage {
   }
 
   get venue(): Venue {
-    return VENUES[this.sim.show.venue.preset] ?? Object.values(VENUES)[0];
+    return venueOf(this.sim.show) ?? Object.values(VENUES)[0];
   }
 
   get seat(): Seat {
@@ -190,7 +191,7 @@ export class Stage {
     const w = Math.max(1, Math.round(this.canvas.clientWidth * dpr));
     const h = Math.max(1, Math.round(this.canvas.clientHeight * dpr));
     const cam = this.seat;
-    const key = `${w}x${h}:${this.seatId}:${this.sim.show.venue.preset}:${this.sim.show.venue.sky}:${cam.eye.map((v) => v.toFixed(1))}`;
+    const key = `${w}x${h}:${this.seatId}:${this.sim.show.venue.preset}:${this.sim.show.venue.map?.lat ?? ''}:${this.sim.show.venue.map?.buildings.length ?? ''}:${this.sim.show.venue.sky}:${cam.eye.map((v) => v.toFixed(1))}`;
     if (key === this.backdropKey) return;
     this.backdropKey = key;
     this.canvas.width = w;

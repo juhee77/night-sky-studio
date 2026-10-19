@@ -17,6 +17,7 @@ import type { Commission } from './commission.ts';
 import { customLength, shellKey, type CustomShell } from './custom.ts';
 import type { Sky } from './weather.ts';
 import type { Rig } from './rig.ts';
+import type { MapVenue } from './mapvenue.ts';
 import { hash32, hashString } from './rng.ts';
 
 /** 무대 원점 기준 미터 [동, 높이, 북] */
@@ -87,6 +88,8 @@ export interface Show {
     cloud?: number;
     /** 계절과 시간대 (없으면 맑은 밤) */
     sky?: Sky;
+    /** 지도에서 고른 무대 (preset이 'map'일 때) */
+    map?: MapVenue;
   };
   /** 감상할 때 10초 카운트다운 뒤에 시작한다 (새해 쇼) */
   countdown?: boolean;

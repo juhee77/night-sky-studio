@@ -216,6 +216,28 @@
       </div>
     </dialog>
 
+    <dialog id="map-dialog" class="map-dialog" aria-labelledby="map-title">
+      <form method="dialog" class="dialog-head">
+        <h2 id="map-title">지도에서 무대 고르기</h2>
+        <button value="close" aria-label="닫기">닫기</button>
+      </form>
+      <p class="map-warn">실제 불꽃 발사 계획용이 아닙니다. 안전거리와 소리 지연은 게임용 근사입니다. 실제 행사는 법과 전문가의 안전 기준을 따르세요.</p>
+      <div class="chips">
+        <button type="button" data-map-mode="barge" aria-pressed="true">바지선 찍기</button>
+        <button type="button" data-map-mode="seat" aria-pressed="false">관람석 찍기</button>
+        <button type="button" data-map-mode="frame" aria-pressed="false">지상 틀 찍기</button>
+        <button type="button" data-map-mode="erase" aria-pressed="false">찍은 것 지우기</button>
+        <button type="button" id="map-clear">모두 지우기</button>
+      </div>
+      <div id="map-view" class="map-view" aria-label="지도"></div>
+      <p id="map-status" class="note" aria-live="polite"></p>
+      <p class="note">첫 관람석에서 바라본 쪽이 무대 정면이 됩니다. 건물이 입체로 보일 만큼 확대한 뒤 만들면, 화면에 보이는 건물 높이로 스카이라인을 만듭니다.</p>
+      <div class="dialog-actions">
+        <input id="map-name" maxlength="30" placeholder="장소 이름 (예: 우리 동네 강가)" aria-label="장소 이름" />
+        <button type="button" id="map-make" class="primary">이 장소로 무대 만들기</button>
+      </div>
+    </dialog>
+
     <dialog id="stage-dialog" aria-labelledby="stage-title">
       <form method="dialog" class="dialog-head">
         <h2 id="stage-title">무대 설정</h2>

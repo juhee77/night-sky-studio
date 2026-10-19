@@ -1,7 +1,7 @@
 // 상영관: 공유 링크(#s=...)로 받은 쇼를 본다. 편집 기능은 없고, 원하면 내 쇼로 가져가 고칠 수 있다.
 
 import './viewer.css';
-import { VENUES, audienceCues, decodeShow, type Launch, type Show } from '@nss/engine';
+import { audienceCues, decodeShow, venueOf, type Launch, type Show } from '@nss/engine';
 import { openLink, remoteEnabled } from './remote.ts';
 import { fmtTime } from './format.ts';
 import { importMusicFile, iphoneMusicHint, loadMusic, musicErrorMessage, useDeviceFontForFrames } from './media.ts';
@@ -89,7 +89,7 @@ async function boot(): Promise<void> {
   stage.onDensityLowered = () => say('화면이 느려서 불꽃 밀도를 낮췄습니다.');
   duration = Math.max(stage.sim.duration, 5);
 
-  const venue = VENUES[show.venue.preset];
+  const venue = venueOf(show);
   for (const [id, seat] of Object.entries(venue?.seats ?? {})) el.seat.add(new Option(seat.label, id));
   for (const s of CAMERA_SEATS) el.seat.add(new Option(s.label, s.id));
   stage.attachControls(() => {});

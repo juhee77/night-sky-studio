@@ -48,6 +48,7 @@ function band(ctx: Ctx, m: Mat4, w: number, h: number, a: Vec3, b: Vec3, thick: 
 }
 
 function drawBridge(ctx: Ctx, m: Mat4, w: number, h: number, br: BridgeShape): void {
+  if (br.kind === 'none') return;
   const { z, deckY } = br;
   if (br.kind === 'girder') {
     for (const x of br.piers) fillWorld(ctx, m, [[x - 3, 0, z], [x + 3, 0, z], [x + 3, deckY, z], [x - 3, deckY, z]], w, h, BRIDGE);
