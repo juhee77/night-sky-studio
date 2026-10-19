@@ -64,6 +64,8 @@ export interface CustomShell {
   smoke?: number;
   /** 배합에 따른 한 발 값 배율 */
   costMul?: number;
+  /** 불붙지 않는 별의 비율 (덜 마른 별) */
+  misfire?: number;
   motion: {
     /** 퍼지는 속도 배율 (0.5~1.5) */
     speed: number;
@@ -139,7 +141,8 @@ export function normalizeShell(raw: CustomShell): CustomShell {
   };
   if (raw.split) shell.split = { after: clamp(raw.split.after, 0.4, 3), into: raw.split.into === 'burst' ? 'burst' : 'crossette' };
   if (raw.smoke !== undefined) shell.smoke = clamp(raw.smoke, 0.2, 1.5);
-  if (raw.costMul !== undefined) shell.costMul = clamp(raw.costMul, 0.6, 2.5);
+  if (raw.costMul !== undefined) shell.costMul = clamp(raw.costMul, 0.5, 3.5);
+  if (raw.misfire !== undefined) shell.misfire = clamp(raw.misfire, 0, 0.6);
   if (raw.flight) shell.flight = { height: clamp(raw.flight.height, 0.4, 1.3), burstAt: clamp(raw.flight.burstAt, 0.6, 1.5) };
   if (raw.build) shell.build = normalizeBuild(raw.build);
   if (raw.craft) {

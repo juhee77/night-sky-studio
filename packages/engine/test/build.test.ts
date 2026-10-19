@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { buildReport, buildToShell, defaultBuild, evenStars, normalizeBuild } from '../src/build.ts';
+import { buildReport, buildToShell, defaultBuild, evenStars, normalizeBuild, starCapacity, starEffect } from '../src/build.ts';
 import { newCustomShell, normalizeShell } from '../src/custom.ts';
 import { decodeShow, encodeShow } from '../src/share.ts';
 import type { Show } from '../src/show.ts';
@@ -70,4 +70,53 @@ test('알 구조는 공유 링크로 보내도 그대로다', async () => {
   const back = await decodeShow(await encodeShow(showOf(shell)));
   assert.deepEqual(back.customShells![shell.id].build, normalizeBuild(shell.build!));
   assert.deepEqual(normalizeShell(back.customShells![shell.id]).flight, shell.flight);
+});
+
+const mainStars = (shell: ReturnType<typeof buildToShell>) => {
+  const s = new Simulation(showOf(shell));
+  s.advanceTo(5.3);
+  let n = 0;
+  for (let i = 0; i < s.pool.count; i++) if (s.pool.size[i] === 4.5) n++;
+  return n;
+};
+
+test('덜 마른 별은 일부가 불붙지 않는다', () => {
+  const dry = buildToShell({ ...defaultBuild(), pistil: null, star: { method: 'pumped', sizeMm: 12, dryHours: 48 } }, base);
+  const wet = buildToShell({ ...defaultBuild(), pistil: null, star: { method: 'pumped', sizeMm: 12, dryHours: 6 } }, base);
+  assert.equal(dry.misfire, undefined);
+  assert.ok((wet.misfire ?? 0) > 0.3, `${wet.misfire}`);
+  const a = mainStars(dry);
+  const b = mainStars(wet);
+  assert.ok(b < a * 0.8, `마른 별 ${a}, 덜 마른 별 ${b}`);
+  assert.ok(buildReport({ ...defaultBuild(), star: { method: 'pumped', sizeMm: 12, dryHours: 6 } }).warnings.some((w) => w.includes('덜 말라')));
+});
+
+test('만드는 방식이 별의 고르기를, 크기가 수명을 정한다', () => {
+  const rolled = starEffect({ method: 'rolled', sizeMm: 12, dryHours: 48 });
+  const cut = starEffect({ method: 'cut', sizeMm: 12, dryHours: 48 });
+  assert.ok(rolled.care > cut.care + 0.4);
+  assert.ok(rolled.cost > cut.cost);
+  assert.ok(starEffect({ method: 'pumped', sizeMm: 20, dryHours: 48 }).life > starEffect({ method: 'pumped', sizeMm: 8, dryHours: 48 }).life);
+  const shell = buildToShell({ ...defaultBuild(), star: { method: 'cut', sizeMm: 18, dryHours: 48 } }, base);
+  assert.equal(shell.craft?.starSize, 'large');
+  assert.ok((shell.craft?.care ?? 1) < 0.4);
+});
+
+test('층을 입힌 별은 바깥층 두께만큼 지나서 안층 색으로 바뀐다', () => {
+  const shell = buildToShell({ ...defaultBuild(), star: { method: 'rolled', sizeMm: 14, dryHours: 48, inner: { color: 'green', outerShare: 0.3 } } }, base);
+  assert.deepEqual(shell.layers[0].then, { color: 'green', at: 0.3 });
+});
+
+test('큰 별은 알에 덜 들어간다', () => {
+  assert.ok(starCapacity(5, 8) > starCapacity(5, 18));
+  const r = buildReport({ ...defaultBuild(), stars: evenStars(200), star: { method: 'pumped', sizeMm: 22, dryHours: 48 } });
+  assert.ok(r.warnings.some((w) => w.includes('까지만')), r.warnings.join(','));
+});
+
+test('별 만들기는 정규화와 공유 링크를 지나도 남는다', async () => {
+  const b = normalizeBuild({ ...defaultBuild(), star: { method: 'cut', sizeMm: 99, dryHours: -3, inner: { color: 'blue', outerShare: 0.5 } } });
+  assert.deepEqual(b.star, { method: 'cut', sizeMm: 25, dryHours: 0, inner: { color: 'blue', outerShare: 0.5 } });
+  const shell = buildToShell(b, base);
+  const back = await decodeShow(await encodeShow(showOf(shell)));
+  assert.equal(normalizeShell(back.customShells![shell.id]).misfire, shell.misfire);
 });

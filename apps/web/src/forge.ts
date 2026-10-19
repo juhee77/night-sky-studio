@@ -13,7 +13,13 @@ import {
   type Colorant,
   type Composition,
   SIZE_SPECS,
+  STAR_METHOD_LABEL,
   buildReport,
+  defaultStarMaking,
+  starCapacity,
+  starEffect,
+  type StarMaking,
+  type StarMethod,
   evenStars,
   type ColorName,
   type ShellBuild,
@@ -44,6 +50,115 @@ function saveRecipes(list: Composition[]): void {
   } catch {
     // 저장하지 못해도 이번 창에서는 쓸 수 있다.
   }
+}
+
+// 별 상자: 만들어 둔 별 묶음 (방식·크기·말린 시간·층). 알을 조립할 때 꺼내 쓴다.
+const STARBOX = 'nss:starbox';
+interface StarBatch extends StarMaking { name: string }
+function loadStarBox(): StarBatch[] {
+  try {
+    return JSON.parse(localStorage.getItem(STARBOX) ?? '[]') as StarBatch[];
+  } catch {
+    return [];
+  }
+}
+function saveStarBox(list: StarBatch[]): void {
+  try {
+    localStorage.setItem(STARBOX, JSON.stringify(list.slice(0, 20)));
+  } catch {
+    // 저장하지 못해도 이번 창에서는 쓸 수 있다.
+  }
+}
+
+const METHOD_NOTE: Record<StarMethod, string> = {
+  rolled: '씨앗 알갱이에 화약을 조금씩 입혀 굴립니다. 둥글고 고르며, 층을 입히기 좋습니다. 오래 걸려 비쌉니다.',
+  pumped: '틀에 눌러 찍습니다. 빠르고 모양이 일정합니다.',
+  cut: '화약 반죽을 깍둑 썹니다. 싸지만 크기가 들쭉날쭉해 꺼지는 때가 제각각입니다.',
+};
+
+function starSection(b: ShellBuild): string {
+  const s = b.star;
+  if (!s) {
+    return `<label class="check-label"><input type="checkbox" id="star-on" /> 별을 직접 만들기</label>
+      <p class="note">끄면 알맞게 찍어 잘 말린 보통 별을 씁니다.</p>`;
+  }
+  const e = starEffect(s);
+  const cap = starCapacity(b.size, s.sizeMm);
+  const box = loadStarBox();
+  const outerColor = b.comp ? evaluateMix(b.comp).color : b.starColor;
+  return `
+    <label class="check-label"><input type="checkbox" id="star-on" checked /> 별을 직접 만들기</label>
+    <canvas id="star-section" class="star-section" aria-label="별 한 알을 자른 단면"></canvas>
+    <ul class="forge-report">
+      <li><span>고르기</span><b>${Math.round(e.care * 100)}</b></li>
+      <li><span>별 수명</span><b>${e.life.toFixed(1)}초</b></li>
+      <li><span>불붙지 않는 별</span><b>${Math.round(e.misfire * 100)}%</b></li>
+      <li><span>이 알에 들어가는 별</span><b>${cap}알</b></li>
+      <li><span>값</span><b>×${e.cost.toFixed(2)}</b></li>
+    </ul>
+    <div class="field"><span class="label">만드는 방식</span><div class="chips">
+      ${(Object.keys(STAR_METHOD_LABEL) as StarMethod[]).map((k) => `<button type="button" data-smethod="${k}" aria-pressed="${s.method === k}">${STAR_METHOD_LABEL[k]}</button>`).join('')}
+    </div></div>
+    <p class="note">${METHOD_NOTE[s.method]}</p>
+    <div class="field"><label for="star-size">별 지름 <output>${s.sizeMm}mm</output></label><input id="star-size" type="range" min="5" max="25" step="1" value="${s.sizeMm}" /></div>
+    <div class="field"><label for="star-dry">말린 시간 <output>${s.dryHours}시간</output></label><input id="star-dry" type="range" min="0" max="96" step="6" value="${s.dryHours}" /></div>
+    <p class="note">큰 별은 오래 타지만 알에 덜 들어갑니다. 이틀(48시간)은 말려야 모두 불이 붙습니다.</p>
+    <label class="check-label"><input type="checkbox" id="star-layer" ${s.inner ? 'checked' : ''} /> 층을 입혀 색이 바뀌는 별</label>
+    ${s.inner ? `
+      <p class="note">바깥층(${COLOR_LABEL[outerColor]})이 먼저 타고, 다 타면 안층 색으로 바뀝니다.</p>
+      <div class="field"><span class="label">안층 색</span><div class="swatches">${COLOR_NAMES.map(
+        (k) => `<button type="button" class="swatch" data-icolor="${k}" style="--c:${css(k)}" aria-label="${COLOR_LABEL[k]}" title="${COLOR_LABEL[k]}" aria-pressed="${s.inner!.color === k}"></button>`,
+      ).join('')}</div></div>
+      <div class="field"><label for="star-outer">바깥층 두께 <output>${Math.round(s.inner.outerShare * 100)}%</output></label><input id="star-outer" type="range" min="0.1" max="0.9" step="0.05" value="${s.inner.outerShare}" /></div>` : ''}
+    <div class="field mix-notes">
+      <span class="label">별 상자</span>
+      <div class="row"><input id="star-name" maxlength="20" value="${esc(STAR_METHOD_LABEL[s.method] + ' ' + s.sizeMm + 'mm')}" aria-label="별 묶음 이름" /><button type="button" id="star-save">상자에 담기</button></div>
+      ${box.length ? `<div class="chips">${box.map((x, i) => `<button type="button" data-starbox="${i}">${esc(x.name)}</button>`).join('')}</div>` : '<p class="note">담아 둔 별이 없습니다.</p>'}
+    </div>`;
+}
+
+/** 별 한 알 단면: 크기, 모양(자른 별은 모남), 층 */
+function drawStar(canvas: HTMLCanvasElement, b: ShellBuild): void {
+  const s = b.star;
+  if (!s) return;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = canvas.clientWidth || 200;
+  const h = canvas.clientHeight || 90;
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  const g = canvas.getContext('2d')!;
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.fillStyle = '#0b0c1d';
+  g.fillRect(0, 0, w, h);
+  const outer = b.comp ? rgbCss(evaluateMix(b.comp).rgb) : css(b.starColor);
+  const r = 8 + s.sizeMm * 1.3;
+  const cx = h / 2 + 8;
+  const cy = h / 2;
+  const shape = (rad: number) => {
+    g.beginPath();
+    if (s.method === 'cut') g.rect(cx - rad * 0.85, cy - rad * 0.8, rad * 1.75, rad * 1.6);
+    else if (s.method === 'pumped') g.ellipse(cx, cy, rad * 0.9, rad, 0, 0, Math.PI * 2);
+    else g.arc(cx, cy, rad, 0, Math.PI * 2);
+    g.fill();
+  };
+  g.fillStyle = outer;
+  shape(Math.min(r, h / 2 - 4));
+  if (s.inner) {
+    g.fillStyle = css(s.inner.color);
+    shape(Math.min(r, h / 2 - 4) * (1 - s.inner.outerShare));
+  }
+  if (s.method === 'rolled') {
+    g.fillStyle = '#c9a36b';
+    g.beginPath();
+    g.arc(cx, cy, 2.2, 0, Math.PI * 2);
+    g.fill();
+  }
+  g.fillStyle = '#a6a3bd';
+  g.font = `12px 'IBM Plex Sans KR', -apple-system, sans-serif`;
+  g.textAlign = 'left';
+  const x = cx + h / 2 + 6;
+  g.fillText(`${STAR_METHOD_LABEL[s.method]} · ${s.sizeMm}mm`, x, cy - 6);
+  g.fillText(s.inner ? `바깥층 ${Math.round(s.inner.outerShare * 100)}% → 안층` : s.method === 'rolled' ? '가운데 씨앗 알갱이' : '한 가지 색', x, cy + 12);
 }
 
 const PARTS: [keyof Composition, string, string][] = [
@@ -123,7 +238,7 @@ export function drawSection(canvas: HTMLCanvasElement, b: ShellBuild): void {
   const cy = h * 0.44;
   const R = Math.min(w, h) * 0.36;
   const paper = 2 + b.paper * 1.3;
-  const starR = Math.max(3, R * 0.07);
+  const starR = Math.max(3, R * 0.07 * (b.star ? b.star.sizeMm / 12 : 1));
   const label = (text: string, x: number, y: number, align: CanvasTextAlign = 'left') => {
     g.fillStyle = '#a6a3bd';
     g.font = `12px 'IBM Plex Sans KR', -apple-system, sans-serif`;
@@ -180,13 +295,25 @@ export function drawSection(canvas: HTMLCanvasElement, b: ShellBuild): void {
     }
     // 바깥 별: 자르는 면(앞뒤 z가 작은 별)은 진하게, 나머지는 흐리게 (뒤쪽 벽에 붙은 별)
     const wall = R - paper - starR;
+    const care = b.star ? starEffect(b.star).care : 1;
+    const outer = b.comp ? rgbCss(evaluateMix(b.comp).rgb) : css(b.starColor);
     for (const [x, y, z] of [...b.stars].sort((p, q) => Math.abs(q[2]) - Math.abs(p[2]))) {
       const onCut = Math.abs(z) < 0.22;
+      // 고르지 않은 별은 크기가 들쭉날쭉하다
+      const jitter = 1 + (rnd() - 0.5) * (1 - care) * 0.9;
+      const sr = (onCut ? starR : starR * 0.7) * jitter;
       g.globalAlpha = onCut ? 1 : 0.22;
-      g.fillStyle = css(b.starColor);
+      g.fillStyle = outer;
       g.beginPath();
-      g.arc(cx + x * wall, cy - y * wall, onCut ? starR : starR * 0.7, 0, Math.PI * 2);
+      if (b.star?.method === 'cut') g.rect(cx + x * wall - sr, cy - y * wall - sr, sr * 2, sr * 2);
+      else g.arc(cx + x * wall, cy - y * wall, sr, 0, Math.PI * 2);
       g.fill();
+      if (onCut && b.star?.inner) {
+        g.fillStyle = css(b.star.inner.color);
+        g.beginPath();
+        g.arc(cx + x * wall, cy - y * wall, sr * (1 - b.star.inner.outerShare), 0, Math.PI * 2);
+        g.fill();
+      }
     }
     g.globalAlpha = 1;
     label(`종이 ${b.paper}겹`, cx + R * 0.72, cy - R * 0.92);
@@ -271,6 +398,11 @@ export function forgeControls(b: ShellBuild): string {
     </fieldset>
 
     <fieldset>
+      <legend>별 만들기</legend>
+      ${starSection(b)}
+    </fieldset>
+
+    <fieldset>
       <legend>심 (안쪽 작은 알)</legend>
       <label class="check-label"><input type="checkbox" id="forge-pistil" ${b.pistil ? 'checked' : ''} /> 심 넣기</label>
       ${b.pistil ? `
@@ -292,6 +424,8 @@ export function forgeControls(b: ShellBuild): string {
 export function wireForge(box: Element, b: ShellBuild, apply: (fn: (b: ShellBuild) => void, rerender?: boolean) => void): void {
   const canvas = box.querySelector<HTMLCanvasElement>('#forge-section');
   if (canvas) requestAnimationFrame(() => drawSection(canvas, b));
+  const starCanvas = box.querySelector<HTMLCanvasElement>('#star-section');
+  if (starCanvas) requestAnimationFrame(() => drawStar(starCanvas, b));
   const all = (sel: string) => box.querySelectorAll<HTMLButtonElement>(sel);
   const slider = (id: string, fmt: (x: number) => string, fn: (b: ShellBuild, x: number) => void) => {
     const input = box.querySelector<HTMLInputElement>(`#${id}`);
@@ -358,6 +492,39 @@ export function wireForge(box: Element, b: ShellBuild, apply: (fn: (b: ShellBuil
     el.addEventListener('click', () => {
       const r = loadRecipes()[Number(el.dataset.recipe)];
       if (r) apply((x) => (x.comp = { ...r }), true);
+    }),
+  );
+  // 별 만들기
+  box.querySelector<HTMLInputElement>('#star-on')?.addEventListener('change', (e) =>
+    apply((x) => {
+      if ((e.target as HTMLInputElement).checked) x.star = defaultStarMaking();
+      else delete x.star;
+    }, true),
+  );
+  all('[data-smethod]').forEach((el) => el.addEventListener('click', () => apply((x) => x.star && (x.star.method = el.dataset.smethod as StarMethod), true)));
+  slider('star-size', (v) => `${v}mm`, (x, v) => x.star && (x.star.sizeMm = v));
+  slider('star-dry', (v) => `${v}시간`, (x, v) => x.star && (x.star.dryHours = v));
+  box.querySelector<HTMLInputElement>('#star-layer')?.addEventListener('change', (e) =>
+    apply((x) => {
+      if (!x.star) return;
+      if ((e.target as HTMLInputElement).checked) x.star.inner = { color: x.starColor === 'green' ? 'red' : 'green', outerShare: 0.4 };
+      else delete x.star.inner;
+    }, true),
+  );
+  all('[data-icolor]').forEach((el) => el.addEventListener('click', () => apply((x) => x.star?.inner && (x.star.inner.color = el.dataset.icolor as ColorName), true)));
+  slider('star-outer', (v) => `${Math.round(v * 100)}%`, (x, v) => x.star?.inner && (x.star.inner.outerShare = v));
+  box.querySelector('#star-save')?.addEventListener('click', () => {
+    if (!b.star) return;
+    const name = box.querySelector<HTMLInputElement>('#star-name')!.value.trim() || '내 별';
+    saveStarBox([{ ...structuredClone(b.star), name }, ...loadStarBox().filter((x) => x.name !== name)]);
+    apply(() => {}, true);
+  });
+  all('[data-starbox]').forEach((el) =>
+    el.addEventListener('click', () => {
+      const batch = loadStarBox()[Number(el.dataset.starbox)];
+      if (!batch) return;
+      const { name: _name, ...star } = batch;
+      apply((x) => (x.star = structuredClone(star)), true);
     }),
   );
   box.querySelector<HTMLInputElement>('#forge-pistil')?.addEventListener('change', (e) =>

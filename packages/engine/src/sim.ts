@@ -540,6 +540,8 @@ export class Simulation {
       const precise = layer.shape.kind !== 'sphere' && layer.shape.kind !== 'dirs';
       for (let i = 0; i < dirs.length; i++) {
         const s = hash32(seed, i, 11);
+        // 덜 마른 별은 불붙지 않는다.
+        if (def.misfire && rand01(s, 12) < def.misfire) continue;
         let [dx, dy, dz, mag] = dirs[i];
         // 찌그러짐: 방향이 조금씩 흐트러지고, 한 축으로 눌린다.
         if (craft.asym > 0) {

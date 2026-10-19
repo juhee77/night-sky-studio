@@ -37,6 +37,8 @@ export interface ShellBuild {
   comp?: Composition;
   /** 별이 사는 기본 시간(초). 배합의 타는 빠르기가 여기에 곱해진다 */
   life?: number;
+  /** 별 만드는 방식·크기·말리기·층 (없으면 보통 별) */
+  star?: StarMaking;
 }
 
 const GOLDEN = Math.PI * (3 - Math.sqrt(5));
@@ -127,6 +129,12 @@ export function buildReport(b: ShellBuild): BuildReport {
   if (b.form === 'cylinder') warnings.push('원통 알은 둥근 알보다 덜 동그랗게 퍼집니다.');
   if (b.breakCharge > 0.8 && b.paper < 5) warnings.push('할약에 비해 종이가 얇아 한쪽으로 찢어지며 찌그러지기 쉽습니다.');
   if (b.breakCharge < 0.2) warnings.push('할약이 적어 별이 멀리 퍼지지 못합니다.');
+  if (b.star) {
+    const cap = starCapacity(b.size, b.star.sizeMm);
+    if (b.stars.length > cap) warnings.push(`${b.star.sizeMm}mm 별은 이 알에 ${cap}알까지만 들어갑니다.`);
+    if (b.star.dryHours < 24) warnings.push('별이 덜 말라 일부가 불붙지 않습니다.');
+    if (b.star.method === 'cut') warnings.push('자른 별은 크기가 들쭉날쭉해 꺼지는 때가 제각각입니다.');
+  }
   if (burstTime > apex + 0.3) warnings.push('도화선이 길어 꼭대기를 지나 떨어지면서 터집니다.');
   if (burstTime < apex * 0.75) warnings.push('도화선이 짧아 다 올라가기 전에 낮게 터집니다.');
   if (f.height < 0.8) warnings.push('발사약이 적어 낮게 올라갑니다.');
@@ -160,6 +168,9 @@ export function flightOf(b: ShellBuild): { height: number; burstAt: number } {
 /** 알 구조를 불꽃 설계로 바꾼다. 이름·움직임은 기존 설계(base)를 따른다. */
 export function buildToShell(b: ShellBuild, base: CustomShell): CustomShell {
   const mix = b.comp ? evaluateMix(b.comp) : null;
+  const star = b.star ? starEffect(b.star) : null;
+  // 층 입힌 별: 바깥층(배합 색)이 먼저 타고, 안층 색으로 바뀐다.
+  const then = b.star?.inner ? { color: b.star.inner.color, at: b.star.inner.outerShare } : b.then;
   const layers: CustomShell['layers'] = [
     {
       role: 'outer',
@@ -167,7 +178,7 @@ export function buildToShell(b: ShellBuild, base: CustomShell): CustomShell {
       star: b.starKind,
       color: mix ? mix.color : b.starColor,
       ...(mix ? { tint: [...mix.rgb] as [number, number, number] } : {}),
-      ...(b.then ? { then: { ...b.then } } : {}),
+      ...(then ? { then: { ...then } } : {}),
       scale: 1,
       delay: 0,
     },
@@ -175,7 +186,7 @@ export function buildToShell(b: ShellBuild, base: CustomShell): CustomShell {
   if (b.pistil) {
     layers.push({ role: 'pistil', shape: { kind: 'sphere', count: b.pistil.count }, star: b.pistil.kind, color: b.pistil.color, scale: 0.42, delay: 0.08 });
   }
-  const life = b.life ?? 2.2;
+  const life = b.life ?? star?.life ?? 2.2;
   const shell: CustomShell = {
     ...base,
     layers,
@@ -183,22 +194,22 @@ export function buildToShell(b: ShellBuild, base: CustomShell): CustomShell {
     motion: { ...base.motion, life: mix ? Math.max(0.8, Math.min(5, life * (1.35 - 0.7 * mix.burnRate))) : life },
     // 원통 알은 터지는 압력이 고르지 않아 할약을 더 넣은 것처럼 찌그러진다.
     craft: {
-      starSize: base.craft?.starSize ?? 'medium',
+      starSize: star?.starSize ?? base.craft?.starSize ?? 'medium',
       breakCharge: Math.min(1, b.breakCharge + (b.form === 'cylinder' ? 0.25 : 0)),
       paper: b.paper,
-      care: base.craft?.care ?? 0.5,
+      care: star?.care ?? base.craft?.care ?? 0.5,
       premium: base.craft?.premium ?? false,
     },
     flight: flightOf(b),
     build: b,
   };
-  if (mix) {
-    shell.smoke = mix.smoke;
-    shell.costMul = mix.cost;
-  } else {
-    delete shell.smoke;
-    delete shell.costMul;
-  }
+  if (mix) shell.smoke = mix.smoke;
+  else delete shell.smoke;
+  const costMul = (mix?.cost ?? 1) * (star?.cost ?? 1);
+  if (costMul !== 1) shell.costMul = costMul;
+  else delete shell.costMul;
+  if (star && star.misfire > 0) shell.misfire = star.misfire;
+  else delete shell.misfire;
   return shell;
 }
 
@@ -228,5 +239,71 @@ export function normalizeBuild(raw: ShellBuild): ShellBuild {
     lift: clamp(raw.lift, 0.5, 1.4),
     ...(raw.comp ? { comp: normalizeComposition(raw.comp) } : {}),
     ...(raw.life !== undefined ? { life: clamp(raw.life, 0.8, 5) } : {}),
+    ...(raw.star
+      ? {
+          star: {
+            method: (['rolled', 'pumped', 'cut'] as const).includes(raw.star.method) ? raw.star.method : 'pumped',
+            sizeMm: clamp(raw.star.sizeMm, 5, 25),
+            dryHours: clamp(raw.star.dryHours, 0, 96),
+            ...(raw.star.inner ? { inner: { color: raw.star.inner.color, outerShare: clamp(raw.star.inner.outerShare, 0.1, 0.9) } } : {}),
+          },
+        }
+      : {}),
+  };
+}
+
+// ── 별 만들기 ──
+// 굴리기: 씨앗 알갱이에 화약을 조금씩 입혀 굴린다. 둥글고 고르지만 오래 걸린다.
+// 찍기: 틀에 눌러 찍는다. 빠르고 모양이 일정하다.
+// 자르기: 화약 반죽을 깍둑 썬다. 싸고 빠르지만 크기와 모양이 들쭉날쭉하다.
+// 색이 바뀌는 별은 층을 입혀 만든다. 바깥층이 먼저 타므로 먼저 보인다.
+
+export type StarMethod = 'rolled' | 'pumped' | 'cut';
+
+export interface StarMaking {
+  method: StarMethod;
+  /** 별 지름(mm) */
+  sizeMm: number;
+  /** 말린 시간(시간). 덜 마르면 일부 별이 불붙지 않는다 */
+  dryHours: number;
+  /** 안층 (색이 바뀌는 별): 색과, 별 전체에서 바깥층이 차지하는 두께 비율 */
+  inner?: { color: ColorName; outerShare: number };
+}
+
+export const STAR_METHOD_LABEL: Record<StarMethod, string> = { rolled: '굴리기', pumped: '찍기', cut: '자르기' };
+
+export function defaultStarMaking(): StarMaking {
+  return { method: 'pumped', sizeMm: 12, dryHours: 48 };
+}
+
+/** 이 크기 알의 벽에 이 크기 별을 한 줄로 붙이면 들어가는 최대 개수 */
+export function starCapacity(size: Size, sizeMm: number): number {
+  const wallR = (caliberCm(size) / 2) * 10 - sizeMm; // mm
+  const r = sizeMm / 2;
+  return Math.max(12, Math.floor(4 * (wallR / r) ** 2 * 0.78));
+}
+
+export interface StarEffect {
+  /** 별마다 크기·꺼지는 때 편차 (장인 모드의 '다듬기'로 바꿔 쓴다, 0~1 높을수록 고름) */
+  care: number;
+  /** 별 수명(초) */
+  life: number;
+  /** 불붙지 않는 별의 비율 */
+  misfire: number;
+  /** 크기 분류 (장인 모드) */
+  starSize: 'small' | 'medium' | 'large';
+  /** 값 배율 */
+  cost: number;
+}
+
+export function starEffect(s: StarMaking): StarEffect {
+  const method = { rolled: { care: 0.9, cost: 1.25 }, pumped: { care: 0.65, cost: 1 }, cut: { care: 0.25, cost: 0.8 } }[s.method];
+  const dry = Math.min(1, s.dryHours / 48);
+  return {
+    care: method.care * (0.6 + 0.4 * dry),
+    life: Math.max(0.8, Math.min(5, 2.2 * (s.sizeMm / 12) ** 0.8)),
+    misfire: Math.max(0, (1 - dry) * 0.45),
+    starSize: s.sizeMm < 9 ? 'small' : s.sizeMm > 16 ? 'large' : 'medium',
+    cost: method.cost * (0.8 + s.sizeMm / 60),
   };
 }
