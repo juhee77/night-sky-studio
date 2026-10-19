@@ -127,13 +127,15 @@
         <h2 id="auto-title">자동 연출</h2>
         <button value="close" aria-label="닫기">닫기</button>
       </form>
-      <p class="note">곡의 박자와 소리 크기를 보고 불꽃을 놓습니다. 조용한 곳은 띄엄띄엄, 커지는 곳은 촘촘하고 크게, 끝은 피날레로 채웁니다. 만든 뒤 시간표에서 마음대로 고치세요.</p>
+      <p class="note">곡의 구간(인트로·벌스·후렴·브릿지·끝)과 박자, 소리 크기와 높낮이를 보고 불꽃을 놓습니다. 크게 터지는 순간엔 큰 한 방, 조용해지는 순간엔 잠깐 쉬고, 끝은 피날레로 채웁니다. 만든 뒤 시간표에서 마음대로 고치세요.</p>
       <div class="auto-form">
         <div class="field">
           <span class="label">분위기</span>
           <div class="chips">
-            <button type="button" data-style="grand" aria-pressed="true">화려하게</button>
-            <button type="button" data-style="calm" aria-pressed="false">차분하게</button>
+            <button type="button" data-mood="festive" aria-pressed="true">축제</button>
+            <button type="button" data-mood="romantic" aria-pressed="false">로맨틱</button>
+            <button type="button" data-mood="dramatic" aria-pressed="false">드라마틱</button>
+            <button type="button" data-mood="calm" aria-pressed="false">차분하게</button>
           </div>
         </div>
         <div class="field">
@@ -144,6 +146,9 @@
           <label for="auto-text">물 위에 띄울 글자 (비우면 넣지 않음)</label>
           <input id="auto-text" maxlength="12" placeholder="예: 생일 축하해" />
         </div>
+        <label class="check-label"><input type="checkbox" id="auto-effects" /> 특수 효과 섞기 (크래클·허머·상승 효과 등)</label>
+        <label class="check-label" id="auto-customs-field"><input type="checkbox" id="auto-customs" /> 내 불꽃 서랍의 불꽃 섞기</label>
+        <label class="check-label" id="auto-range-field"><input type="checkbox" id="auto-range" /> <span id="auto-range-label">고른 불꽃이 있는 구간만 다시 만들기</span></label>
         <p id="auto-limits" class="note"></p>
         <p id="auto-replace" class="note warn-text"></p>
       </div>
