@@ -27,6 +27,7 @@ import { importMusicFile, iphoneMusicHint, loadMusic, monoForTempo, musicErrorMe
 import { Drawer } from './drawer.ts';
 import { Office } from './office.ts';
 import { Workshop } from './workshop.ts';
+import { SitePlanner } from './siteplan.ts';
 import { Panel } from './panel.ts';
 import { runCountdown } from './countdown.ts';
 import { CAMERA_SEATS, Stage } from './stage.ts';
@@ -91,6 +92,8 @@ const el = {
   shareInfo: $<HTMLParagraphElement>('share-info'),
   officeBtn: $<HTMLButtonElement>('office-btn'),
   workshopBtn: $<HTMLButtonElement>('workshop-btn'),
+  siteBtn: $<HTMLButtonElement>('site-btn'),
+  siteDialog: $<HTMLDialogElement>('site-dialog'),
   workshopDialog: $<HTMLDialogElement>('workshop-dialog'),
   autoBtn: $<HTMLButtonElement>('auto-btn'),
   autoDialog: $<HTMLDialogElement>('auto-dialog'),
@@ -219,6 +222,13 @@ drawer.on(() => editor.emit('template'));
 el.workshopBtn.addEventListener('click', () => {
   if (transport.playing) togglePlay();
   workshop.open(editor.template.type === 'custom' ? editor.template.custom : undefined);
+});
+
+// ── 발사장 설계 ──
+const site = new SitePlanner(el.siteDialog, editor);
+el.siteBtn.addEventListener('click', () => {
+  if (transport.playing) togglePlay();
+  site.open();
 });
 
 // ── 시간표와 설정 칸 ──
