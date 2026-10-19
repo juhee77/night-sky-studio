@@ -3,7 +3,7 @@
 
 import { SHELLS, shellSize, starCount, type ShellType } from './catalog.ts';
 import { COLORS, COLOR_NAMES } from './colors.ts';
-import type { CustomShell } from './custom.ts';
+import { craftEffect, type CustomShell } from './custom.ts';
 import { hash32, rand01 } from './rng.ts';
 import {
   expandShow,
@@ -484,9 +484,14 @@ export class Simulation {
   /** 내 불꽃: 층마다 모양·별·색·지연을 따로 정해 피운다. */
   private burstCustom(l: Launch, def: CustomShell, at: Vec3): void {
     const spec = shellSize('custom', l.size);
-    const radius = (spec.spread / 2) * def.motion.speed;
+    const craft = craftEffect(def.craft);
+    const radius = (spec.spread / 2) * def.motion.speed * craft.spread;
+    const baseLife = def.motion.life * craft.life;
     // 별이 오래 살수록 공기 저항을 줄여 너무 일찍 멈추지 않게 한다.
-    const drag = Math.max(0.8, 3.4 / def.motion.life);
+    const drag = Math.max(0.8, 3.4 / baseLife);
+    // 장인 모드: 알이 고르게 터지지 않으면 한쪽으로 눌린 모양이 된다.
+    const squashAxis = randomUnit(hash32(l.seed, 5, 91));
+    const squash = 1 - 0.22 * Math.max(0, craft.asym - 0.3);
     const damp = Math.exp(-drag * STEP);
     const grav = 9.8 * (0.25 + 1.75 * def.motion.droop);
     def.layers.forEach((layer, li) => {
@@ -506,7 +511,7 @@ export class Simulation {
           return [dx / mag, dy / mag, dz / mag, mag];
         });
       } else {
-        const n = Math.max(6, Math.round(layer.shape.count * (layer.shape.kind === 'sphere' ? this.density : 1)));
+        const n = Math.max(6, Math.round(layer.shape.count * craft.count * (layer.shape.kind === 'sphere' ? this.density : 1)));
         dirs = starDirections(layer.shape.kind, n, seed);
       }
       let flags = 0;
@@ -515,19 +520,32 @@ export class Simulation {
       if (layer.star === 'glitter') flags |= FLAG_GLITTER;
       if (def.motion.flicker) flags |= FLAG_STROBE;
       if (def.split) flags |= FLAG_SPLIT | (def.split.into === 'burst' ? FLAG_SPLIT_BURST : 0);
-      const rgb = COLORS[layer.color];
+      const cool = layer.color === 'blue' || layer.color === 'purple' ? craft.coolDim : 1;
+      const rgb = COLORS[layer.color].map((v) => v * cool);
       const aux = layer.then ? (Math.round(layer.then.at * 255) << 8) | (COLOR_NAMES.indexOf(layer.then.color) + 1) : 0;
-      const life = def.split ? def.split.after : def.motion.life;
+      const life = def.split ? def.split.after : baseLife;
       const precise = layer.shape.kind !== 'sphere';
       for (let i = 0; i < dirs.length; i++) {
         const s = hash32(seed, i, 11);
-        const [dx, dy, dz, mag] = dirs[i];
-        const jitter = precise ? 0.03 : 0.14;
+        let [dx, dy, dz, mag] = dirs[i];
+        // 찌그러짐: 방향이 조금씩 흐트러지고, 한 축으로 눌린다.
+        if (craft.asym > 0) {
+          const noise = 0.08 * craft.asym;
+          dx += (rand01(s, 6) - 0.5) * noise;
+          dy += (rand01(s, 7) - 0.5) * noise;
+          dz += (rand01(s, 8) - 0.5) * noise;
+          const along = dx * squashAxis[0] + dy * squashAxis[1] + dz * squashAxis[2];
+          dx -= along * (1 - squash) * squashAxis[0];
+          dy -= along * (1 - squash) * squashAxis[1];
+          dz -= along * (1 - squash) * squashAxis[2];
+        }
+        const jitter = (precise ? 0.03 : 0.14) * (craft.asym > 0 ? craft.asym / 0.5 : 1);
         const speed = drag * radius * layer.scale * mag * (1 - jitter / 2 + rand01(s, 4) * jitter);
+        const lifeSpread = precise ? 0 : craft.spreadLife;
         const ok = this.pool.spawn(
           at[0], at[1], at[2],
           dx * speed, dy * speed, dz * speed,
-          life * (precise ? 1 : 0.9 + rand01(s, 5) * 0.2),
+          life * (1 - lifeSpread + rand01(s, 5) * 2 * lifeSpread),
           rgb[0], rgb[1], rgb[2],
           layer.star === 'dot' ? 5.5 : 4.5, damp, grav, flags, s, aux,
         );
@@ -931,6 +949,14 @@ function planeAxes(seed: number): [Vec3, Vec3] {
     [Math.cos(yaw), 0, Math.sin(yaw)],
     [-Math.sin(yaw) * Math.sin(pitch), Math.cos(pitch), Math.cos(yaw) * Math.sin(pitch)],
   ];
+}
+
+/** 시드로 정하는 아무 방향의 단위 벡터 */
+function randomUnit(seed: number): Vec3 {
+  const z = rand01(seed, 1) * 2 - 1;
+  const a = rand01(seed, 2) * Math.PI * 2;
+  const r = Math.sqrt(1 - z * z);
+  return [r * Math.cos(a), z, r * Math.sin(a)];
 }
 
 /** 다섯 꼭짓점 별의 윤곽 위 한 점 (u: 0~1) */

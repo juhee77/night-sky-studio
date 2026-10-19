@@ -108,3 +108,67 @@ test('시간표 길이와 원가', () => {
   assert.equal(customLength(candy), 0.3 + 2.4);
   assert.equal(cueCost(show.cues[0]), 3 * 0.8);
 });
+
+const ball = (craft?: CustomShell['craft']): CustomShell => ({
+  id: 'b', name: '공',
+  layers: [{ role: 'outer', shape: { kind: 'sphere', count: 120 }, star: 'dot', color: 'blue', scale: 1, delay: 0 }],
+  motion: { speed: 1, droop: 0, life: 2, flicker: false },
+  ...(craft ? { craft } : {}),
+});
+
+/** 터지고 0.8초 뒤 별들이 중심에서 떨어진 거리의 흩어짐 (작을수록 동그랗다) */
+function unevenness(shell: CustomShell): number {
+  const s = new Simulation({ ...showWith({ b: shell }), cues: [{ t: 5, at: 'barge-1', type: 'custom', custom: 'b', size: 5 }] });
+  s.advanceTo(5.8);
+  const p = s.pool;
+  const pts: number[][] = [];
+  for (let i = 0; i < p.count; i++) if (p.size[i] === 5.5) pts.push([p.px[i], p.py[i], p.pz[i]]);
+  const c = [0, 1, 2].map((k) => pts.reduce((a, q) => a + q[k], 0) / pts.length);
+  const d = pts.map((q) => Math.hypot(q[0] - c[0], q[1] - c[1], q[2] - c[2]));
+  const mean = d.reduce((a, b) => a + b, 0) / d.length;
+  return Math.sqrt(d.reduce((a, b) => a + (b - mean) ** 2, 0) / d.length) / mean;
+}
+
+test('장인 모드: 종이를 많이 바르고 할약을 알맞게 넣으면 동그랗게, 반대면 찌그러지게 핀다', async () => {
+  const { craftReport } = await import('../src/custom.ts');
+  const careful = { starSize: 'medium', breakCharge: 0.4, paper: 12, care: 0.9, premium: true } as const;
+  const sloppy = { starSize: 'medium', breakCharge: 1, paper: 2, care: 0.1, premium: false } as const;
+  assert.ok(unevenness(ball(careful)) < unevenness(ball(sloppy)), `${unevenness(ball(careful))} < ${unevenness(ball(sloppy))}`);
+  const good = craftReport(ball(careful));
+  const bad = craftReport(ball(sloppy));
+  assert.ok(good.roundness > 90 && bad.roundness < 20, `${good.roundness} / ${bad.roundness}`);
+  assert.ok(good.sync > bad.sync);
+  // 파랑은 고급 배합이 아니면 어둡다
+  assert.ok(good.brightness > bad.brightness);
+  // 정성 들인 불꽃은 비싸다
+  assert.ok(good.cost > bad.cost);
+});
+
+test('장인 모드: 큰 별은 오래 타지만 알에 덜 들어간다', () => {
+  const count = (size: 'small' | 'large') => {
+    const s = new Simulation({ ...showWith({ b: ball({ starSize: size, breakCharge: 0.5, paper: 6, care: 0.5, premium: false }) }), cues: [{ t: 5, at: 'barge-1', type: 'custom', custom: 'b', size: 5 }] });
+    s.advanceTo(5.1);
+    let n = 0;
+    let life = 0;
+    for (let i = 0; i < s.pool.count; i++) if (s.pool.size[i] === 5.5) { n++; life += s.pool.life[i]; }
+    return { n, life: life / n };
+  };
+  const small = count('small');
+  const large = count('large');
+  assert.ok(small.n > large.n, `${small.n} > ${large.n}`);
+  assert.ok(large.life > small.life, `${large.life} > ${small.life}`);
+});
+
+test('장인 모드로 만든 내 불꽃을 쓰면 의뢰 채점에 불꽃 완성도가 붙는다', async () => {
+  const { scoreShow } = await import('../src/score.ts');
+  const commission = {
+    id: 'x', tier: 0, title: 't', client: 'c', quote: '', music: 'basic-1', budget: 500, reward: 100,
+    wind: { dir: 0, speed: 3 }, seat: 'front-near', taste: { colors: ['blue' as const], style: 'grand' as const }, rules: [],
+  };
+  const plain = scoreShow(showWith({ b: ball() }, { custom: 'b' }), commission);
+  assert.equal(plain.items.some((i) => i.key === 'craft'), false);
+  const crafted = scoreShow(showWith({ b: ball({ starSize: 'large', breakCharge: 0.4, paper: 12, care: 1, premium: true }) }, { custom: 'b' }), commission);
+  const item = crafted.items.find((i) => i.key === 'craft')!;
+  assert.ok(item.score > 90, item.comment);
+  assert.ok(Math.abs(crafted.items.reduce((s, i) => s + i.weight, 0) - 1) < 1e-9);
+});

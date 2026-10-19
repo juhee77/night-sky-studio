@@ -26,10 +26,31 @@ export interface ShellLayer {
   delay: number;
 }
 
+/**
+ * 장인 모드: 실제 제작처럼 서로 맞바꾸는 선택들.
+ * 없으면 이상적인 불꽃(늘 동그랗고 한꺼번에 꺼짐)으로 터진다.
+ */
+export interface Craft {
+  /** 별 크기: 크면 오래 타고 밝지만 알에 들어가는 별이 줄어든다 */
+  starSize: 'small' | 'medium' | 'large';
+  /** 할약 양 (0~1): 많으면 크게 퍼지지만 모양이 찌그러지기 쉽다 */
+  breakCharge: number;
+  /** 종이 겹 수 (2~12): 많을수록 알이 단단해 동그랗게 피지만 비싸다 */
+  paper: number;
+  /** 별 다듬기 (0~1): 높을수록 별이 고르게 타서 한꺼번에 꺼진다. 비싸다 */
+  care: number;
+  /** 고급 배합: 파랑·보라를 제대로 밝게 낸다. 비싸다 */
+  premium: boolean;
+}
+
+export const DEFAULT_CRAFT: Craft = { starSize: 'medium', breakCharge: 0.5, paper: 6, care: 0.5, premium: false };
+
 export interface CustomShell {
   id: string;
   name: string;
   layers: ShellLayer[];
+  /** 장인 모드 (없으면 이상적인 불꽃) */
+  craft?: Craft;
   motion: {
     /** 퍼지는 속도 배율 (0.5~1.5) */
     speed: number;
@@ -97,7 +118,78 @@ export function normalizeShell(raw: CustomShell): CustomShell {
     },
   };
   if (raw.split) shell.split = { after: clamp(raw.split.after, 0.4, 3), into: raw.split.into === 'burst' ? 'burst' : 'crossette' };
+  if (raw.craft) {
+    shell.craft = {
+      starSize: (['small', 'medium', 'large'] as const).includes(raw.craft.starSize) ? raw.craft.starSize : 'medium',
+      breakCharge: clamp(raw.craft.breakCharge, 0, 1),
+      paper: Math.round(clamp(raw.craft.paper, 2, 12)),
+      care: clamp(raw.craft.care, 0, 1),
+      premium: !!raw.craft.premium,
+    };
+  }
   return shell;
+}
+
+/** 장인 설정이 불꽃에 주는 효과 (없으면 이상적인 값) */
+export interface CraftEffect {
+  /** 퍼지는 크기 배율 */
+  spread: number;
+  /** 찌그러짐 (0.1 매끈 ~ 1.5 크게 찌그러짐). 이상적인 불꽃은 0 */
+  asym: number;
+  /** 별 수명 배율과 별 수 배율 */
+  life: number;
+  count: number;
+  /** 별마다 수명이 흩어지는 정도 (작을수록 한꺼번에 꺼진다) */
+  spreadLife: number;
+  /** 파랑·보라의 밝기 배율 */
+  coolDim: number;
+  /** 한 발 값 배율 */
+  cost: number;
+}
+
+export function craftEffect(c: Craft | undefined): CraftEffect {
+  if (!c) return { spread: 1, asym: 0, life: 1, count: 1, spreadLife: 0.1, coolDim: 1, cost: 1 };
+  const size = { small: { life: 0.75, count: 1.25, cost: -0.1 }, medium: { life: 1, count: 1, cost: 0 }, large: { life: 1.35, count: 0.6, cost: 0.15 } }[c.starSize];
+  return {
+    spread: 0.75 + 0.5 * c.breakCharge,
+    asym: clamp(0.35 + 1.4 * c.breakCharge - 0.09 * c.paper, 0.1, 1.5),
+    life: size.life,
+    count: size.count,
+    spreadLife: 0.02 + 0.3 * (1 - c.care),
+    coolDim: c.premium ? 1 : 0.62,
+    cost: clamp(1 + 0.05 * (c.paper - 6) + 0.4 * c.care + (c.premium ? 0.3 : 0) + size.cost, 0.6, 2),
+  };
+}
+
+export interface CraftReport {
+  /** 둥근 정도, 한꺼번에 꺼짐, 밝기, 심 선명도 (0~100) */
+  roundness: number;
+  sync: number;
+  brightness: number;
+  pistil: number;
+  /** 세 항목(둥근 정도·한꺼번에 꺼짐·밝기) 평균. 의뢰 채점의 '불꽃 완성도' */
+  quality: number;
+  /** 한 발 값 배율 */
+  cost: number;
+}
+
+const COOL: ColorName[] = ['blue', 'purple'];
+
+/** 품평: 일본 불꽃 대회에서 보는 것처럼 둥글게 피는지, 한꺼번에 꺼지는지, 심이 또렷한지 */
+export function craftReport(s: CustomShell): CraftReport {
+  const e = craftEffect(s.craft);
+  const roundness = Math.round(100 * (1 - Math.max(0, e.asym - 0.1) / 1.4));
+  const sync = Math.round(100 * (1 - (e.spreadLife - 0.02) / 0.3));
+  const colors = s.layers.flatMap((l) => [l.color, ...(l.then ? [l.then.color] : [])]);
+  const cool = colors.filter((c) => COOL.includes(c)).length / Math.max(1, colors.length);
+  const bright = (1 - cool * (1 - e.coolDim)) * (s.craft?.starSize === 'large' ? 1 : s.craft?.starSize === 'small' ? 0.85 : 0.93);
+  const brightness = Math.round(100 * Math.min(1, bright));
+  const outer = s.layers[0];
+  const pistilLayer = s.layers[1];
+  const pistil = pistilLayer
+    ? Math.round(50 + (pistilLayer.color !== outer.color ? 25 : 0) + (pistilLayer.delay <= 0.3 ? 25 : 10))
+    : 0;
+  return { roundness, sync, brightness, pistil, quality: Math.round((roundness + sync + brightness) / 3), cost: e.cost };
 }
 
 /** 터진 뒤 눈에 보이는 시간 (시간표 길이) */

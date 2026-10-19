@@ -4,6 +4,9 @@
 import {
   COLORS,
   COLOR_NAMES,
+  DEFAULT_CRAFT,
+  SHELL_COST,
+  craftReport,
   customLength,
   customStarCount,
   decodeShellCode,
@@ -180,6 +183,29 @@ export class Workshop {
   private updateCount(): void {
     const el = this.dialog.querySelector('#ws-count');
     if (el) el.textContent = `별 ${customStarCount(this.shell)}개 · 보이는 시간 ${customLength(this.shell).toFixed(1)}초`;
+    this.updateReport();
+  }
+
+  /** 품평: 둥근 정도, 한꺼번에 꺼짐, 밝기, 심 선명도, 한 발 값 */
+  private updateReport(): void {
+    const box = this.dialog.querySelector('#ws-report');
+    if (!box) return;
+    if (!this.shell.craft) {
+      box.innerHTML = '';
+      return;
+    }
+    const r = craftReport(this.shell);
+    const row = (label: string, v: number, hint: string) =>
+      `<li><span>${label}</span><span class="meter"><i style="width:${v}%"></i></span><span class="num">${v}</span><p class="note">${hint}</p></li>`;
+    box.innerHTML = `
+      <h4>품평</h4>
+      <ul class="score-items">
+        ${row('둥근 정도', r.roundness, r.roundness < 60 ? '할약이 많거나 종이가 얇아 한쪽으로 눌려 핍니다.' : '고르게 동그랗게 핍니다.')}
+        ${row('한꺼번에 꺼짐', r.sync, r.sync < 60 ? '별마다 타는 시간이 들쭉날쭉합니다. 별을 더 다듬으세요.' : '별들이 거의 같이 꺼집니다.')}
+        ${row('밝기', r.brightness, r.brightness < 80 ? '파랑·보라는 고급 배합이 아니면 어둡게 나옵니다.' : '색이 제대로 밝습니다.')}
+        ${this.shell.layers.length > 1 ? row('심 선명도', r.pistil, '심 색이 바깥 층과 다르고 늦지 않게 피면 또렷합니다.') : ''}
+      </ul>
+      <p class="note">5호 한 발 값 ${(SHELL_COST[5] * 0.8 * r.cost).toFixed(1)} (기본 불꽃 ${SHELL_COST[5]}). 의뢰에 쓰면 채점에 「불꽃 완성도」가 붙습니다.</p>`;
   }
 
   private renderControls(): void {
@@ -244,6 +270,21 @@ export class Workshop {
           </select>
           ${s.split ? `<label for="ws-split-at">갈라지는 때 <output>${s.split.after.toFixed(1)}초 뒤</output></label><input id="ws-split-at" type="range" min="0.4" max="3" step="0.1" value="${s.split.after}" />` : ''}
         </div>
+      </fieldset>
+
+      <fieldset class="ws-craft">
+        <legend>장인 모드</legend>
+        <label class="check-label"><input type="checkbox" id="ws-craft" ${s.craft ? 'checked' : ''} /> 실제처럼 만들기</label>
+        <p class="note">켜면 별 크기, 할약 양, 종이 겹 수, 별 다듬기, 배합을 직접 정합니다. 서로 맞바꾸는 관계라서 모든 것을 다 좋게 만들 수는 없습니다. 끄면 늘 이상적으로 터집니다.</p>
+        ${s.craft ? `
+          <div class="field"><span class="label">별 크기</span><div class="chips">
+            ${(['small', 'medium', 'large'] as const).map((k) => `<button type="button" data-starsize="${k}" aria-pressed="${s.craft!.starSize === k}">${{ small: '작게 (별 많음, 짧게)', medium: '보통', large: '크게 (오래 밝게, 별 적음)' }[k]}</button>`).join('')}
+          </div></div>
+          <div class="field"><label for="ws-break">할약 양 <output>${Math.round(s.craft.breakCharge * 100)}%</output></label><input id="ws-break" type="range" min="0" max="1" step="0.05" value="${s.craft.breakCharge}" /></div>
+          <div class="field"><label for="ws-paper">종이 겹 수 <output>${s.craft.paper}겹</output></label><input id="ws-paper" type="range" min="2" max="12" step="1" value="${s.craft.paper}" /></div>
+          <div class="field"><label for="ws-care">별 다듬기 <output>${Math.round(s.craft.care * 100)}%</output></label><input id="ws-care" type="range" min="0" max="1" step="0.05" value="${s.craft.care}" /></div>
+          <label class="check-label"><input type="checkbox" id="ws-premium" ${s.craft.premium ? 'checked' : ''} /> 고급 배합 (파랑·보라를 밝게, 비쌈)</label>` : ''}
+        <div id="ws-report"></div>
       </fieldset>`;
     this.updateCount();
     this.wire(box);
@@ -319,6 +360,22 @@ export class Workshop {
       }, true);
     });
     slider('ws-split-at', (x) => `${x.toFixed(1)}초 뒤`, (x) => this.shell.split && (this.shell.split.after = x));
+
+    q<HTMLInputElement>('#ws-craft')!.addEventListener('change', (e) =>
+      this.change((s) => {
+        if ((e.target as HTMLInputElement).checked) s.craft = { ...DEFAULT_CRAFT };
+        else delete s.craft;
+      }, true),
+    );
+    all('[data-starsize]').forEach((b) =>
+      b.addEventListener('click', () => this.change((s) => s.craft && (s.craft.starSize = b.dataset.starsize as 'small' | 'medium' | 'large'), true)),
+    );
+    slider('ws-break', (x) => `${Math.round(x * 100)}%`, (x) => this.shell.craft && (this.shell.craft.breakCharge = x));
+    slider('ws-paper', (x) => `${x}겹`, (x) => this.shell.craft && (this.shell.craft.paper = x));
+    slider('ws-care', (x) => `${Math.round(x * 100)}%`, (x) => this.shell.craft && (this.shell.craft.care = x));
+    q<HTMLInputElement>('#ws-premium')?.addEventListener('change', (e) =>
+      this.change((s) => s.craft && (s.craft.premium = (e.target as HTMLInputElement).checked)),
+    );
 
     const grid = q<HTMLCanvasElement>('#ws-grid');
     if (grid) this.wireGrid(grid, box);
