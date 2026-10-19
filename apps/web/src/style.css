@@ -322,6 +322,7 @@ dialog.workshop-dialog { width: min(1080px, calc(100% - 24px)); max-height: min(
 .ws-mode { margin-bottom: 4px; }
 .forge-section { width: 100%; max-width: 100%; height: 300px; display: block; border-radius: 12px; border: 1px solid var(--line); }
 .star-section { width: 100%; height: 90px; display: block; border-radius: 10px; border: 1px solid var(--line); margin: 6px 0; }
+.forge-hemi { width: 100%; height: 170px; display: block; border-radius: 10px; border: 1px solid var(--line); margin: 6px 0; cursor: crosshair; }
 .forge-report { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px 12px; font-size: 13px; }
 .forge-report li { display: flex; flex-direction: column; }
 .forge-report span { color: var(--muted); font-size: 12px; }

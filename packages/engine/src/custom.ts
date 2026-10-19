@@ -66,6 +66,10 @@ export interface CustomShell {
   costMul?: number;
   /** 불붙지 않는 별의 비율 (덜 마른 별) */
   misfire?: number;
+  /** 알 조립: 할약이 치우친 쪽(알 기준 방향과 세기)과 반구 이음매 어긋남 (0~1) */
+  assembly?: { offset: [number, number, number]; seam: number };
+  /** 알이 아예 터지지 않을 확률 */
+  dud?: number;
   motion: {
     /** 퍼지는 속도 배율 (0.5~1.5) */
     speed: number;
@@ -143,6 +147,11 @@ export function normalizeShell(raw: CustomShell): CustomShell {
   if (raw.smoke !== undefined) shell.smoke = clamp(raw.smoke, 0.2, 1.5);
   if (raw.costMul !== undefined) shell.costMul = clamp(raw.costMul, 0.5, 3.5);
   if (raw.misfire !== undefined) shell.misfire = clamp(raw.misfire, 0, 0.6);
+  if (raw.assembly) {
+    const o = (raw.assembly.offset ?? [0, 0, 0]).slice(0, 3).map((v) => clamp(v, -0.5, 0.5)) as [number, number, number];
+    shell.assembly = { offset: [o[0] ?? 0, o[1] ?? 0, o[2] ?? 0], seam: clamp(raw.assembly.seam, 0, 1) };
+  }
+  if (raw.dud !== undefined) shell.dud = clamp(raw.dud, 0, 0.5);
   if (raw.flight) shell.flight = { height: clamp(raw.flight.height, 0.4, 1.3), burstAt: clamp(raw.flight.burstAt, 0.6, 1.5) };
   if (raw.build) shell.build = normalizeBuild(raw.build);
   if (raw.craft) {

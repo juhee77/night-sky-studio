@@ -488,6 +488,8 @@ export class Simulation {
   /** 내 불꽃: 층마다 모양·별·색·지연을 따로 정해 피운다. */
   private burstCustom(l: Launch, def: CustomShell, at: Vec3): void {
     const spec = shellSize('custom', l.size);
+    // 불발: 이음매가 벌어지거나 종이를 허술하게 바른 알은 아예 터지지 않기도 한다.
+    if (def.dud && rand01(l.seed, 97) < def.dud) return;
     const craft = craftEffect(def.craft);
     const radius = (spec.spread / 2) * def.motion.speed * craft.spread;
     const baseLife = def.motion.life * craft.life;
@@ -504,12 +506,24 @@ export class Simulation {
       if (layer.shape.kind === 'dirs') {
         // 알은 날아가며 구르므로, 붙인 자리 그대로지만 알 전체가 아무 방향으로 돌아가 있다.
         const m = tumble(hash32(l.seed, 0, 93));
-        dirs = layer.shape.dirs.map(([x, y, z]) => [
-          m[0] * x + m[1] * y + m[2] * z,
-          m[3] * x + m[4] * y + m[5] * z,
-          m[6] * x + m[7] * y + m[8] * z,
-          1,
-        ]);
+        // 조립: 할약이 몰린 쪽 별은 더 세게, 반대쪽은 약하게 밀려난다.
+        // 반구 이음매가 어긋나면 적도 근처 별이 흐트러진다.
+        const off = def.assembly?.offset ?? [0, 0, 0];
+        const seam = def.assembly?.seam ?? 0;
+        dirs = layer.shape.dirs.map(([x, y, z], i) => {
+          if (seam > 0 && Math.abs(y) < 0.2) {
+            const s = hash32(seed, i, 13);
+            x += (rand01(s, 1) - 0.5) * seam * 0.5;
+            y += (rand01(s, 2) - 0.5) * seam * 0.5;
+            z += (rand01(s, 3) - 0.5) * seam * 0.5;
+            const n = Math.hypot(x, y, z) || 1;
+            x /= n;
+            y /= n;
+            z /= n;
+          }
+          const mag = Math.max(0.3, 1 + 1.6 * (x * off[0] + y * off[1] + z * off[2]));
+          return [m[0] * x + m[1] * y + m[2] * z, m[3] * x + m[4] * y + m[5] * z, m[6] * x + m[7] * y + m[8] * z, mag];
+        });
       } else if (layer.shape.kind === 'points') {
         const pts = layer.shape.pts;
         const max = Math.max(1e-6, ...pts.map(([x, y]) => Math.hypot(x, y)));

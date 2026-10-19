@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { buildReport, buildToShell, defaultBuild, evenStars, normalizeBuild, starCapacity, starEffect } from '../src/build.ts';
+import { buildReport, buildToShell, defaultBuild, evenStars, normalizeBuild, starBias, starCapacity, starEffect, symmetry3D, type ShellBuild } from '../src/build.ts';
 import { newCustomShell, normalizeShell } from '../src/custom.ts';
 import { decodeShow, encodeShow } from '../src/share.ts';
 import type { Show } from '../src/show.ts';
@@ -119,4 +119,51 @@ test('별 만들기는 정규화와 공유 링크를 지나도 남는다', async
   const shell = buildToShell(b, base);
   const back = await decodeShow(await encodeShow(showOf(shell)));
   assert.equal(normalizeShell(back.customShells![shell.id]).misfire, shell.misfire);
+});
+
+test('3D 대칭: 고르게 조립한 알은 높고, 별을 몰거나 할약을 치우치면 낮다', () => {
+  const good = { ...defaultBuild(), assembly: { chargeOffset: 0, seam: 1, paste: 1 } };
+  const lumped = { ...good, stars: evenStars(120).filter(([x]) => x > -0.2) };
+  const offset = { ...good, assembly: { chargeOffset: 0.9, seam: 1, paste: 1 } };
+  const g = symmetry3D(good);
+  assert.ok(g > 85, `고른 알 ${g}`);
+  assert.ok(symmetry3D(lumped) < g - 25, `몰린 알 ${symmetry3D(lumped)}`);
+  assert.ok(symmetry3D(offset) < g - 15, `치우친 할약 ${symmetry3D(offset)}`);
+  assert.ok(starBias(evenStars(90)) < 0.05);
+  assert.ok(buildReport(lumped).warnings.some((w) => w.includes('몰려')));
+});
+
+test('할약이 치우치면 그쪽 별이 멀리 날아가 불꽃이 한쪽으로 쏠린다', () => {
+  const spread = (b: ShellBuild) => {
+    const s = new Simulation(showOf(buildToShell({ ...b, pistil: null }, base)));
+    s.advanceTo(5.9);
+    const p = s.pool;
+    const c = [0, 0, 0];
+    let n = 0;
+    for (let i = 0; i < p.count; i++) if (p.size[i] === 4.5) { c[0] += p.px[i]; c[1] += p.py[i]; c[2] += p.pz[i]; n++; }
+    return c.map((v) => v / n);
+  };
+  const even = spread(defaultBuild());
+  const off = spread({ ...defaultBuild(), assembly: { chargeOffset: 1, seam: 1, paste: 1 } });
+  const shift = Math.hypot(off[0] - even[0], off[1] - even[1], off[2] - even[2]);
+  assert.ok(shift > 15, `쏠림 ${shift.toFixed(1)}m`);
+});
+
+test('허술하게 조립한 알은 불발이 난다', () => {
+  const sloppy = buildToShell({ ...defaultBuild(), pistil: null, assembly: { chargeOffset: 0, seam: 0, paste: 0 } }, base);
+  const neat = buildToShell({ ...defaultBuild(), pistil: null, assembly: { chargeOffset: 0, seam: 1, paste: 1 } }, base);
+  assert.ok((sloppy.dud ?? 0) > 0.2, `${sloppy.dud}`);
+  assert.equal(neat.dud, undefined);
+  const show = (shell: typeof sloppy): Show => ({
+    ...showOf(shell),
+    cues: Array.from({ length: 24 }, (_, i) => ({ t: 5 + i * 0.01, at: 'barge-1', type: 'custom' as const, custom: shell.id, size: 5 as const })),
+  });
+  const count = (shell: typeof sloppy) => {
+    const s = new Simulation(show(shell));
+    s.advanceTo(5.3);
+    let n = 0;
+    for (let i = 0; i < s.pool.count; i++) if (s.pool.size[i] === 4.5) n++;
+    return n;
+  };
+  assert.ok(count(sloppy) < count(neat) * 0.9, `${count(sloppy)} / ${count(neat)}`);
 });

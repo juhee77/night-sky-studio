@@ -39,6 +39,52 @@ export interface ShellBuild {
   life?: number;
   /** 별 만드는 방식·크기·말리기·층 (없으면 보통 별) */
   star?: StarMaking;
+  /** 조립 솜씨 (없으면 보통 솜씨) */
+  assembly?: Assembly;
+}
+
+/** 알 조립: 할약 채우기, 반구 맞붙이기, 종이 바르기 */
+export interface Assembly {
+  /** 할약이 한쪽(알의 동쪽)으로 치우친 정도 (0 고름 ~ 1 크게 치우침) */
+  chargeOffset: number;
+  /** 반구를 맞붙인 정확도 (0~1) */
+  seam: number;
+  /** 종이를 바른 정성: 고르게 꼭꼭 눌러 발랐는지 (0~1) */
+  paste: number;
+}
+
+export function defaultAssembly(): Assembly {
+  return { chargeOffset: 0, seam: 0.85, paste: 0.8 };
+}
+
+/** 별 무게중심이 알 가운데서 벗어난 정도 (0 고름 ~ 1 한쪽에 몰림) */
+export function starBias(stars: Dir[]): number {
+  if (!stars.length) return 1;
+  const c = [0, 0, 0];
+  for (const s of stars) for (let k = 0; k < 3; k++) c[k] += s[k] / stars.length;
+  return Math.min(1, Math.hypot(c[0], c[1], c[2]) * 2);
+}
+
+/** 3D 대칭 (0~100): 별 자리, 빈 자리, 할약, 이음매, 종이가 모두 고르면 높다 */
+export function symmetry3D(b: ShellBuild, largestGapDeg?: number): number {
+  const a = b.assembly ?? defaultAssembly();
+  const gap = largestGapDeg ?? buildReport(b).largestGap;
+  const parts = [
+    1 - starBias(b.stars) * 0.9,
+    1 - clamp((gap - 18) / 70, 0, 0.8),
+    1 - a.chargeOffset * 0.6,
+    0.7 + 0.3 * a.seam,
+    0.8 + 0.2 * a.paste,
+    b.form === 'cylinder' ? 0.85 : 1,
+  ];
+  return Math.round(100 * parts.reduce((x, y) => x * y, 1));
+}
+
+/** 불발 확률: 이음매·종이·할약이 허술하면 높아진다 */
+export function dudChance(b: ShellBuild): number {
+  const a = b.assembly ?? defaultAssembly();
+  const p = 0.005 + (1 - a.seam) * 0.12 + (1 - a.paste) * 0.1 + (b.paper < 4 ? 0.04 : 0) + (b.breakCharge < 0.15 ? 0.05 : 0);
+  return Math.round(clamp(p, 0, 0.5) * 1000) / 1000;
 }
 
 const GOLDEN = Math.PI * (3 - Math.sqrt(5));
@@ -86,6 +132,10 @@ export interface BuildReport {
   /** 터지는 높이(m)와 크기표 높이 대비 */
   burstHeight: number;
   heightRatio: number;
+  /** 3D 대칭 (0~100) */
+  symmetry: number;
+  /** 불발 확률 (0~1) */
+  dud: number;
   /** 계획한 박자보다 몇 초 늦게(+)·일찍(−) 터지는지 */
   timing: number;
   /** 꼭대기를 지나 떨어지면서 터지는지 */
@@ -135,6 +185,11 @@ export function buildReport(b: ShellBuild): BuildReport {
     if (b.star.dryHours < 24) warnings.push('별이 덜 말라 일부가 불붙지 않습니다.');
     if (b.star.method === 'cut') warnings.push('자른 별은 크기가 들쭉날쭉해 꺼지는 때가 제각각입니다.');
   }
+  const a = b.assembly;
+  if (a && a.chargeOffset > 0.3) warnings.push('할약이 한쪽으로 몰려 그쪽 별만 멀리 날아갑니다.');
+  if (a && a.seam < 0.5) warnings.push('반구 이음매가 어긋나 가운데 띠가 흐트러지고 불발이 늘어납니다.');
+  if (a && a.paste < 0.4) warnings.push('종이를 허술하게 발라 압력이 새고 불발이 늘어납니다.');
+  if (starBias(stars) > 0.3) warnings.push('별이 한쪽에 몰려 있어 동그랗게 피지 않습니다.');
   if (burstTime > apex + 0.3) warnings.push('도화선이 길어 꼭대기를 지나 떨어지면서 터집니다.');
   if (burstTime < apex * 0.75) warnings.push('도화선이 짧아 다 올라가기 전에 낮게 터집니다.');
   if (f.height < 0.8) warnings.push('발사약이 적어 낮게 올라갑니다.');
@@ -142,6 +197,8 @@ export function buildReport(b: ShellBuild): BuildReport {
     caliberCm: caliberCm(b.size),
     evenness,
     largestGap: Math.round(gap),
+    symmetry: symmetry3D(b, gap),
+    dud: dudChance(b),
     burstHeight: Math.round(y),
     heightRatio: y / spec.height,
     timing: Math.round((burstTime - spec.prefire) * 100) / 100,
@@ -210,6 +267,14 @@ export function buildToShell(b: ShellBuild, base: CustomShell): CustomShell {
   else delete shell.costMul;
   if (star && star.misfire > 0) shell.misfire = star.misfire;
   else delete shell.misfire;
+  if (b.assembly) {
+    // 치우친 할약은 알의 동쪽(+x)에 몰렸다고 본다.
+    shell.assembly = { offset: [b.assembly.chargeOffset * 0.5, 0, 0], seam: 1 - b.assembly.seam };
+  } else delete shell.assembly;
+  // 조립을 직접 한 알만 불발이 난다 (보통 솜씨 알은 늘 터진다).
+  const dud = b.assembly ? dudChance(b) : 0;
+  if (dud > 0.01) shell.dud = dud;
+  else delete shell.dud;
   return shell;
 }
 
@@ -248,6 +313,9 @@ export function normalizeBuild(raw: ShellBuild): ShellBuild {
             ...(raw.star.inner ? { inner: { color: raw.star.inner.color, outerShare: clamp(raw.star.inner.outerShare, 0.1, 0.9) } } : {}),
           },
         }
+      : {}),
+    ...(raw.assembly
+      ? { assembly: { chargeOffset: clamp(raw.assembly.chargeOffset, 0, 1), seam: clamp(raw.assembly.seam, 0, 1), paste: clamp(raw.assembly.paste, 0, 1) } }
       : {}),
   };
 }

@@ -16,12 +16,14 @@ import {
   STAR_METHOD_LABEL,
   buildReport,
   defaultStarMaking,
+  defaultAssembly,
   starCapacity,
   starEffect,
   type StarMaking,
   type StarMethod,
   evenStars,
   type ColorName,
+  type Dir,
   type ShellBuild,
   type Size,
   type StarKind,
@@ -159,6 +161,81 @@ function drawStar(canvas: HTMLCanvasElement, b: ShellBuild): void {
   const x = cx + h / 2 + 6;
   g.fillText(`${STAR_METHOD_LABEL[s.method]} · ${s.sizeMm}mm`, x, cy - 6);
   g.fillText(s.inner ? `바깥층 ${Math.round(s.inner.outerShare * 100)}% → 안층` : s.method === 'rolled' ? '가운데 씨앗 알갱이' : '한 가지 색', x, cy + 12);
+}
+
+/** 반구 두 개를 위·아래에서 본 모습. 빈 자리는 붉게 칠한다. */
+const HEMI_GAP = (24 * Math.PI) / 180;
+function hemiLayout(w: number, h: number) {
+  const R = Math.min(w / 4 - 12, h / 2 - 20);
+  return { R, centers: [[w / 4, h / 2 + 6], [(w * 3) / 4, h / 2 + 6]] as [number, number][] };
+}
+function drawHemis(canvas: HTMLCanvasElement, b: ShellBuild): void {
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = canvas.clientWidth || 280;
+  const h = canvas.clientHeight || 160;
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  const g = canvas.getContext('2d')!;
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.fillStyle = '#0b0c1d';
+  g.fillRect(0, 0, w, h);
+  const { R, centers } = hemiLayout(w, h);
+  const color = b.comp ? rgbCss(evaluateMix(b.comp).rgb) : css(b.starColor);
+  centers.forEach(([cx, cy], half) => {
+    const up = half === 0;
+    g.fillStyle = '#1a1424';
+    g.strokeStyle = '#8b6b4a';
+    g.lineWidth = 3;
+    g.beginPath();
+    g.arc(cx, cy, R, 0, Math.PI * 2);
+    g.fill();
+    g.stroke();
+    // 빈 자리: 가장 가까운 별이 먼 곳
+    g.fillStyle = 'rgba(255, 80, 80, 0.28)';
+    const step = 6;
+    for (let py = -R; py <= R; py += step) {
+      for (let px = -R; px <= R; px += step) {
+        const x = px / R;
+        const z = py / R;
+        const rr = x * x + z * z;
+        if (rr > 1) continue;
+        const y = Math.sqrt(1 - rr) * (up ? 1 : -1);
+        let best = -1;
+        for (const s of b.stars) best = Math.max(best, s[0] * x + s[1] * y + s[2] * z);
+        if (Math.acos(Math.min(1, best)) > HEMI_GAP) g.fillRect(cx + px - step / 2, cy + py - step / 2, step, step);
+      }
+    }
+    g.fillStyle = color;
+    for (const [x, y, z] of b.stars) {
+      if (up ? y < 0 : y >= 0) continue;
+      g.beginPath();
+      g.arc(cx + x * R, cy + z * R, 3.2, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.fillStyle = '#a6a3bd';
+    g.font = `12px 'IBM Plex Sans KR', -apple-system, sans-serif`;
+    g.textAlign = 'center';
+    g.fillText(up ? '위 반구' : '아래 반구', cx, cy - R - 6);
+  });
+}
+
+/** 반구 그림에서 누른 자리: 가까운 별이 있으면 빼고, 없으면 붙인다. */
+function toggleStarAt(canvas: HTMLCanvasElement, ev: MouseEvent, stars: Dir[]): Dir[] | null {
+  const rect = canvas.getBoundingClientRect();
+  const { R, centers } = hemiLayout(rect.width, rect.height);
+  const mx = ev.clientX - rect.left;
+  const my = ev.clientY - rect.top;
+  for (const [half, [cx, cy]] of centers.entries()) {
+    const x = (mx - cx) / R;
+    const z = (my - cy) / R;
+    const rr = x * x + z * z;
+    if (rr > 1) continue;
+    const up = half === 0;
+    const near = stars.findIndex(([sx, sy, sz]) => (up ? sy >= 0 : sy < 0) && Math.hypot(sx - x, sz - z) * R < 7);
+    if (near >= 0) return stars.filter((_, i) => i !== near);
+    return [...stars, [x, Math.sqrt(1 - rr) * (up ? 1 : -1), z]];
+  }
+  return null;
 }
 
 const PARTS: [keyof Composition, string, string][] = [
@@ -364,6 +441,8 @@ export function forgeControls(b: ShellBuild): string {
       <li><span>지름</span><b>${r.caliberCm}cm (${b.size}호)</b></li>
       <li><span>별 간격 고르기</span><b>${r.evenness}</b></li>
       <li><span>가장 큰 빈 자리</span><b>${r.largestGap}도</b></li>
+      <li><span>3D 대칭</span><b>${r.symmetry}</b></li>
+      ${b.assembly ? `<li><span>불발 확률</span><b>${(r.dud * 100).toFixed(1)}%</b></li>` : ''}
       <li><span>터지는 높이</span><b>${r.burstHeight}m (크기표 ${spec.height}m)</b></li>
       <li><span>터지는 때</span><b>${timing}${r.pastApex ? ', 떨어지면서' : ''}</b></li>
     </ul>
@@ -383,6 +462,8 @@ export function forgeControls(b: ShellBuild): string {
     <fieldset>
       <legend>바깥 별 (벽을 따라 한 줄)</legend>
       <div class="field"><label for="forge-count">별 수 <output>${b.stars.length}알</output></label><input id="forge-count" type="range" min="24" max="200" step="2" value="${b.stars.length}" /></div>
+      <canvas id="forge-hemi" class="forge-hemi" aria-label="반구 두 개에 붙인 별. 별을 누르면 빼고, 빈 곳을 누르면 붙입니다"></canvas>
+      <p class="note">별을 누르면 떼고, 빈 곳을 누르면 붙입니다. 붉은 곳은 하늘에 구멍으로 보일 빈 자리입니다.</p>
       <div class="chips">
         <button type="button" data-fill="even">고르게 다시 붙이기</button>
         <button type="button" data-fill="hole">한쪽을 비워 보기</button>
@@ -411,6 +492,16 @@ export function forgeControls(b: ShellBuild): string {
     </fieldset>
 
     <fieldset>
+      <legend>조립 (반구 맞붙이기·종이 바르기)</legend>
+      <label class="check-label"><input type="checkbox" id="asm-on" ${b.assembly ? 'checked' : ''} /> 조립을 직접 하기</label>
+      ${b.assembly ? `
+        <div class="field"><label for="asm-offset">할약 치우침 <output>${Math.round(b.assembly.chargeOffset * 100)}%</output></label><input id="asm-offset" type="range" min="0" max="1" step="0.05" value="${b.assembly.chargeOffset}" /></div>
+        <div class="field"><label for="asm-seam">반구 맞붙인 정확도 <output>${Math.round(b.assembly.seam * 100)}%</output></label><input id="asm-seam" type="range" min="0" max="1" step="0.05" value="${b.assembly.seam}" /></div>
+        <div class="field"><label for="asm-paste">종이 바르기 정성 <output>${Math.round(b.assembly.paste * 100)}%</output></label><input id="asm-paste" type="range" min="0" max="1" step="0.05" value="${b.assembly.paste}" /></div>
+        <p class="note">할약을 가운데 고르게 채워야 별이 사방으로 같은 힘을 받습니다. 이음매가 어긋나거나 종이를 허술하게 바르면 가운데 띠가 흐트러지고 불발이 늘어납니다.</p>` : '<p class="note">끄면 솜씨 좋은 장인이 조립한 것으로 봅니다.</p>'}
+    </fieldset>
+
+    <fieldset>
       <legend>할약·종이·도화선·발사약</legend>
       <div class="field"><label for="forge-break">할약 양 <output>${Math.round(b.breakCharge * 100)}%</output></label><input id="forge-break" type="range" min="0" max="1" step="0.05" value="${b.breakCharge}" /></div>
       <div class="field"><label for="forge-paper">종이 겹 수 <output>${b.paper}겹</output></label><input id="forge-paper" type="range" min="2" max="12" step="1" value="${b.paper}" /></div>
@@ -424,6 +515,14 @@ export function forgeControls(b: ShellBuild): string {
 export function wireForge(box: Element, b: ShellBuild, apply: (fn: (b: ShellBuild) => void, rerender?: boolean) => void): void {
   const canvas = box.querySelector<HTMLCanvasElement>('#forge-section');
   if (canvas) requestAnimationFrame(() => drawSection(canvas, b));
+  const hemi = box.querySelector<HTMLCanvasElement>('#forge-hemi');
+  if (hemi) {
+    requestAnimationFrame(() => drawHemis(hemi, b));
+    hemi.addEventListener('click', (ev) => {
+      const next = toggleStarAt(hemi, ev, b.stars);
+      if (next) apply((x) => (x.stars = next), true);
+    });
+  }
   const starCanvas = box.querySelector<HTMLCanvasElement>('#star-section');
   if (starCanvas) requestAnimationFrame(() => drawStar(starCanvas, b));
   const all = (sel: string) => box.querySelectorAll<HTMLButtonElement>(sel);
@@ -494,6 +593,16 @@ export function wireForge(box: Element, b: ShellBuild, apply: (fn: (b: ShellBuil
       if (r) apply((x) => (x.comp = { ...r }), true);
     }),
   );
+  // 조립
+  box.querySelector<HTMLInputElement>('#asm-on')?.addEventListener('change', (e) =>
+    apply((x) => {
+      if ((e.target as HTMLInputElement).checked) x.assembly = defaultAssembly();
+      else delete x.assembly;
+    }, true),
+  );
+  slider('asm-offset', (v) => `${Math.round(v * 100)}%`, (x, v) => x.assembly && (x.assembly.chargeOffset = v));
+  slider('asm-seam', (v) => `${Math.round(v * 100)}%`, (x, v) => x.assembly && (x.assembly.seam = v));
+  slider('asm-paste', (v) => `${Math.round(v * 100)}%`, (x, v) => x.assembly && (x.assembly.paste = v));
   // 별 만들기
   box.querySelector<HTMLInputElement>('#star-on')?.addEventListener('change', (e) =>
     apply((x) => {
