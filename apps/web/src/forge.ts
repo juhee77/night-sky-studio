@@ -14,6 +14,8 @@ import {
   type Composition,
   SIZE_SPECS,
   STAR_METHOD_LABEL,
+  SEQUENCE_LABEL,
+  type Sequence,
   buildReport,
   defaultStarMaking,
   defaultAssembly,
@@ -236,6 +238,38 @@ function toggleStarAt(canvas: HTMLCanvasElement, ev: MouseEvent, stars: Dir[]): 
     return [...stars, [x, Math.sqrt(1 - rr) * (up ? 1 : -1), z]];
   }
   return null;
+}
+
+/** 켜지는 순서 고르기 (빠른 설계와 제작 공방이 같이 쓴다) */
+export function sequenceFields(seq: Sequence | undefined): string {
+  return `
+    <div class="field"><label for="seq-order">켜지는 순서</label><select id="seq-order">
+      <option value="" ${!seq ? 'selected' : ''}>한꺼번에</option>
+      ${(Object.keys(SEQUENCE_LABEL) as Sequence['order'][]).map((k) => `<option value="${k}" ${seq?.order === k ? 'selected' : ''}>${SEQUENCE_LABEL[k]}</option>`).join('')}
+    </select></div>
+    ${seq ? `
+      <div class="field"><label for="seq-span">첫 별부터 마지막 별까지 <output>${seq.span.toFixed(1)}초</output></label><input id="seq-span" type="range" min="0.3" max="3" step="0.1" value="${seq.span}" /></div>
+      <div class="field"><span class="label">켜지는 모습</span><div class="chips">
+        <button type="button" data-seqmode="sparkle" aria-pressed="${seq.mode === 'sparkle'}">반짝 터지고 꺼짐</button>
+        <button type="button" data-seqmode="light" aria-pressed="${seq.mode === 'light'}">켜져서 계속 탐</button>
+      </div></div>
+      <p class="note">실제로는 별마다 속에 넣은 도화선 길이나 배합을 달리해서, 어둡게 날아가다 제때 불이 붙게 합니다.</p>` : ''}`;
+}
+
+export function wireSequence(box: Element, set: (fn: (seq: Sequence | undefined) => Sequence | undefined) => void): void {
+  box.querySelector<HTMLSelectElement>('#seq-order')?.addEventListener('change', (e) => {
+    const v = (e.target as HTMLSelectElement).value as Sequence['order'] | '';
+    set((cur) => (v ? { span: cur?.span ?? 1.2, mode: cur?.mode ?? 'sparkle', order: v } : undefined));
+  });
+  const span = box.querySelector<HTMLInputElement>('#seq-span');
+  if (span) {
+    const out = span.previousElementSibling?.querySelector('output');
+    span.addEventListener('input', () => out && (out.textContent = `${Number(span.value).toFixed(1)}초`));
+    span.addEventListener('change', () => set((cur) => cur && { ...cur, span: Number(span.value) }));
+  }
+  box.querySelectorAll<HTMLButtonElement>('[data-seqmode]').forEach((el) =>
+    el.addEventListener('click', () => set((cur) => cur && { ...cur, mode: el.dataset.seqmode as Sequence['mode'] })),
+  );
 }
 
 const PARTS: [keyof Composition, string, string][] = [
@@ -472,6 +506,7 @@ export function forgeControls(b: ShellBuild): string {
       <div class="field"><span class="label">별 종류</span><div class="chips">
         ${(Object.keys(STAR_LABEL) as StarKind[]).map((k) => `<button type="button" data-bkind="${k}" aria-pressed="${b.starKind === k}">${STAR_LABEL[k]}</button>`).join('')}
       </div></div>
+      ${sequenceFields(b.sequence)}
     </fieldset>
 
     <fieldset class="mix">
@@ -544,6 +579,13 @@ export function wireForge(box: Element, b: ShellBuild, apply: (fn: (b: ShellBuil
         x.stars = el.dataset.fill === 'hole' ? all.filter(([, y]) => y > -0.35) : all;
       }, true),
     ),
+  );
+  wireSequence(box, (fn) =>
+    apply((x) => {
+      const next = fn(x.sequence);
+      if (next) x.sequence = next;
+      else delete x.sequence;
+    }, true),
   );
   slider('forge-breaks', (v) => `${v}단`, (x, v) => (v > 1 ? (x.breaks = v) : delete x.breaks));
   slider('forge-count', (v) => `${v}알`, (x, v) => (x.stars = evenStars(v)));

@@ -25,7 +25,7 @@ import {
   type StarKind,
 } from '@nss/engine';
 import { shortId, type Drawer } from './drawer.ts';
-import { forgeControls, wireForge } from './forge.ts';
+import { forgeControls, sequenceFields, wireForge, wireSequence } from './forge.ts';
 import { Stage } from './stage.ts';
 
 const COLOR_LABEL: Record<ColorName, string> = {
@@ -38,6 +38,52 @@ const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 /** 격자 그리기: 13×13 칸. 가운데가 (0, 0) */
 const GRID = 13;
 const HALF = (GRID - 1) / 2;
+
+/** 시간 차 연출 등 효과 모음: 누르면 그 효과로 설계를 바꾼다 */
+const EFFECTS: Record<string, () => Partial<CustomShell>> = {
+  '위에서 아래로 반짝': () => ({
+    layers: [{ role: 'outer', shape: { kind: 'sphere', count: 130 }, star: 'dot', color: 'white', scale: 1, delay: 0, sequence: { order: 'down', span: 1.4, mode: 'sparkle' } }],
+    motion: { speed: 1, droop: 0.25, life: 2.2, flicker: false },
+    chain: undefined,
+    split: undefined,
+  }),
+  '타임 레인': () => ({
+    layers: [{ role: 'outer', shape: { kind: 'sphere', count: 90 }, star: 'dot', color: 'gold', scale: 1, delay: 0, sequence: { order: 'random', span: 2.2, mode: 'sparkle' } }],
+    motion: { speed: 0.9, droop: 0.85, life: 2.6, flicker: false },
+    chain: undefined,
+    split: undefined,
+  }),
+  '옆으로 물결': () => ({
+    layers: [{ role: 'outer', shape: { kind: 'sphere', count: 110 }, star: 'dot', color: 'cyan', scale: 1, delay: 0, sequence: { order: 'sweep', span: 1.2, mode: 'light' } }],
+    motion: { speed: 1, droop: 0.3, life: 2.2, flicker: false },
+    chain: undefined,
+    split: undefined,
+  }),
+  '여러 단 터지기': () => ({
+    layers: [{ role: 'outer', shape: { kind: 'sphere', count: 120 }, star: 'tail', color: 'red', scale: 1, delay: 0 }],
+    motion: { speed: 0.8, droop: 0.3, life: 1.8, flicker: false },
+    chain: 3,
+    split: undefined,
+  }),
+  '한 박자 늦은 심': () => ({
+    layers: [
+      { role: 'outer', shape: { kind: 'sphere', count: 90 }, star: 'tail', color: 'gold', scale: 1, delay: 0 },
+      { role: 'pistil', shape: { kind: 'sphere', count: 40 }, star: 'dot', color: 'green', scale: 0.5, delay: 0.6 },
+    ],
+    motion: { speed: 1, droop: 0.3, life: 2.4, flicker: false },
+    chain: undefined,
+    split: undefined,
+  }),
+  토성: () => ({
+    layers: [
+      { role: 'outer', shape: { kind: 'ring', count: 70 }, star: 'dot', color: 'gold', scale: 1, delay: 0 },
+      { role: 'pistil', shape: { kind: 'sphere', count: 60 }, star: 'dot', color: 'blue', scale: 0.5, delay: 0 },
+    ],
+    motion: { speed: 1, droop: 0.2, life: 2.2, flicker: false },
+    chain: undefined,
+    split: undefined,
+  }),
+};
 
 const PRESETS: Record<string, () => [number, number][]> = {
   하트: () => sample((t) => [(16 * Math.sin(t) ** 3) / 17, (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)) / 17]),
@@ -314,6 +360,9 @@ export class Workshop {
     box.innerHTML = `${tabs}
       <div class="field"><label for="ws-name">이름</label><input id="ws-name" maxlength="16" value="${esc(s.name)}" /></div>
       <p id="ws-count" class="note"></p>
+      <div class="field"><span class="label">효과 모음 (눌러서 시작하기)</span><div class="chips">
+        ${Object.keys(EFFECTS).map((k) => `<button type="button" data-effect="${k}">${k}</button>`).join('')}
+      </div></div>
 
       <div class="ws-tabs" role="tablist">
         <button type="button" role="tab" data-layer="0" aria-selected="${this.layer === 0}">바깥 층</button>
@@ -339,6 +388,7 @@ export class Workshop {
           ${(Object.keys(STAR_LABEL) as StarKind[]).map((k) => `<button type="button" data-star="${k}" aria-pressed="${L.star === k}">${STAR_LABEL[k]}</button>`).join('')}
         </div></div>
         <div class="field"><span class="label">색</span><div class="swatches">${swatches('color', L.color)}</div></div>
+        ${sequenceFields(L.sequence)}
         <div class="field">
           <label class="check-label"><input type="checkbox" id="ws-then" ${L.then ? 'checked' : ''} /> 색이 바뀌는 별</label>
           ${L.then ? `<div class="swatches">${swatches('then', L.then.color)}</div>
@@ -353,6 +403,7 @@ export class Workshop {
         <div class="field"><label for="ws-droop">아래로 늘어짐 <output>${Math.round(s.motion.droop * 100)}%</output></label><input id="ws-droop" type="range" min="0" max="1" step="0.05" value="${s.motion.droop}" /></div>
         <div class="field"><label for="ws-life">사라지는 시간 <output>${s.motion.life.toFixed(1)}초</output></label><input id="ws-life" type="range" min="0.8" max="5" step="0.1" value="${s.motion.life}" /></div>
         <label class="check-label"><input type="checkbox" id="ws-flicker" ${s.motion.flicker ? 'checked' : ''} /> 깜빡이며 사라지기</label>
+        <div class="field"><label for="ws-chain">여러 단 터지기 <output>${s.chain ?? 1}단</output></label><input id="ws-chain" type="range" min="1" max="4" step="1" value="${s.chain ?? 1}" /></div>
         <div class="field">
           <label for="ws-split">두 번 터지기</label>
           <select id="ws-split">
@@ -454,6 +505,23 @@ export class Workshop {
         else s.split = { after: s.split?.after ?? 1.1, into: v as 'crossette' | 'burst' };
       }, true);
     });
+    slider('ws-chain', (x) => `${x}단`, (x) => (x > 1 ? (this.shell.chain = x) : delete this.shell.chain));
+    wireSequence(box, (fn) =>
+      this.change(() => {
+        const next = fn(this.cur.sequence);
+        if (next) this.cur.sequence = next;
+        else delete this.cur.sequence;
+      }, true),
+    );
+    all('[data-effect]').forEach((b) =>
+      b.addEventListener('click', () =>
+        this.change((s) => {
+          const name = s.name;
+          Object.assign(s, EFFECTS[b.dataset.effect!](), { id: s.id, name });
+          this.layer = 0;
+        }, true),
+      ),
+    );
     slider('ws-split-at', (x) => `${x.toFixed(1)}초 뒤`, (x) => this.shell.split && (this.shell.split.after = x));
 
     q<HTMLInputElement>('#ws-craft')!.addEventListener('change', (e) =>

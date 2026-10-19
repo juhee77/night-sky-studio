@@ -29,6 +29,36 @@ export interface ShellLayer {
   delay: number;
   /** 배합으로 정해진 실제 빛 (순도·밝기 반영). 없으면 color의 기본 빛 */
   tint?: [number, number, number];
+  /** 켜지는 순서: 별이 어둡게 날아가다 정한 순서대로 켜진다 */
+  sequence?: Sequence;
+}
+
+/**
+ * 시간 차 연출. 실제로는 별마다 속에 넣은 도화선 길이나 배합을 달리해
+ * 불이 붙는 때를 늦춘다 (어둡게 날아가다 제때 켜진다).
+ */
+export interface Sequence {
+  /** down 위에서 아래로, up 아래에서 위로, sweep 옆으로 물결, random 하나씩 무작위 (타임 레인) */
+  order: 'down' | 'up' | 'sweep' | 'random';
+  /** 첫 별과 마지막 별 사이 시간(초) */
+  span: number;
+  /** sparkle 반짝 터지고 꺼짐, light 켜져서 계속 탐 */
+  mode: 'sparkle' | 'light';
+}
+
+export const SEQUENCE_LABEL: Record<Sequence['order'], string> = {
+  down: '위에서 아래로',
+  up: '아래에서 위로',
+  sweep: '옆으로 물결',
+  random: '하나씩 무작위 (타임 레인)',
+};
+
+export function normalizeSequence(raw: Sequence): Sequence {
+  return {
+    order: (['down', 'up', 'sweep', 'random'] as const).includes(raw.order) ? raw.order : 'down',
+    span: clamp(raw.span, 0.3, 3),
+    mode: raw.mode === 'light' ? 'light' : 'sparkle',
+  };
 }
 
 /**
@@ -132,6 +162,7 @@ export function normalizeShell(raw: CustomShell): CustomShell {
     };
     if (l.then) out.then = { color: color(l.then.color), at: clamp(l.then.at, 0.1, 0.9) };
     if (l.tint) out.tint = l.tint.slice(0, 3).map((v) => clamp(v, 0, 1.5)) as [number, number, number];
+    if (l.sequence) out.sequence = normalizeSequence(l.sequence);
     return out;
   });
   const shell: CustomShell = {
@@ -233,8 +264,9 @@ export function craftReport(s: CustomShell): CraftReport {
 
 /** 터진 뒤 눈에 보이는 시간 (시간표 길이) */
 export function customLength(s: CustomShell): number {
-  const delay = Math.max(0, ...s.layers.map((l) => l.delay));
-  return delay + (s.split ? s.split.after + 1.1 : s.motion.life);
+  // 늦게 피는 층, 켜지는 순서, 여러 단 터지기만큼 길어진다.
+  const delay = Math.max(0, ...s.layers.map((l) => l.delay + (l.sequence ? 0.25 + l.sequence.span : 0)));
+  return delay + ((s.chain ?? 1) - 1) * 0.42 + (s.split ? s.split.after + 1.1 : s.motion.life);
 }
 
 export function customStarCount(s: CustomShell): number {

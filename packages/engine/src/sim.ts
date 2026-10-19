@@ -32,6 +32,7 @@ export const FLAG_PALM_TAIL = 64; // 야자: 굵은 줄기 꼬리
 export const FLAG_SPLIT = 128; // 크로세트: 수명이 끝나면 십자로 갈라진다
 export const FLAG_LANCE = 256; // 지상 틀불꽃의 심지 하나. 제자리에서 타오른다
 export const FLAG_STROBE = 512; // 내 불꽃 '깜빡임': 꺼졌다 켜졌다 하며 사라진다
+export const FLAG_DARK = 2048; // 켜지는 순서가 있는 별: 어둡게 날다가 aux 16~23비트(수명 비율)에 켜진다
 export const FLAG_SPLIT_BURST = 1024; // 내 불꽃 '두 번 터지기': 갈라질 때 작은 불꽃으로 한 번 더 터진다
 
 /** 렌더 버퍼에서 입자 하나가 차지하는 float 개수: x, y, z, 크기(m), r, g, b, a */
@@ -554,7 +555,12 @@ export class Simulation {
         if (def.split) flags |= FLAG_SPLIT | (def.split.into === 'burst' ? FLAG_SPLIT_BURST : 0);
         const cool = layer.color === 'blue' || layer.color === 'purple' ? craft.coolDim : 1;
         const rgb = layer.tint ?? COLORS[layer.color].map((v) => v * cool);
-        const aux = layer.then ? (Math.round(layer.then.at * 255) << 8) | (COLOR_NAMES.indexOf(layer.then.color) + 1) : 0;
+        const colorAux = layer.then ? (Math.round(layer.then.at * 255) << 8) | (COLOR_NAMES.indexOf(layer.then.color) + 1) : 0;
+      const seq = layer.sequence;
+      if (seq) {
+        // 꼬리는 켜지기 전에도 불티를 흘리므로, 순서 별은 꼬리 없이 만든다.
+        flags = (flags & ~(FLAG_SPARK_TAIL | FLAG_WILLOW_TAIL)) | FLAG_DARK;
+      }
         const life = def.split ? def.split.after : baseLife;
         const precise = layer.shape.kind !== 'sphere' && layer.shape.kind !== 'dirs';
         for (let i = 0; i < dirs.length; i++) {
@@ -577,10 +583,24 @@ export class Simulation {
           const jitter = (precise ? 0.03 : 0.14) * (craft.asym > 0 ? craft.asym / 0.5 : 1);
           const speed = drag * radius * layer.scale * mag * (1 - jitter / 2 + rand01(s, 4) * jitter);
           const lifeSpread = precise ? 0 : craft.spreadLife;
+          let starLife = life * (1 - lifeSpread + rand01(s, 5) * 2 * lifeSpread);
+          let aux = colorAux;
+          if (seq) {
+            // 하늘 기준 방향으로 순서를 정한다 (알이 굴러도 위는 위다).
+            const n = Math.hypot(dx, dy, dz) || 1;
+            const order =
+              seq.order === 'down' ? (1 - dy / n) / 2 :
+              seq.order === 'up' ? (1 + dy / n) / 2 :
+              seq.order === 'sweep' ? (1 + dx / n) / 2 :
+              rand01(s, 14);
+            const ignite = 0.25 + order * seq.span;
+            starLife = seq.mode === 'sparkle' ? ignite + 0.3 : ignite + starLife * 0.8;
+            aux = (Math.round((ignite / starLife) * 255) << 16) | (seq.mode === 'sparkle' ? 0 : colorAux);
+          }
           const ok = this.pool.spawn(
             atK[0], atK[1], atK[2],
             dx * speed, dy * speed, dz * speed,
-            life * (1 - lifeSpread + rand01(s, 5) * 2 * lifeSpread),
+            starLife,
             rgb[0], rgb[1], rgb[2],
             layer.star === 'dot' ? 5.5 : 4.5, damp, grav, flags, s, aux,
           );
@@ -840,8 +860,8 @@ export class Simulation {
       }
       // 색이 바뀌는 별
       const aux = p.aux[i];
-      if (aux) {
-        const at = (aux >>> 8) / 255;
+      if (aux & 0xffff) {
+        const at = ((aux >>> 8) & 0xff) / 255;
         const to = COLORS[COLOR_NAMES[(aux & 0xff) - 1]];
         const m = smoothstep(at - 0.06, at + 0.06, u);
         r += (to[0] - r) * m;
@@ -849,6 +869,12 @@ export class Simulation {
         b += (to[2] - b) * m;
       }
       if (f & FLAG_STROBE) a *= Math.floor(age * 9 + (p.seed[i] & 7)) % 2 ? 0.1 : 1.2;
+      if (f & FLAG_DARK) {
+        // 켜질 때까지 어둡게 날다가, 켜지는 순간 반짝 밝다.
+        const ign = ((aux >>> 16) & 0xff) / 255;
+        if (u < ign) a = 0;
+        else a = Math.max(a, 0.9) * (1 + 1.6 * Math.max(0, 1 - (age - ign * p.life[i]) / 0.12));
+      }
       if (age < 0) a = 0;
 
       // 구름 속은 빛이 퍼져 거의 보이지 않는다.
