@@ -155,8 +155,8 @@ pre .k { color: #f5c451; } pre .c { color: #8e8ba8; }
 .asks li.done .rec b { color: var(--ok); }
 .badge { align-self: flex-start; font-size: .72rem; font-weight: 700; letter-spacing: .04em; padding: 1px 8px; border-radius: 999px; background: var(--ok); color: var(--surface); }
 
-/* 네 개의 방 */
-.rooms { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+/* 다섯 개의 방 */
+.rooms { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
 .room { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .room p { font-size: .9rem; color: var(--ink-2); }
 .room-phase { font-family: var(--font-mono); font-size: .74rem; color: var(--muted); }
