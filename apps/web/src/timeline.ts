@@ -1,7 +1,7 @@
 // 시간표. 발사 위치마다 한 줄이고, 불꽃은 터지는 시각에 놓인다.
 // 불꽃 앞의 가는 선은 상승 시간이다: 선이 시작하는 점에서 점화된다.
 
-import { CAKE_DEFAULTS, COLORS, cueLength, cuePrefire, typeLabel, type Cue } from '@nss/engine';
+import { CAKE_DEFAULTS, COLORS, SECTION_LABEL, cueLength, cuePrefire, typeLabel, type Cue, type MusicMap, type SectionKind } from '@nss/engine';
 import { launcherLabel, round3, type Editor } from './editor.ts';
 
 const LABEL_W = 76;
@@ -10,6 +10,14 @@ const WAVE_H = 34;
 const LANE_H = 34;
 const MIN_PPS = 6;
 const MAX_PPS = 400;
+/** 곡 구간 바탕색 (후렴이 가장 진하다) */
+const SECTION_TINT: Record<SectionKind, string> = {
+  intro: 'rgba(125, 216, 238, 0.06)',
+  verse: 'rgba(167, 139, 250, 0.08)',
+  chorus: 'rgba(251, 146, 60, 0.14)',
+  bridge: 'rgba(52, 211, 153, 0.1)',
+  outro: 'rgba(125, 216, 238, 0.06)',
+};
 
 const C = {
   bg: '#0f1027',
@@ -45,6 +53,8 @@ export interface TimelineHost {
   waveform(): Float32Array | null;
   musicDuration(): number;
   warnings(): Set<number>;
+  /** 곡 분석 결과 (구간, 드롭, 조용해지는 순간). 음악이 없으면 null */
+  structure?(): MusicMap | null;
 }
 
 export class Timeline {
@@ -156,6 +166,34 @@ export class Timeline {
       g.fillRect(Math.round(x), RULER_H - 6, 1, 6);
       const m = Math.floor(s / 60);
       g.fillText(`${m}:${String(s % 60).padStart(2, '0')}`, x + 3, 14);
+    }
+
+    // 곡 구간과 드롭: 파형 뒤에 옅게
+    const map = this.host.structure?.();
+    if (map?.sections) {
+      g.font = '10px "IBM Plex Sans KR", -apple-system, sans-serif';
+      for (const s of map.sections) {
+        const x0 = Math.max(LABEL_W, this.x(s.start));
+        const x1 = Math.min(w, this.x(s.end));
+        if (x1 <= x0) continue;
+        g.fillStyle = SECTION_TINT[s.kind];
+        g.fillRect(x0, RULER_H, x1 - x0, WAVE_H);
+        g.fillStyle = 'rgba(236, 234, 246, 0.55)';
+        g.fillText(SECTION_LABEL[s.kind], x0 + 3, RULER_H + 10);
+      }
+      const mark = (t: number, color: string, down: boolean) => {
+        const x = this.x(t);
+        if (x < LABEL_W || x > w) return;
+        g.fillStyle = color;
+        g.beginPath();
+        const y = RULER_H + (down ? 1 : WAVE_H - 1);
+        g.moveTo(x - 4, y);
+        g.lineTo(x + 4, y);
+        g.lineTo(x, y + (down ? 6 : -6));
+        g.fill();
+      };
+      for (const t of map.drops ?? []) mark(t, '#fb923c', true);
+      for (const t of map.hushes ?? []) mark(t, '#7dd8ee', false);
     }
 
     // 음악 파형
