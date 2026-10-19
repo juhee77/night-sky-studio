@@ -6,7 +6,22 @@ import type { ColorName } from './colors.ts';
 import { COLOR_NAMES } from './colors.ts';
 import { normalizeBuild, type ShellBuild } from './build.ts';
 
-export type StarKind = 'tail' | 'dot' | 'glitter' | 'willow';
+export type StarKind = 'tail' | 'dot' | 'glitter' | 'willow' | 'brocade' | 'crackle' | 'hummer' | 'fish' | 'leaf' | 'whistle';
+
+export const STAR_KINDS: StarKind[] = ['tail', 'dot', 'glitter', 'willow', 'brocade', 'crackle', 'hummer', 'fish', 'leaf', 'whistle'];
+
+export const STAR_KIND_LABEL: Record<StarKind, string> = {
+  tail: '꼬리 있는 별',
+  dot: '점 별',
+  glitter: '반짝이는 별',
+  willow: '버들 꼬리',
+  brocade: '굵은 금빛 꼬리 (브로케이드)',
+  crackle: '타닥타닥 (크래클)',
+  hummer: '윙윙 도는 별 (허머)',
+  fish: '헤엄치는 별 (피시)',
+  leaf: '팔랑이는 별 (낙엽)',
+  whistle: '휘파람 별 (휘슬)',
+};
 
 export type LayerShape =
   | { kind: 'sphere'; count: number }
@@ -155,7 +170,7 @@ export function normalizeShell(raw: CustomShell): CustomShell {
     const out: ShellLayer = {
       role: i === 0 ? 'outer' : 'pistil',
       shape,
-      star: (['tail', 'dot', 'glitter', 'willow'] as const).includes(l.star) ? l.star : 'dot',
+      star: STAR_KINDS.includes(l.star) ? l.star : 'dot',
       color: color(l.color),
       scale: clamp(l.scale ?? (i === 0 ? 1 : 0.45), 0.2, 1),
       delay: clamp(l.delay ?? 0, 0, 1.5),

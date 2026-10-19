@@ -33,7 +33,14 @@ export const FLAG_SPLIT = 128; // 크로세트: 수명이 끝나면 십자로 �
 export const FLAG_LANCE = 256; // 지상 틀불꽃의 심지 하나. 제자리에서 타오른다
 export const FLAG_STROBE = 512; // 내 불꽃 '깜빡임': 꺼졌다 켜졌다 하며 사라진다
 export const FLAG_DARK = 2048; // 켜지는 순서가 있는 별: 어둡게 날다가 aux 16~23비트(수명 비율)에 켜진다
-export const FLAG_SPLIT_BURST = 1024; // 내 불꽃 '두 번 터지기': 갈라질 때 작은 불꽃으로 한 번 더 터진다
+export const FLAG_SPLIT_BURST = 1024;
+export const FLAG_CRACKLE = 4096; // 끝에서 타닥타닥 작게 터진다
+export const FLAG_HUMMER = 8192; // 윙윙 돌며 날아 나선 꼬리를 남긴다
+export const FLAG_FISH = 16384; // 꼬리를 흔들며 헤엄치듯 나아간다
+export const FLAG_LEAF = 32768; // 팔랑팔랑 흔들리며 천천히 떨어진다
+
+/** 별 효과 → 입자 표시 */
+const EFFECT_FLAG = { crackle: FLAG_CRACKLE, hummer: FLAG_HUMMER, fish: FLAG_FISH, leaf: FLAG_LEAF, whistle: FLAG_SPARK_TAIL } as const; // 내 불꽃 '두 번 터지기': 갈라질 때 작은 불꽃으로 한 번 더 터진다
 
 /** 렌더 버퍼에서 입자 하나가 차지하는 float 개수: x, y, z, 크기(m), r, g, b, a */
 export const RENDER_STRIDE = 8;
@@ -551,6 +558,10 @@ export class Simulation {
         if (layer.star === 'tail') flags |= FLAG_SPARK_TAIL;
         if (layer.star === 'willow') flags |= FLAG_WILLOW_TAIL;
         if (layer.star === 'glitter') flags |= FLAG_GLITTER;
+        if (layer.star === 'brocade') flags |= FLAG_WILLOW_TAIL | FLAG_EMBER;
+        if (layer.star === 'crackle' || layer.star === 'hummer' || layer.star === 'fish' || layer.star === 'leaf' || layer.star === 'whistle') {
+          flags |= EFFECT_FLAG[layer.star];
+        }
         if (def.motion.flicker) flags |= FLAG_STROBE;
         if (def.split) flags |= FLAG_SPLIT | (def.split.into === 'burst' ? FLAG_SPLIT_BURST : 0);
         const cool = layer.color === 'blue' || layer.color === 'purple' ? craft.coolDim : 1;
@@ -639,6 +650,10 @@ export class Simulation {
     if (shell.ember) flags |= FLAG_EMBER;
     if (shell.glitter) flags |= FLAG_GLITTER;
     if (shell.split) flags |= FLAG_SPLIT;
+    if (shell.effect) flags |= EFFECT_FLAG[shell.effect];
+    // 살루트: 별 대신 아주 밝은 섬광 하나와 짧은 불티
+    const flashScale = shell.salute ? 1.4 : 0.45;
+    const flashLife = shell.salute ? 0.22 : 0.16;
 
     for (let i = 0; i < n; i++) {
       const s = hash32(l.seed, i, 11);
@@ -647,7 +662,7 @@ export class Simulation {
       // 모양 불꽃은 모양이 흐트러지지 않게 속도 오차를 줄인다.
       const jitter = shell.pattern === 'sphere' || shell.pattern === 'palm' ? 0.14 : 0.03;
       const speed = shell.drag * radius * mag * (1 - jitter / 2 + rand01(s, 4) * jitter);
-      const rgb = COLORS[l.colors[i % l.colors.length]];
+      const rgb = shell.salute ? ([1.3, 1.25, 1.1] as const) : COLORS[l.colors[i % l.colors.length]];
       pool.spawn(
         at[0], at[1], at[2],
         dx * speed, dy * speed, dz * speed,
@@ -657,12 +672,12 @@ export class Simulation {
       );
     }
 
-    const first = COLORS[l.colors[0]];
+    const first = shell.salute ? ([1.4, 1.4, 1.4] as const) : COLORS[l.colors[0]];
     pool.spawn(
-      at[0], at[1], at[2], 0, 0, 0, 0.16,
-      1, 0.92, 0.8, spec.spread * 0.45, 1, 0, FLAG_FLASH, l.seed,
+      at[0], at[1], at[2], 0, 0, 0, flashLife,
+      1, 0.92, 0.8, spec.spread * flashScale, 1, 0, FLAG_FLASH, l.seed,
     );
-    const light = (spec.spread / 320) * 0.35;
+    const light = (spec.spread / 320) * (shell.salute ? 1.2 : 0.35);
     this.skyLight[0] += first[0] * light;
     this.skyLight[1] += first[1] * light;
     this.skyLight[2] += first[2] * light;
@@ -769,9 +784,53 @@ export class Simulation {
       p.vx[i] = vx;
       p.vy[i] = vy;
       p.vz[i] = vz;
-      p.px[i] += vx * STEP;
-      p.py[i] += vy * STEP;
-      p.pz[i] += vz * STEP;
+      // 움직이는 별: 날아가는 속도에 흔들림을 더해 자리만 옮긴다 (궤적의 큰 줄기는 그대로).
+      let ox = 0;
+      let oy = 0;
+      let oz = 0;
+      if (f & (FLAG_HUMMER | FLAG_FISH | FLAG_LEAF)) {
+        const ph = (p.seed[i] & 1023) / 163;
+        if (f & FLAG_HUMMER) {
+          // 제자리에서 빠르게 돌며 나선을 그린다.
+          // 반지름 약 5m의 고리를 1초에 두 바퀴쯤 돈다.
+          const w = 11 + (p.seed[i] & 7) * 0.5;
+          ox = 55 * Math.cos(age * w + ph);
+          oz = 55 * Math.sin(age * w + ph);
+          oy = 20 * Math.sin(age * w * 0.5 + ph);
+        } else if (f & FLAG_FISH) {
+          // 진행 방향에 수직으로 꼬리를 흔든다.
+          const sp = Math.hypot(vx, vz) || 1;
+          const wig = 40 * Math.sin(age * 10 + ph);
+          ox = (-vz / sp) * wig;
+          oz = (vx / sp) * wig;
+          oy = 15 * Math.cos(age * 10 + ph);
+        } else {
+          // 낙엽: 좌우로 크게 팔랑인다.
+          ox = 14 * Math.sin(age * 2.6 + ph);
+          oz = 14 * Math.cos(age * 2.1 + ph * 1.3);
+        }
+      }
+      p.px[i] += (vx + ox) * STEP;
+      p.py[i] += (vy + oy) * STEP;
+      p.pz[i] += (vz + oz) * STEP;
+
+      if (f & (FLAG_HUMMER | FLAG_FISH)) {
+        // 도는 별과 헤엄치는 별은 가는 불티 자국을 남긴다.
+        const s = hash32(p.seed[i], this.step, 15);
+        if (rand01(s) < (f & FLAG_HUMMER ? 0.7 : 0.4) * this.density) {
+          p.spawn(p.px[i], p.py[i], p.pz[i], 0, 0, 0, 0.25 + rand01(s, 1) * 0.2, p.r[i] * 0.8, p.g[i] * 0.8, p.b[i] * 0.8, 1.4, SPARK_DAMP, 1, FLAG_SPARK, s);
+        }
+      }
+      if (f & FLAG_CRACKLE && age > p.life[i] * 0.72) {
+        // 끝에서 타닥타닥: 아주 짧고 밝은 하얀 점이 별 둘레에서 튄다.
+        const s = hash32(p.seed[i], this.step, 16);
+        if (rand01(s) < 0.3 * this.density) {
+          p.spawn(
+            p.px[i] + (rand01(s, 1) - 0.5) * 6, p.py[i] + (rand01(s, 2) - 0.5) * 6, p.pz[i] + (rand01(s, 3) - 0.5) * 6,
+            0, 0, 0, 0.05, 1.4, 1.35, 1.2, 3.2, 1, 0, FLAG_SPARK, s,
+          );
+        }
+      }
 
       if (f & FLAG_SPARK_TAIL) {
         const s = hash32(p.seed[i], this.step, 5);
@@ -868,6 +927,7 @@ export class Simulation {
         g += (to[1] - g) * m;
         b += (to[2] - b) * m;
       }
+      if (f & FLAG_LEAF) a *= 0.45 + 0.55 * Math.abs(Math.sin(age * 7 + (p.seed[i] & 255)));
       if (f & FLAG_STROBE) a *= Math.floor(age * 9 + (p.seed[i] & 7)) % 2 ? 0.1 : 1.2;
       if (f & FLAG_DARK) {
         // 켜질 때까지 어둡게 날다가, 켜지는 순간 반짝 밝다.
