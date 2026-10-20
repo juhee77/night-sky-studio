@@ -319,6 +319,8 @@ dialog.workshop-dialog { width: min(1080px, calc(100% - 24px)); max-height: min(
 .ws-controls .chips button[aria-pressed='true'], .ws-preview .chips button[aria-pressed='true'] { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 700; }
 .ws-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .ws-tabs [role='tab'][aria-selected='true'] { border-color: var(--accent); color: var(--accent); font-weight: 700; }
+.ws-craft h4 { margin: 6px 0 4px; font-size: 13px; color: var(--muted); }
+.ws-craft .chips button[aria-pressed='true'] { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 700; }
 .ws-grid { width: min(260px, 100%); aspect-ratio: 1; height: auto; border-radius: 10px; touch-action: none; cursor: crosshair; }
 .ws-drawer h3 { margin: 8px 0; font-size: 14px; color: var(--muted); }
 .ws-drawer-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }

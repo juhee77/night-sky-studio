@@ -6,9 +6,10 @@ import type { ColorName } from './colors.ts';
 import { COLOR_LABEL, colorList, showCost, type Commission, type Rule } from './commission.ts';
 import { cueLength, expandShow, isShellLaunch, windVector, type Launch, type Show } from './show.ts';
 import { analyzeSmoke } from './smoke.ts';
+import { craftReport } from './custom.ts';
 
 export interface ScoreItem {
-  key: 'beat' | 'gaps' | 'variety' | 'smoke' | 'finale' | 'taste' | 'rules';
+  key: 'beat' | 'gaps' | 'variety' | 'smoke' | 'finale' | 'taste' | 'rules' | 'craft';
   label: string;
   /** 0~100 */
   score: number;
@@ -236,6 +237,22 @@ export function scoreShow(show: Show, c: Commission): ScoreResult {
       brokenRules ? `조건 ${brokenRules}개를 지키지 못했어요` : '조건을 모두 지켰어요',
     ].join(', ') + '.';
     items.push({ key: 'rules', label: '예산과 조건', score, weight: 0.15, comment });
+  }
+
+  // 불꽃 완성도: 내 불꽃을 장인 모드로 만들어 썼다면, 둥글게 피고 한꺼번에 꺼지고 밝은지 본다.
+  {
+    const used = [...new Set(show.cues.filter((x) => x.type === 'custom' && x.custom).map((x) => x.custom!))]
+      .map((id) => show.customShells?.[id])
+      .filter((s): s is NonNullable<typeof s> => !!s?.craft);
+    if (used.length) {
+      const reports = used.map((s) => ({ name: s.name, r: craftReport(s) }));
+      const score = reports.reduce((sum, x) => sum + x.r.quality, 0) / reports.length;
+      const worst = [...reports].sort((a, b) => a.r.quality - b.r.quality)[0];
+      const comment = `내 불꽃 ${reports.length}종 평균 ${Math.round(score)}점. 「${worst.name}」: 둥근 정도 ${worst.r.roundness}, 한꺼번에 꺼짐 ${worst.r.sync}, 밝기 ${worst.r.brightness}.`;
+      // 다른 항목의 비중을 조금씩 줄이고 이 항목에 10%를 준다.
+      for (const i of items) i.weight *= 0.9;
+      items.push({ key: 'craft', label: '불꽃 완성도', score, weight: 0.1, comment });
+    }
   }
 
   // 곡의 대부분이 비어 있으면 다른 항목이 좋아도 총점을 깎는다 (불꽃 몇 발만 놓고 납품하는 것을 막는다).

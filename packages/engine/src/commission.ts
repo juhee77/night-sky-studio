@@ -3,6 +3,7 @@
 
 import { type FireworkType, type Size } from './catalog.ts';
 import type { ColorName } from './colors.ts';
+import { craftEffect, type CustomShell } from './custom.ts';
 import { mulberry32 } from './rng.ts';
 import { CAKE_DEFAULTS, LEN_DEFAULTS, type Cue, type Show } from './show.ts';
 
@@ -41,18 +42,21 @@ export interface Commission {
 /** 크기별 한 발 값 (기획안의 원가) */
 export const SHELL_COST: Record<Size, number> = { 3: 1, 5: 3, 7: 8, 10: 20 };
 
-/** 불꽃 하나(cue)의 값 */
-export function cueCost(c: Cue): number {
+/** 불꽃 하나(cue)의 값. 내 불꽃은 장인 설정에 따라 값이 달라진다. */
+export function cueCost(c: Cue, shells?: Record<string, CustomShell>): number {
   if (c.type === 'niagara') return 1.5 * (c.len ?? LEN_DEFAULTS.niagara);
   if (c.type === 'lancework') return (c.len ?? LEN_DEFAULTS.lancework) + 0.5 * [...(c.text ?? '')].length;
   if (c.type === 'cake') return 0.25 * (c.shots ?? CAKE_DEFAULTS.shots) * (c.size / 3);
   // 내 불꽃은 개발비를 낸 대신 원가가 기본 불꽃보다 싸다.
-  if (c.type === 'custom') return SHELL_COST[c.size] * 0.8 * Math.max(1, c.fan?.count ?? 1);
+  if (c.type === 'custom') {
+    const craft = craftEffect(c.custom ? shells?.[c.custom]?.craft : undefined);
+    return SHELL_COST[c.size] * 0.8 * craft.cost * Math.max(1, c.fan?.count ?? 1);
+  }
   return SHELL_COST[c.size] * Math.max(1, c.fan?.count ?? 1);
 }
 
 export function showCost(show: Show): number {
-  return Math.round(show.cues.reduce((sum, c) => sum + cueCost(c), 0) * 10) / 10;
+  return Math.round(show.cues.reduce((sum, c) => sum + cueCost(c, show.customShells), 0) * 10) / 10;
 }
 
 /** 처음부터 쓸 수 있는 불꽃. 나머지는 번 돈으로 해금한다. */
