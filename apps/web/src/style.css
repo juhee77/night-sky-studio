@@ -310,6 +310,13 @@ dialog.wide-dialog { width: min(760px, calc(100% - 32px)); max-height: min(88vh,
 dialog.workshop-dialog { width: min(1080px, calc(100% - 24px)); max-height: min(94vh, 1000px); }
 .ws-layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px; margin: 12px 0; }
 .ws-preview { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ws-tests { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.ws-test-table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.ws-test-table th, .ws-test-table td { padding: 4px 6px; border-bottom: 1px solid var(--line); text-align: right; }
+.ws-test-table th:first-child, .ws-test-table td:first-child { text-align: left; }
+.ws-test-table tr.now td { color: var(--ink); font-weight: 700; }
+.ws-defects { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.ws-defects li { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border-left: 3px solid #f59e0b; background: rgba(245, 158, 11, 0.08); border-radius: 4px; }
 #ws-stage { width: 100%; aspect-ratio: 4 / 3; max-width: 100%; display: block; border-radius: 12px; border: 1px solid var(--line); background: var(--night); }
 .ws-controls { display: flex; flex-direction: column; gap: 12px; min-width: 0; max-height: 62vh; overflow-y: auto; padding-right: 4px; }
 .ws-controls fieldset { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; margin: 0; min-width: 0; }
@@ -319,6 +326,24 @@ dialog.workshop-dialog { width: min(1080px, calc(100% - 24px)); max-height: min(
 .ws-controls .chips button[aria-pressed='true'], .ws-preview .chips button[aria-pressed='true'] { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 700; }
 .ws-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .ws-tabs [role='tab'][aria-selected='true'] { border-color: var(--accent); color: var(--accent); font-weight: 700; }
+.ws-mode { margin-bottom: 4px; }
+.forge-section { width: 100%; max-width: 100%; height: 300px; display: block; border-radius: 12px; border: 1px solid var(--line); }
+.star-section { width: 100%; height: 90px; display: block; border-radius: 10px; border: 1px solid var(--line); margin: 6px 0; }
+.forge-hemi { width: 100%; height: 170px; display: block; border-radius: 10px; border: 1px solid var(--line); margin: 6px 0; cursor: crosshair; }
+.forge-report { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px 12px; font-size: 13px; }
+.forge-report li { display: flex; flex-direction: column; }
+.forge-report span { color: var(--muted); font-size: 12px; }
+.forge-warn { margin: 0; padding-left: 1.2em; color: #ffb4ad; font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
+.mix-result { display: flex; gap: 14px; align-items: center; }
+.mix-swatch { width: 54px; height: 54px; border-radius: 50%; flex: none; border: 2px solid var(--line); }
+.mix-result ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 4px 12px; font-size: 13px; flex: 1; min-width: 0; }
+.mix-result li { display: flex; flex-direction: column; }
+.mix-result span { color: var(--muted); font-size: 12px; }
+.mix-bar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); }
+.mix-bar i { display: block; height: 100%; }
+.forge-danger { margin: 0; color: #fff; background: #7f1d1d; padding: 6px 10px; border-radius: 8px; font-size: 13px; }
+.mix-notes .row { display: flex; gap: 8px; }
+.mix-notes input { flex: 1; min-width: 0; }
 .ws-craft h4 { margin: 6px 0 4px; font-size: 13px; color: var(--muted); }
 .ws-craft .chips button[aria-pressed='true'] { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 700; }
 .ws-grid { width: min(260px, 100%); aspect-ratio: 1; height: auto; border-radius: 10px; touch-action: none; cursor: crosshair; }

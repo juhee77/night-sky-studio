@@ -49,8 +49,9 @@ export function cueCost(c: Cue, shells?: Record<string, CustomShell>): number {
   if (c.type === 'cake') return 0.25 * (c.shots ?? CAKE_DEFAULTS.shots) * (c.size / 3);
   // 내 불꽃은 개발비를 낸 대신 원가가 기본 불꽃보다 싸다.
   if (c.type === 'custom') {
-    const craft = craftEffect(c.custom ? shells?.[c.custom]?.craft : undefined);
-    return SHELL_COST[c.size] * 0.8 * craft.cost * Math.max(1, c.fan?.count ?? 1);
+    const def = c.custom ? shells?.[c.custom] : undefined;
+    const craft = craftEffect(def?.craft);
+    return SHELL_COST[c.size] * 0.8 * craft.cost * (def?.costMul ?? 1) * Math.max(1, c.fan?.count ?? 1);
   }
   return SHELL_COST[c.size] * Math.max(1, c.fan?.count ?? 1);
 }

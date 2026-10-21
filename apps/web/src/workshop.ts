@@ -6,20 +6,26 @@ import {
   COLOR_NAMES,
   DEFAULT_CRAFT,
   SHELL_COST,
+  buildToShell,
   craftReport,
+  defaultBuild,
+  isDangerous,
   customLength,
   customStarCount,
   decodeShellCode,
+  diagnose,
+  testFire,
+  type TestRecord,
   encodeShellCode,
   newCustomShell,
   type ColorName,
   type CustomShell,
-  type LayerShape,
   type ShellLayer,
   type Show,
   type StarKind,
 } from '@nss/engine';
 import { shortId, type Drawer } from './drawer.ts';
+import { forgeControls, wireForge } from './forge.ts';
 import { Stage } from './stage.ts';
 
 const COLOR_LABEL: Record<ColorName, string> = {
@@ -78,7 +84,7 @@ export interface WorkshopHost {
   say(message: string): void;
 }
 
-type View = 'front' | 'side' | 'wind';
+type View = 'front' | 'side' | 'top' | 'wind';
 
 export class Workshop {
   private dialog: HTMLDialogElement;
@@ -87,9 +93,13 @@ export class Workshop {
   private shell: CustomShell = newCustomShell(shortId(), '내 불꽃');
   private layer = 0;
   private view: View = 'front';
+  /** 빠른 설계(슬라이더) 또는 제작 공방(알 구조) */
+  private mode: 'quick' | 'build' = 'quick';
   private stage: Stage | null = null;
   private seed = 3;
   private started = 0;
+  /** 시험 기록: 최근 것부터 */
+  private tests: { name: string; rec: TestRecord }[] = [];
   private raf = 0;
   private dirty = false;
 
@@ -111,6 +121,7 @@ export class Workshop {
       this.seed = Math.floor(Math.random() * 1e6);
       this.refreshPreview();
     });
+    dialog.querySelector('#ws-test')!.addEventListener('click', () => this.runTest());
     dialog.querySelector('#ws-save')!.addEventListener('click', () => this.save());
     dialog.querySelector('#ws-new')!.addEventListener('click', () => this.load(newCustomShell(shortId(), '내 불꽃')));
     dialog.querySelector('#ws-copy')!.addEventListener('click', () => void this.copyCode());
@@ -131,6 +142,7 @@ export class Workshop {
   private load(shell: CustomShell): void {
     this.shell = shell;
     this.layer = 0;
+    this.mode = shell.build ? 'build' : 'quick';
     this.dirty = false;
     this.renderControls();
     this.renderDrawer();
@@ -145,7 +157,7 @@ export class Workshop {
       venue: { preset: 'river-bridge-city', wind: this.view === 'wind' ? { dir: 270, speed: 6 } : { dir: 250, speed: 0.5 } },
       seat: { id: 'front-near' },
       launchers: [{ id: 'barge-1', kind: 'barge', pos: [0, 0, 0] }],
-      cues: [{ t: 4, at: 'barge-1', type: 'custom', custom: s.id, size: 5 }],
+      cues: [{ t: 4, at: 'barge-1', type: 'custom', custom: s.id, size: s.build?.size ?? 5 }],
       customShells: { [s.id]: s },
     };
   }
@@ -155,8 +167,33 @@ export class Workshop {
     if (!this.stage) return;
     this.stage.load(this.previewShow());
     if (this.view === 'side') this.stage.setOrbit(1.25, 0.18, 620, [0, 170, 0]);
+    else if (this.view === 'top') this.stage.setOrbit(0, 1.35, 560, [0, 190, 0]);
     else this.stage.setSeat('front-near');
     this.started = performance.now();
+  }
+
+  /** 시험장: 지금 설계를 한 발 쏘아 재고, 결함과 원인을 보여 준다. */
+  private runTest(): void {
+    const rec = testFire(this.shell, this.seed);
+    this.tests = [{ name: this.shell.name, rec }, ...this.tests].slice(0, 5);
+    const defects = diagnose(this.shell, rec);
+    const pct = (v: number) => `${v}`;
+    const row = (t: { name: string; rec: TestRecord }, i: number) => {
+      const r = t.rec;
+      return `<tr${i === 0 ? ' class="now"' : ''}><td>${esc(t.name)}</td>${
+        r.burst
+          ? `<td>${pct(r.roundness)}</td><td>${r.holeDeg}°</td><td>${pct(r.sync)}</td><td>${pct(r.brightness)}</td><td>${r.lit}/${r.planned}</td><td>${r.height}m</td>`
+          : '<td colspan="6">불발</td>'
+      }</tr>`;
+    };
+    this.dialog.querySelector('#ws-test-out')!.innerHTML = `
+      <table class="ws-test-table">
+        <thead><tr><th>알</th><th>둥근 정도</th><th>빈 자리</th><th>같이 꺼짐</th><th>밝기</th><th>불붙은 별</th><th>높이</th></tr></thead>
+        <tbody>${this.tests.map(row).join('')}</tbody>
+      </table>
+      ${defects.length
+        ? `<ul class="ws-defects">${defects.map((d) => `<li><b>${d.title}</b><span>${d.cause} → ${d.fix}</span></li>`).join('')}</ul>`
+        : '<p class="note">결함이 없습니다. 이대로 써도 됩니다.</p>'}`;
   }
 
   private loop = (): void => {
@@ -209,6 +246,62 @@ export class Workshop {
   }
 
   private renderControls(): void {
+    const box = this.dialog.querySelector('.ws-controls')!;
+    const tabs = `
+      <div class="ws-tabs ws-mode" role="tablist" aria-label="만드는 방식">
+        <button type="button" role="tab" data-mode="quick" aria-selected="${this.mode === 'quick'}">빠른 설계</button>
+        <button type="button" role="tab" data-mode="build" aria-selected="${this.mode === 'build'}">제작 공방</button>
+      </div>`;
+    if (this.mode === 'build') {
+      const b = (this.shell.build ??= defaultBuild());
+      box.innerHTML = `${tabs}
+        <div class="field"><label for="ws-name">이름</label><input id="ws-name" maxlength="16" value="${esc(this.shell.name)}" /></div>
+        <p class="note">실제 불꽃 알처럼 종이 반구 안쪽 벽에 별을 붙이고, 가운데에 할약을 채우고, 도화선과 발사약을 답니다. 별을 붙인 자리가 곧 날아가는 방향이라 빈 곳은 하늘에도 빕니다.</p>
+        ${forgeControls(b)}
+        <p id="ws-count" class="note"></p>`;
+      this.wireMode(box);
+      box.querySelector<HTMLInputElement>('#ws-name')!.addEventListener('input', (e) => {
+        this.shell.name = (e.target as HTMLInputElement).value.slice(0, 16);
+        this.dirty = true;
+      });
+      wireForge(box, b, (fn, rerender) => {
+        fn(b);
+        this.shell = buildToShell(b, this.shell);
+        this.dirty = true;
+        if (rerender) this.renderControls();
+        this.refreshPreview();
+      });
+      this.updateCount();
+      return;
+    }
+    this.renderQuick(box, tabs);
+  }
+
+  private wireMode(box: Element): void {
+    box.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const mode = b.dataset.mode as 'quick' | 'build';
+        if (mode === this.mode) return;
+        this.mode = mode;
+        if (mode === 'build') {
+          // 지금 설계의 색과 별 종류로 알을 하나 만든다.
+          const outer = this.shell.layers[0];
+          const b0 = this.shell.build ?? { ...defaultBuild(), starColor: outer.color, starKind: outer.star };
+          this.shell = buildToShell(b0, this.shell);
+        } else {
+          // 빠른 설계로 돌아가면 알 구조와 비행은 버리고 슬라이더로 다룬다.
+          delete this.shell.build;
+          delete this.shell.flight;
+          this.shell.layers = this.shell.layers.map((l) => (l.shape.kind === 'dirs' ? { ...l, shape: { kind: 'sphere', count: l.shape.dirs.length } } : l));
+        }
+        this.dirty = true;
+        this.renderControls();
+        this.refreshPreview();
+      }),
+    );
+  }
+
+  private renderQuick(box: Element, tabs: string): void {
     const s = this.shell;
     const L = this.cur;
     const hasPistil = s.layers.length > 1;
@@ -218,8 +311,7 @@ export class Workshop {
         (c) =>
           `<button type="button" class="swatch" data-${name}="${c}" style="--c:${css(c)}" aria-label="${COLOR_LABEL[c]}" title="${COLOR_LABEL[c]}" aria-pressed="${selected === c}"></button>`,
       ).join('');
-    const box = this.dialog.querySelector('.ws-controls')!;
-    box.innerHTML = `
+    box.innerHTML = `${tabs}
       <div class="field"><label for="ws-name">이름</label><input id="ws-name" maxlength="16" value="${esc(s.name)}" /></div>
       <p id="ws-count" class="note"></p>
 
@@ -287,6 +379,7 @@ export class Workshop {
         <div id="ws-report"></div>
       </fieldset>`;
     this.updateCount();
+    this.wireMode(box);
     this.wire(box);
   }
 
@@ -322,15 +415,17 @@ export class Workshop {
     });
     all('[data-shape]').forEach((b) =>
       b.addEventListener('click', () => {
-        const kind = b.dataset.shape as LayerShape['kind'];
+        const kind = b.dataset.shape as 'sphere' | 'ring' | 'points';
         this.change(() => {
-          const count = this.cur.shape.kind === 'points' ? 60 : (this.cur.shape as { count: number }).count;
+          const cur = this.cur.shape;
+          const count = cur.kind === 'sphere' || cur.kind === 'ring' ? cur.count : cur.kind === 'dirs' ? cur.dirs.length : 60;
           this.cur.shape = kind === 'points' ? { kind, pts: PRESETS['하트']() } : { kind, count };
         }, true);
       }),
     );
     slider('ws-stars', (x) => `${x}개`, (x) => {
-      if (this.cur.shape.kind !== 'points') this.cur.shape.count = x;
+      const cur = this.cur.shape;
+      if (cur.kind === 'sphere' || cur.kind === 'ring') cur.count = x;
     });
     slider('ws-scale', (x) => `${Math.round(x * 100)}%`, (x) => (this.cur.scale = x));
     slider('ws-delay', (x) => `${x.toFixed(2)}초`, (x) => (this.cur.delay = x));
@@ -478,6 +573,10 @@ export class Workshop {
   }
 
   private save(): void {
+    if (this.shell.build?.comp && isDangerous(this.shell.build.comp)) {
+      this.host.say('위험한 배합이라 서랍에 저장할 수 없습니다. 산화제를 줄여 주세요.');
+      return;
+    }
     if (!this.shell.name.trim()) this.shell.name = '내 불꽃';
     this.drawer.put(this.shell);
     this.dirty = false;

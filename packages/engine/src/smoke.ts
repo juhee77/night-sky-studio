@@ -59,7 +59,9 @@ export function analyzeSmoke(launches: Launch[], wind: Vec3): SmokeResult {
     }
     if (thick > 0.6 && l.type !== 'cake') obscured.add(l);
     const spread = shellSize(l.type, l.size).spread;
-    puffs.push({ pos, t: l.burstAt, r0: spread * 0.25, d0: l.type === 'cake' ? 0.15 : 1 });
+    // 연기 양: 케이크는 적고, 내 불꽃은 배합에 따라 다르다.
+    const d0 = l.type === 'cake' ? 0.15 : (l.customDef?.smoke ?? 1);
+    puffs.push({ pos, t: l.burstAt, r0: spread * 0.25, d0 });
   }
   return { puffs, obscured };
 }

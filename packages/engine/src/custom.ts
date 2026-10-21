@@ -4,6 +4,7 @@
 
 import type { ColorName } from './colors.ts';
 import { COLOR_NAMES } from './colors.ts';
+import { normalizeBuild, type ShellBuild } from './build.ts';
 
 export type StarKind = 'tail' | 'dot' | 'glitter' | 'willow';
 
@@ -11,7 +12,9 @@ export type LayerShape =
   | { kind: 'sphere'; count: number }
   | { kind: 'ring'; count: number }
   /** 직접 그린 점들. 좌표는 -1~1, 위쪽이 + */
-  | { kind: 'points'; pts: [number, number][] };
+  | { kind: 'points'; pts: [number, number][] }
+  /** 제작 공방에서 알 벽에 붙인 별 자리 (3D 단위 벡터). 빈 자리는 하늘에도 빈다 */
+  | { kind: 'dirs'; dirs: [number, number, number][] };
 
 export interface ShellLayer {
   role: 'outer' | 'pistil';
@@ -24,6 +27,8 @@ export interface ShellLayer {
   scale: number;
   /** 터지고 나서 이 층이 피어나기까지 기다리는 시간(초) */
   delay: number;
+  /** 배합으로 정해진 실제 빛 (순도·밝기 반영). 없으면 color의 기본 빛 */
+  tint?: [number, number, number];
 }
 
 /**
@@ -51,6 +56,22 @@ export interface CustomShell {
   layers: ShellLayer[];
   /** 장인 모드 (없으면 이상적인 불꽃) */
   craft?: Craft;
+  /** 도화선·발사약이 정한 비행: 높이 배율, 터지는 때 배율 (없으면 크기표대로 꼭대기에서) */
+  flight?: { height: number; burstAt: number };
+  /** 제작 공방에서 만든 알 구조 (다시 열어 고칠 때 쓴다) */
+  build?: ShellBuild;
+  /** 배합에 따른 연기 양 (1이 보통) */
+  smoke?: number;
+  /** 배합에 따른 한 발 값 배율 */
+  costMul?: number;
+  /** 불붙지 않는 별의 비율 (덜 마른 별) */
+  misfire?: number;
+  /** 알 조립: 할약이 치우친 쪽(알 기준 방향과 세기)과 반구 이음매 어긋남 (0~1) */
+  assembly?: { offset: [number, number, number]; seam: number };
+  /** 알이 아예 터지지 않을 확률 */
+  dud?: number;
+  /** 여러 단 터지기: 원통 알의 칸이 차례로 떨어지며 터진다 (2~4) */
+  chain?: number;
   motion: {
     /** 퍼지는 속도 배율 (0.5~1.5) */
     speed: number;
@@ -87,7 +108,13 @@ const color = (c: unknown): ColorName => (COLOR_NAMES.includes(c as ColorName) ?
 export function normalizeShell(raw: CustomShell): CustomShell {
   const layers = (raw.layers ?? []).slice(0, 2).map((l, i): ShellLayer => {
     let shape: LayerShape;
-    if (l.shape?.kind === 'points') {
+    if (l.shape?.kind === 'dirs') {
+      const dirs = (l.shape.dirs ?? []).slice(0, 260).map(([x, y, z]) => {
+        const n = Math.hypot(x, y, z) || 1;
+        return [clamp(x / n, -1, 1), clamp(y / n, -1, 1), clamp(z / n, -1, 1)] as [number, number, number];
+      });
+      shape = { kind: 'dirs', dirs: dirs.length ? dirs : [[0, 1, 0]] };
+    } else if (l.shape?.kind === 'points') {
       const pts = (l.shape.pts ?? [])
         .slice(0, MAX_POINTS)
         .map(([x, y]) => [clamp(x, -1, 1), clamp(y, -1, 1)] as [number, number]);
@@ -104,6 +131,7 @@ export function normalizeShell(raw: CustomShell): CustomShell {
       delay: clamp(l.delay ?? 0, 0, 1.5),
     };
     if (l.then) out.then = { color: color(l.then.color), at: clamp(l.then.at, 0.1, 0.9) };
+    if (l.tint) out.tint = l.tint.slice(0, 3).map((v) => clamp(v, 0, 1.5)) as [number, number, number];
     return out;
   });
   const shell: CustomShell = {
@@ -118,6 +146,17 @@ export function normalizeShell(raw: CustomShell): CustomShell {
     },
   };
   if (raw.split) shell.split = { after: clamp(raw.split.after, 0.4, 3), into: raw.split.into === 'burst' ? 'burst' : 'crossette' };
+  if (raw.smoke !== undefined) shell.smoke = clamp(raw.smoke, 0.2, 1.5);
+  if (raw.costMul !== undefined) shell.costMul = clamp(raw.costMul, 0.5, 3.5);
+  if (raw.misfire !== undefined) shell.misfire = clamp(raw.misfire, 0, 0.6);
+  if (raw.assembly) {
+    const o = (raw.assembly.offset ?? [0, 0, 0]).slice(0, 3).map((v) => clamp(v, -0.5, 0.5)) as [number, number, number];
+    shell.assembly = { offset: [o[0] ?? 0, o[1] ?? 0, o[2] ?? 0], seam: clamp(raw.assembly.seam, 0, 1) };
+  }
+  if (raw.dud !== undefined) shell.dud = clamp(raw.dud, 0, 0.5);
+  if (raw.chain !== undefined && raw.chain > 1) shell.chain = Math.round(clamp(raw.chain, 2, 4));
+  if (raw.flight) shell.flight = { height: clamp(raw.flight.height, 0.4, 1.3), burstAt: clamp(raw.flight.burstAt, 0.6, 1.5) };
+  if (raw.build) shell.build = normalizeBuild(raw.build);
   if (raw.craft) {
     shell.craft = {
       starSize: (['small', 'medium', 'large'] as const).includes(raw.craft.starSize) ? raw.craft.starSize : 'medium',
@@ -199,7 +238,10 @@ export function customLength(s: CustomShell): number {
 }
 
 export function customStarCount(s: CustomShell): number {
-  return s.layers.reduce((n, l) => n + (l.shape.kind === 'points' ? l.shape.pts.length : l.shape.count), 0);
+  return s.layers.reduce(
+    (n, l) => n + (l.shape.kind === 'points' ? l.shape.pts.length : l.shape.kind === 'dirs' ? l.shape.dirs.length : l.shape.count),
+    0,
+  );
 }
 
 /** 정의가 바뀌었는지 가리는 짧은 지문 */

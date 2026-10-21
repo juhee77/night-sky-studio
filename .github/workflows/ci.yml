@@ -1,0 +1,23 @@
+# PR마다 타입 검사, 테스트, 정적판 빌드를 돌린다. (배포는 main에 push될 때 pages.yml이 한다)
+name: Check
+
+on:
+  pull_request:
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build:pages

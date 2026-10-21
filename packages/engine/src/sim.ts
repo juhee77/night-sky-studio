@@ -16,6 +16,7 @@ import {
   type Vec3,
 } from './show.ts';
 import { SMOKE_LIFE, analyzeSmoke, puffAt, type Puff } from './smoke.ts';
+import { burstHeightAt } from './build.ts';
 import { textShape } from './text.ts';
 
 /** 고정 계산 간격(초) */
@@ -401,7 +402,10 @@ export class Simulation {
       const s = this.rising[i];
       s.age += STEP;
       const spec = shellSize(s.launch.type, s.launch.size);
-      risePosition(s.launch, Math.min(s.age, spec.prefire), this.wind, s.pos);
+      // 도화선이 알맞지 않으면 꼭대기 전후에 터진다 (내 불꽃 제작 공방).
+      const flight = s.launch.customDef?.flight;
+      const burstAge = spec.prefire * (flight?.burstAt ?? 1);
+      risePosition(s.launch, Math.min(s.age, burstAge), this.wind, s.pos, flight?.height ?? 1);
 
       const seed = hash32(s.launch.seed, this.step, 3);
       if (rand01(seed) < 0.6 * this.density) {
@@ -414,7 +418,7 @@ export class Simulation {
         );
       }
 
-      if (s.age >= spec.prefire) {
+      if (s.age >= burstAge) {
         this.burst(s.launch, s.pos);
         this.rising.splice(i, 1);
       } else {
@@ -484,6 +488,8 @@ export class Simulation {
   /** 내 불꽃: 층마다 모양·별·색·지연을 따로 정해 피운다. */
   private burstCustom(l: Launch, def: CustomShell, at: Vec3): void {
     const spec = shellSize('custom', l.size);
+    // 불발: 이음매가 벌어지거나 종이를 허술하게 바른 알은 아예 터지지 않기도 한다.
+    if (def.dud && rand01(l.seed, 97) < def.dud) return;
     const craft = craftEffect(def.craft);
     const radius = (spec.spread / 2) * def.motion.speed * craft.spread;
     const baseLife = def.motion.life * craft.life;
@@ -494,65 +500,95 @@ export class Simulation {
     const squash = 1 - 0.22 * Math.max(0, craft.asym - 0.3);
     const damp = Math.exp(-drag * STEP);
     const grav = 9.8 * (0.25 + 1.75 * def.motion.droop);
-    def.layers.forEach((layer, li) => {
-      const seed = hash32(l.seed, li, 71);
-      let dirs: [number, number, number, number][];
-      if (layer.shape.kind === 'points') {
-        const pts = layer.shape.pts;
-        const max = Math.max(1e-6, ...pts.map(([x, y]) => Math.hypot(x, y)));
-        const [r, u] = planeAxes(seed);
-        dirs = pts.map(([x, y]) => {
-          const nx = x / max;
-          const ny = y / max;
-          const dx = r[0] * nx + u[0] * ny;
-          const dy = r[1] * nx + u[1] * ny;
-          const dz = r[2] * nx + u[2] * ny;
-          const mag = Math.hypot(dx, dy, dz) || 1;
-          return [dx / mag, dy / mag, dz / mag, mag];
-        });
-      } else {
-        const n = Math.max(6, Math.round(layer.shape.count * craft.count * (layer.shape.kind === 'sphere' ? this.density : 1)));
-        dirs = starDirections(layer.shape.kind, n, seed);
-      }
-      let flags = 0;
-      if (layer.star === 'tail') flags |= FLAG_SPARK_TAIL;
-      if (layer.star === 'willow') flags |= FLAG_WILLOW_TAIL;
-      if (layer.star === 'glitter') flags |= FLAG_GLITTER;
-      if (def.motion.flicker) flags |= FLAG_STROBE;
-      if (def.split) flags |= FLAG_SPLIT | (def.split.into === 'burst' ? FLAG_SPLIT_BURST : 0);
-      const cool = layer.color === 'blue' || layer.color === 'purple' ? craft.coolDim : 1;
-      const rgb = COLORS[layer.color].map((v) => v * cool);
-      const aux = layer.then ? (Math.round(layer.then.at * 255) << 8) | (COLOR_NAMES.indexOf(layer.then.color) + 1) : 0;
-      const life = def.split ? def.split.after : baseLife;
-      const precise = layer.shape.kind !== 'sphere';
-      for (let i = 0; i < dirs.length; i++) {
-        const s = hash32(seed, i, 11);
-        let [dx, dy, dz, mag] = dirs[i];
-        // 찌그러짐: 방향이 조금씩 흐트러지고, 한 축으로 눌린다.
-        if (craft.asym > 0) {
-          const noise = 0.08 * craft.asym;
-          dx += (rand01(s, 6) - 0.5) * noise;
-          dy += (rand01(s, 7) - 0.5) * noise;
-          dz += (rand01(s, 8) - 0.5) * noise;
-          const along = dx * squashAxis[0] + dy * squashAxis[1] + dz * squashAxis[2];
-          dx -= along * (1 - squash) * squashAxis[0];
-          dy -= along * (1 - squash) * squashAxis[1];
-          dz -= along * (1 - squash) * squashAxis[2];
+    // 여러 단 터지기: 별을 칸마다 나눠, 아래 칸일수록 늦게 조금 아래에서 핀다.
+    const chain = def.chain ?? 1;
+    for (let k = 0; k < chain; k++) {
+      const atK: Vec3 = [at[0], at[1] - k * spec.spread * 0.14, at[2]];
+      const delayK = k * 0.42;
+      def.layers.forEach((layer, li) => {
+        const seed = hash32(l.seed, li, 71);
+        let dirs: [number, number, number, number][];
+        if (layer.shape.kind === 'dirs') {
+          // 알은 날아가며 구르므로, 붙인 자리 그대로지만 알 전체가 아무 방향으로 돌아가 있다.
+          const m = tumble(hash32(l.seed, 0, 93));
+          // 조립: 할약이 몰린 쪽 별은 더 세게, 반대쪽은 약하게 밀려난다.
+          // 반구 이음매가 어긋나면 적도 근처 별이 흐트러진다.
+          const off = def.assembly?.offset ?? [0, 0, 0];
+          const seam = def.assembly?.seam ?? 0;
+          dirs = layer.shape.dirs.map(([x, y, z], i) => {
+            if (seam > 0 && Math.abs(y) < 0.2) {
+              const s = hash32(seed, i, 13);
+              x += (rand01(s, 1) - 0.5) * seam * 0.5;
+              y += (rand01(s, 2) - 0.5) * seam * 0.5;
+              z += (rand01(s, 3) - 0.5) * seam * 0.5;
+              const n = Math.hypot(x, y, z) || 1;
+              x /= n;
+              y /= n;
+              z /= n;
+            }
+            const mag = Math.max(0.3, 1 + 1.6 * (x * off[0] + y * off[1] + z * off[2]));
+            return [m[0] * x + m[1] * y + m[2] * z, m[3] * x + m[4] * y + m[5] * z, m[6] * x + m[7] * y + m[8] * z, mag];
+          });
+        } else if (layer.shape.kind === 'points') {
+          const pts = layer.shape.pts;
+          const max = Math.max(1e-6, ...pts.map(([x, y]) => Math.hypot(x, y)));
+          const [r, u] = planeAxes(seed);
+          dirs = pts.map(([x, y]) => {
+            const nx = x / max;
+            const ny = y / max;
+            const dx = r[0] * nx + u[0] * ny;
+            const dy = r[1] * nx + u[1] * ny;
+            const dz = r[2] * nx + u[2] * ny;
+            const mag = Math.hypot(dx, dy, dz) || 1;
+            return [dx / mag, dy / mag, dz / mag, mag];
+          });
+        } else {
+          const n = Math.max(6, Math.round(layer.shape.count * craft.count * (layer.shape.kind === 'sphere' ? this.density : 1)));
+          dirs = starDirections(layer.shape.kind, n, seed);
         }
-        const jitter = (precise ? 0.03 : 0.14) * (craft.asym > 0 ? craft.asym / 0.5 : 1);
-        const speed = drag * radius * layer.scale * mag * (1 - jitter / 2 + rand01(s, 4) * jitter);
-        const lifeSpread = precise ? 0 : craft.spreadLife;
-        const ok = this.pool.spawn(
-          at[0], at[1], at[2],
-          dx * speed, dy * speed, dz * speed,
-          life * (1 - lifeSpread + rand01(s, 5) * 2 * lifeSpread),
-          rgb[0], rgb[1], rgb[2],
-          layer.star === 'dot' ? 5.5 : 4.5, damp, grav, flags, s, aux,
-        );
-        // 늦게 피는 층: 나이를 음수로 두면 그때까지 보이지도 움직이지도 않는다.
-        if (ok && layer.delay > 0) this.pool.age[this.pool.count - 1] = -layer.delay;
-      }
-    });
+        let flags = 0;
+        if (layer.star === 'tail') flags |= FLAG_SPARK_TAIL;
+        if (layer.star === 'willow') flags |= FLAG_WILLOW_TAIL;
+        if (layer.star === 'glitter') flags |= FLAG_GLITTER;
+        if (def.motion.flicker) flags |= FLAG_STROBE;
+        if (def.split) flags |= FLAG_SPLIT | (def.split.into === 'burst' ? FLAG_SPLIT_BURST : 0);
+        const cool = layer.color === 'blue' || layer.color === 'purple' ? craft.coolDim : 1;
+        const rgb = layer.tint ?? COLORS[layer.color].map((v) => v * cool);
+        const aux = layer.then ? (Math.round(layer.then.at * 255) << 8) | (COLOR_NAMES.indexOf(layer.then.color) + 1) : 0;
+        const life = def.split ? def.split.after : baseLife;
+        const precise = layer.shape.kind !== 'sphere' && layer.shape.kind !== 'dirs';
+        for (let i = 0; i < dirs.length; i++) {
+          const s = hash32(seed, i, 11);
+          if (chain > 1 && i % chain !== k) continue;
+          // 덜 마른 별은 불붙지 않는다.
+          if (def.misfire && rand01(s, 12) < def.misfire) continue;
+          let [dx, dy, dz, mag] = dirs[i];
+          // 찌그러짐: 방향이 조금씩 흐트러지고, 한 축으로 눌린다.
+          if (craft.asym > 0) {
+            const noise = 0.08 * craft.asym;
+            dx += (rand01(s, 6) - 0.5) * noise;
+            dy += (rand01(s, 7) - 0.5) * noise;
+            dz += (rand01(s, 8) - 0.5) * noise;
+            const along = dx * squashAxis[0] + dy * squashAxis[1] + dz * squashAxis[2];
+            dx -= along * (1 - squash) * squashAxis[0];
+            dy -= along * (1 - squash) * squashAxis[1];
+            dz -= along * (1 - squash) * squashAxis[2];
+          }
+          const jitter = (precise ? 0.03 : 0.14) * (craft.asym > 0 ? craft.asym / 0.5 : 1);
+          const speed = drag * radius * layer.scale * mag * (1 - jitter / 2 + rand01(s, 4) * jitter);
+          const lifeSpread = precise ? 0 : craft.spreadLife;
+          const ok = this.pool.spawn(
+            atK[0], atK[1], atK[2],
+            dx * speed, dy * speed, dz * speed,
+            life * (1 - lifeSpread + rand01(s, 5) * 2 * lifeSpread),
+            rgb[0], rgb[1], rgb[2],
+            layer.star === 'dot' ? 5.5 : 4.5, damp, grav, flags, s, aux,
+          );
+          // 늦게 피는 층: 나이를 음수로 두면 그때까지 보이지도 움직이지도 않는다.
+          if (ok && layer.delay + delayK > 0) this.pool.age[this.pool.count - 1] = -(layer.delay + delayK);
+        }
+      });
+    }
     const first = COLORS[def.layers[0]?.color ?? 'gold'];
     this.pool.spawn(at[0], at[1], at[2], 0, 0, 0, 0.16, 1, 0.92, 0.8, spec.spread * 0.45, 1, 0, FLAG_FLASH, l.seed);
     const light = (spec.spread / 320) * 0.35;
@@ -990,14 +1026,30 @@ function smileFace(i: number, n: number): [number, number] {
 }
 
 /** 올라가는 불꽃 알의 위치. 꼭대기에 가까울수록 느려진다. */
-function risePosition(l: Launch & { type: ShellType }, age: number, wind: Vec3, out: Vec3): void {
+function risePosition(l: Launch & { type: ShellType }, age: number, wind: Vec3, out: Vec3, heightMul = 1): void {
   const spec = shellSize(l.type, l.size);
-  const u = Math.min(age / spec.prefire, 1);
-  const e = 1 - (1 - u) * (1 - u);
+  const h = spec.height * heightMul;
+  // 같은 감속으로 올라가므로, 낮게 쏘면 꼭대기에 더 일찍 닿는다.
+  const apex = spec.prefire * Math.sqrt(heightMul);
+  const y = burstHeightAt(h, apex, age);
+  const e = y / spec.height;
   const tilt = (l.angle * Math.PI) / 180;
   out[0] = l.origin[0] + Math.sin(tilt) * spec.height * e + wind[0] * age * 0.25;
   out[1] = l.origin[1] + Math.cos(tilt) * spec.height * e;
   out[2] = l.origin[2] + wind[2] * age * 0.25;
+}
+
+/** 시드로 정하는 회전 행렬 (3×3, 행 우선) */
+function tumble(seed: number): number[] {
+  const a = rand01(seed, 1) * Math.PI * 2;
+  const b = Math.acos(rand01(seed, 2) * 2 - 1);
+  const c = rand01(seed, 3) * Math.PI * 2;
+  const [ca, sa, cb, sb, cc, sc] = [Math.cos(a), Math.sin(a), Math.cos(b), Math.sin(b), Math.cos(c), Math.sin(c)];
+  return [
+    ca * cc - sa * cb * sc, -ca * sc - sa * cb * cc, sa * sb,
+    sa * cc + ca * cb * sc, -sa * sc + ca * cb * cc, -ca * sb,
+    sb * sc, sb * cc, cb,
+  ];
 }
 
 function smoothstep(a: number, b: number, x: number): number {
