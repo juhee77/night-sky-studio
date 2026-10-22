@@ -7,9 +7,14 @@ import type { ColorName } from './colors.ts';
 import { COLOR_NAMES } from './colors.ts';
 import { normalizeBuild, type ShellBuild } from './build.ts';
 
-export type StarKind = 'tail' | 'dot' | 'glitter' | 'willow' | 'brocade' | 'crackle' | 'hummer' | 'fish' | 'leaf' | 'whistle';
+export type StarKind = 'tail' | 'dot' | 'glitter' | 'willow' | 'brocade' | 'crackle' | 'hummer' | 'fish' | 'leaf' | 'whistle' | 'kamuro';
 
-export const STAR_KINDS: StarKind[] = ['tail', 'dot', 'glitter', 'willow', 'brocade', 'crackle', 'hummer', 'fish', 'leaf', 'whistle'];
+export const STAR_KINDS: StarKind[] = ['tail', 'dot', 'glitter', 'willow', 'brocade', 'crackle', 'hummer', 'fish', 'leaf', 'whistle', 'kamuro'];
+
+/** 꼬리 길이: 남기는 불티가 사는 시간 */
+export type TailLength = 'short' | 'normal' | 'long';
+
+export const TAIL_LABEL: Record<TailLength, string> = { short: '짧게', normal: '보통', long: '길게' };
 
 export const STAR_KIND_LABEL: Record<StarKind, string> = {
   tail: '꼬리 있는 별',
@@ -22,6 +27,7 @@ export const STAR_KIND_LABEL: Record<StarKind, string> = {
   fish: '헤엄치는 별 (피시)',
   leaf: '팔랑이는 별 (낙엽)',
   whistle: '휘파람 별 (휘슬)',
+  kamuro: '긴 버들 (카무로)',
 };
 
 export type LayerShape =
@@ -47,6 +53,8 @@ export interface ShellLayer {
   tint?: [number, number, number];
   /** 켜지는 순서: 별이 어둡게 날아가다 정한 순서대로 켜진다 */
   sequence?: Sequence;
+  /** 꼬리 길이 (꼬리 있는 별·버들·브로케이드·카무로) */
+  tail?: TailLength;
 }
 
 /**
@@ -58,8 +66,8 @@ export interface Sequence {
   order: 'down' | 'up' | 'sweep' | 'random';
   /** 첫 별과 마지막 별 사이 시간(초) */
   span: number;
-  /** sparkle 반짝 터지고 꺼짐, light 켜져서 계속 탐 */
-  mode: 'sparkle' | 'light';
+  /** sparkle 반짝 터지고 꺼짐, light 켜져서 계속 탐, pop 차례가 오면 그 자리에서 작은 불꽃으로 터짐 */
+  mode: 'sparkle' | 'light' | 'pop';
 }
 
 export const SEQUENCE_LABEL: Record<Sequence['order'], string> = {
@@ -73,7 +81,7 @@ export function normalizeSequence(raw: Sequence): Sequence {
   return {
     order: (['down', 'up', 'sweep', 'random'] as const).includes(raw.order) ? raw.order : 'down',
     span: clamp(raw.span, 0.3, 3),
-    mode: raw.mode === 'light' ? 'light' : 'sparkle',
+    mode: raw.mode === 'light' || raw.mode === 'pop' ? raw.mode : 'sparkle',
   };
 }
 
@@ -181,6 +189,7 @@ export function normalizeShell(raw: CustomShell): CustomShell {
     if (l.then) out.then = { color: color(l.then.color), at: clamp(l.then.at, 0.1, 0.9) };
     if (l.tint) out.tint = l.tint.slice(0, 3).map((v) => clamp(v, 0, 1.5)) as [number, number, number];
     if (l.sequence) out.sequence = normalizeSequence(l.sequence);
+    if (l.tail === 'short' || l.tail === 'long') out.tail = l.tail;
     return out;
   });
   const shell: CustomShell = {
@@ -190,7 +199,7 @@ export function normalizeShell(raw: CustomShell): CustomShell {
     motion: {
       speed: clamp(raw.motion?.speed ?? 1, 0.5, 1.5),
       droop: clamp(raw.motion?.droop ?? 0.3, 0, 1),
-      life: clamp(raw.motion?.life ?? 2, 0.8, 5),
+      life: clamp(raw.motion?.life ?? 2, 0.8, 8),
       flicker: !!raw.motion?.flicker,
     },
   };

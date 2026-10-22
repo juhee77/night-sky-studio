@@ -1,6 +1,6 @@
 // 지상 틀 그림 그리기: 칸을 눌러 심지를 세운다. 그린 그림은 글자 대신 물 위 틀에서 타오른다.
 
-import { ART_PRESETS, decodeArt, encodeArt, textShape, type FrameArt } from '@nss/engine';
+import { ART_PRESETS, artFromLuminance, decodeArt, encodeArt, textShape, type FrameArt } from '@nss/engine';
 
 const SIZES: [number, number][] = [[16, 8], [24, 12], [32, 16], [48, 24]];
 
@@ -13,6 +13,9 @@ export class ArtEditor {
   private paint = true;
   private down = false;
   private resolve: ((a: FrameArt | null) => void) | null = null;
+  /** 고른 사진 (밝기 기준·모습을 바꾸면 다시 칸으로) */
+  private photo: HTMLImageElement | null = null;
+  private photoMode: 'fill' | 'outline' = 'fill';
 
   constructor(dialog: HTMLDialogElement) {
     this.dialog = dialog;
@@ -23,6 +26,7 @@ export class ArtEditor {
     q<HTMLSelectElement>('art-size').addEventListener('change', (e) => {
       const [w, h] = (e.target as HTMLSelectElement).value.split('x').map(Number);
       this.resize(w, h);
+      this.fromPhoto();
     });
     dialog.querySelectorAll<HTMLButtonElement>('[data-art-mode]').forEach((b) =>
       b.addEventListener('click', () => {
@@ -32,6 +36,30 @@ export class ArtEditor {
     );
     dialog.querySelectorAll<HTMLButtonElement>('[data-art-preset]').forEach((b) =>
       b.addEventListener('click', () => this.place(ART_PRESETS[b.dataset.artPreset!]())),
+    );
+    q<HTMLInputElement>('art-photo').addEventListener('change', (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      const img = new Image();
+      img.onload = () => {
+        this.photo = img;
+        this.fromPhoto();
+        URL.revokeObjectURL(img.src);
+      };
+      img.src = URL.createObjectURL(file);
+    });
+    const th = q<HTMLInputElement>('art-threshold');
+    th.addEventListener('input', () => {
+      th.previousElementSibling!.querySelector('output')!.textContent = `${Math.round(Number(th.value) * 100)}%`;
+      this.fromPhoto();
+    });
+    q<HTMLInputElement>('art-invert').addEventListener('change', () => this.fromPhoto());
+    dialog.querySelectorAll<HTMLButtonElement>('[data-art-photo]').forEach((b) =>
+      b.addEventListener('click', () => {
+        this.photoMode = b.dataset.artPhoto as 'fill' | 'outline';
+        dialog.querySelectorAll('[data-art-photo]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+        this.fromPhoto();
+      }),
     );
     q('art-clear').addEventListener('click', () => {
       this.on = new Array(this.w * this.h).fill(false);
@@ -105,6 +133,30 @@ export class ArtEditor {
     const ox = Math.floor((this.w - art.w) / 2);
     const oy = Math.floor((this.h - art.h) / 2);
     for (let r = 0; r < art.h; r++) for (let c = 0; c < art.w; c++) if (src[r * art.w + c]) this.on[(r + oy) * this.w + c + ox] = true;
+    this.draw();
+  }
+
+  /** 사진을 칸 수에 맞게 줄여 밝기로 칸을 켠다 (기기 안에서만) */
+  private fromPhoto(): void {
+    const img = this.photo;
+    if (!img) return;
+    const c = document.createElement('canvas');
+    c.width = this.w;
+    c.height = this.h;
+    const g = c.getContext('2d', { willReadFrequently: true })!;
+    // 투명한 곳은 흰 바탕으로 보고, 비율을 지켜 가운데에 맞춘다
+    g.fillStyle = '#fff';
+    g.fillRect(0, 0, this.w, this.h);
+    const s = Math.min(this.w / img.width, this.h / img.height);
+    const dw = img.width * s;
+    const dh = img.height * s;
+    g.drawImage(img, (this.w - dw) / 2, (this.h - dh) / 2, dw, dh);
+    const data = g.getImageData(0, 0, this.w, this.h).data;
+    const lum: number[] = [];
+    for (let i = 0; i < this.w * this.h; i++) lum.push((0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2]) / 255);
+    const threshold = Number((this.dialog.querySelector('#art-threshold') as HTMLInputElement).value);
+    const invert = (this.dialog.querySelector('#art-invert') as HTMLInputElement).checked;
+    this.on = decodeArt(artFromLuminance(lum, this.w, this.h, threshold, this.photoMode, invert));
     this.draw();
   }
 

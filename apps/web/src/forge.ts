@@ -1,7 +1,10 @@
 // 제작 공방: 알을 실제 구조로 만든다. 왼쪽에 반으로 자른 단면, 아래에 미리 계산한 결과.
 // 별을 붙인 자리가 곧 날아가는 방향이고, 도화선·발사약이 터지는 때와 높이를 정한다.
 
+import { pastePad, pourPad, rollPad } from './handwork.ts';
 import {
+  TAIL_LABEL,
+  type TailLength,
   RISE_EFFECTS,
   RISE_LABEL,
   type RiseEffect,
@@ -108,6 +111,12 @@ function starSection(b: ShellBuild): string {
       ${(Object.keys(STAR_METHOD_LABEL) as StarMethod[]).map((k) => `<button type="button" data-smethod="${k}" aria-pressed="${s.method === k}">${STAR_METHOD_LABEL[k]}</button>`).join('')}
     </div></div>
     <p class="note">${METHOD_NOTE[s.method]}</p>
+    ${s.method === 'rolled' ? `
+      <div class="handpad">
+        <span class="label">손으로 굴리기 ${s.handCare !== undefined ? `<b>(굴린 고르기 ${Math.round(s.handCare * 100)})</b>` : ''}</span>
+        <canvas id="hand-roll" class="hand-canvas" aria-label="굴림판. 가운데 둘레로 원을 그려 별을 굴립니다"></canvas>
+        <p id="hand-roll-status" class="note"></p>
+      </div>` : ''}
     <div class="field"><label for="star-size">별 지름 <output>${s.sizeMm}mm</output></label><input id="star-size" type="range" min="5" max="25" step="1" value="${s.sizeMm}" /></div>
     <div class="field"><label for="star-dry">말린 시간 <output>${s.dryHours}시간</output></label><input id="star-dry" type="range" min="0" max="96" step="6" value="${s.dryHours}" /></div>
     <p class="note">큰 별은 오래 타지만 알에 덜 들어갑니다. 이틀(48시간)은 말려야 모두 불이 붙습니다.</p>
@@ -256,8 +265,9 @@ export function sequenceFields(seq: Sequence | undefined): string {
       <div class="field"><span class="label">켜지는 모습</span><div class="chips">
         <button type="button" data-seqmode="sparkle" aria-pressed="${seq.mode === 'sparkle'}">반짝 터지고 꺼짐</button>
         <button type="button" data-seqmode="light" aria-pressed="${seq.mode === 'light'}">켜져서 계속 탐</button>
+        <button type="button" data-seqmode="pop" aria-pressed="${seq.mode === 'pop'}">작게 터지며 켜짐</button>
       </div></div>
-      <p class="note">실제로는 별마다 속에 넣은 도화선 길이나 배합을 달리해서, 어둡게 날아가다 제때 불이 붙게 합니다.</p>` : ''}`;
+      <p class="note">실제로는 별마다 속에 넣은 도화선 길이나 배합을 달리해서, 어둡게 날아가다 제때 불이 붙게 합니다.${seq.mode === 'pop' ? ' 「작게 터지며 켜짐」은 별 대신 도화선이 달린 아주 작은 알을 넣어, 차례가 온 알이 그 자리에서 터지게 한 것입니다.' : ''}</p>` : ''}`;
 }
 
 export function wireSequence(box: Element, set: (fn: (seq: Sequence | undefined) => Sequence | undefined) => void): void {
@@ -510,6 +520,9 @@ export function forgeControls(b: ShellBuild): string {
       <div class="field"><span class="label">별 종류</span><div class="chips">
         ${(Object.keys(STAR_LABEL) as StarKind[]).map((k) => `<button type="button" data-bkind="${k}" aria-pressed="${b.starKind === k}">${STAR_LABEL[k]}</button>`).join('')}
       </div></div>
+      ${['tail', 'willow', 'brocade', 'kamuro'].includes(b.starKind) ? `<div class="field"><span class="label">꼬리 길이</span><div class="chips">
+        ${(Object.keys(TAIL_LABEL) as TailLength[]).map((k) => `<button type="button" data-btail="${k}" aria-pressed="${(b.tail ?? 'normal') === k}">${TAIL_LABEL[k]}</button>`).join('')}
+      </div></div>` : ''}
       ${sequenceFields(b.sequence)}
     </fieldset>
 
@@ -538,6 +551,19 @@ export function forgeControls(b: ShellBuild): string {
         <div class="field"><label for="asm-offset">할약 치우침 <output>${Math.round(b.assembly.chargeOffset * 100)}%</output></label><input id="asm-offset" type="range" min="0" max="1" step="0.05" value="${b.assembly.chargeOffset}" /></div>
         <div class="field"><label for="asm-seam">반구 맞붙인 정확도 <output>${Math.round(b.assembly.seam * 100)}%</output></label><input id="asm-seam" type="range" min="0" max="1" step="0.05" value="${b.assembly.seam}" /></div>
         <div class="field"><label for="asm-paste">종이 바르기 정성 <output>${Math.round(b.assembly.paste * 100)}%</output></label><input id="asm-paste" type="range" min="0" max="1" step="0.05" value="${b.assembly.paste}" /></div>
+        <div class="handpads">
+          <div class="handpad">
+            <span class="label">손으로 할약 붓기 ${b.hand?.pour !== undefined ? '<b>(부음)</b>' : ''}</span>
+            <canvas id="hand-pour" class="hand-canvas" aria-label="반구에 할약 붓기. 길게 눌러 붓습니다"></canvas>
+            <p id="hand-pour-status" class="note"></p>
+          </div>
+          <div class="handpad">
+            <span class="label">손으로 종이 바르기 ${b.hand?.paste !== undefined ? `<b>(${b.paper}겹)</b>` : ''}</span>
+            <canvas id="hand-paste" class="hand-canvas" aria-label="반구에 종이 바르기. 문질러 바릅니다"></canvas>
+            <p id="hand-paste-status" class="note"></p>
+            <button type="button" id="hand-paste-done" disabled>다 발랐어요</button>
+          </div>
+        </div>
         <p class="note">할약을 가운데 고르게 채워야 별이 사방으로 같은 힘을 받습니다. 이음매가 어긋나거나 종이를 허술하게 바르면 가운데 띠가 흐트러지고 불발이 늘어납니다.</p>` : '<p class="note">끄면 솜씨 좋은 장인이 조립한 것으로 봅니다.</p>'}
     </fieldset>
 
@@ -597,6 +623,15 @@ export function wireForge(box: Element, b: ShellBuild, apply: (fn: (b: ShellBuil
   );
   slider('forge-breaks', (v) => `${v}단`, (x, v) => (v > 1 ? (x.breaks = v) : delete x.breaks));
   slider('forge-count', (v) => `${v}알`, (x, v) => (x.stars = evenStars(v)));
+  all('[data-btail]').forEach((el) =>
+    el.addEventListener('click', () =>
+      apply((x) => {
+        const t = el.dataset.btail as TailLength;
+        if (t === 'normal') delete x.tail;
+        else x.tail = t;
+      }, true),
+    ),
+  );
   all('[data-bkind]').forEach((el) => el.addEventListener('click', () => apply((x) => (x.starKind = el.dataset.bkind as StarKind), true)));
   all('[data-bcolor]').forEach((el) => el.addEventListener('click', () => apply((x) => (x.starColor = el.dataset.bcolor as ColorName), true)));
   // 배합
@@ -645,6 +680,25 @@ export function wireForge(box: Element, b: ShellBuild, apply: (fn: (b: ShellBuil
       if (r) apply((x) => (x.comp = { ...r }), true);
     }),
   );
+  // 손작업: 끝나면 설계 값을 바꾼다
+  const q = <T extends HTMLElement>(id: string) => box.querySelector<T>(`#${id}`);
+  const roll = q<HTMLCanvasElement>('hand-roll');
+  if (roll) rollPad(roll, q('hand-roll-status')!, (care) => apply((x) => {
+    if (x.star) x.star.handCare = care;
+    x.hand = { ...x.hand, roll: care };
+  }, true));
+  const pour = q<HTMLCanvasElement>('hand-pour');
+  if (pour) pourPad(pour, q('hand-pour-status')!, (charge, off) => apply((x) => {
+    x.breakCharge = charge;
+    if (x.assembly) x.assembly.chargeOffset = off;
+    x.hand = { ...x.hand, pour: charge };
+  }, true));
+  const paste = q<HTMLCanvasElement>('hand-paste');
+  if (paste) pastePad(paste, q('hand-paste-status')!, q<HTMLButtonElement>('hand-paste-done')!, (layers, care) => apply((x) => {
+    x.paper = layers;
+    if (x.assembly) x.assembly.paste = care;
+    x.hand = { ...x.hand, paste: care };
+  }, true));
   // 조립
   box.querySelector<HTMLInputElement>('#asm-on')?.addEventListener('change', (e) =>
     apply((x) => {

@@ -26,8 +26,8 @@ export type Vec3 = [number, number, number];
 
 export interface Launcher {
   id: string;
-  /** barge: 바지선(하늘 불꽃), bridge: 다리(나이아가라), frame: 지상 틀(글자) */
-  kind: 'barge' | 'bridge' | 'frame';
+  /** barge: 바지선(하늘 불꽃), bridge: 다리(나이아가라), frame: 지상 틀(글자), drone: 드론 이륙장 */
+  kind: 'barge' | 'bridge' | 'frame' | 'drone';
   pos: Vec3;
   /** 다리의 양 끝 */
   from?: Vec3;
@@ -145,11 +145,11 @@ export interface ExpandedShow {
 }
 
 export const CAKE_DEFAULTS = { shots: 24, interval: 0.15, pattern: 'fan' as CakePattern, spread: 60 };
-export const LEN_DEFAULTS = { niagara: 8, lancework: 10 };
+export const LEN_DEFAULTS = { niagara: 8, lancework: 10, drones: 30 };
 
 /** 그 종류를 놓을 수 있는 발사 위치 */
 export function launcherKindFor(type: FireworkType): Launcher['kind'] {
-  return type === 'niagara' ? 'bridge' : type === 'lancework' ? 'frame' : 'barge';
+  return type === 'niagara' ? 'bridge' : type === 'lancework' ? 'frame' : type === 'drones' ? 'drone' : 'barge';
 }
 
 /** 점화에서 터질 때까지 걸리는 시간 */
@@ -163,7 +163,7 @@ export function cueLength(cue: Cue, shells?: Record<string, CustomShell>): numbe
     const def = cue.custom ? shells?.[cue.custom] : undefined;
     return def ? customLength(def) : visibleLength('custom');
   }
-  if (cue.type === 'niagara' || cue.type === 'lancework') return cue.len ?? LEN_DEFAULTS[cue.type];
+  if (cue.type === 'niagara' || cue.type === 'lancework' || cue.type === 'drones') return cue.len ?? LEN_DEFAULTS[cue.type];
   if (cue.type === 'cake') {
     const shots = cue.shots ?? CAKE_DEFAULTS.shots;
     return (shots - 1) * (cue.interval ?? CAKE_DEFAULTS.interval) + visibleLength('cake');
@@ -214,7 +214,7 @@ export function expandShow(show: Show): ExpandedShow {
       keys.set(def.id, customKey);
     }
 
-    if (cue.type === 'niagara' || cue.type === 'lancework') {
+    if (cue.type === 'niagara' || cue.type === 'lancework' || cue.type === 'drones') {
       const from = launcher.from ?? [launcher.pos[0] - 300, launcher.pos[1], launcher.pos[2]];
       const to = launcher.to ?? [launcher.pos[0] + 300, launcher.pos[1], launcher.pos[2]];
       launches.push({
@@ -222,8 +222,8 @@ export function expandShow(show: Show): ExpandedShow {
         type: cue.type, size: cue.size, colors, seed: hash32(base, 0, 77),
         len: cue.len ?? LEN_DEFAULTS[cue.type],
         span: cue.type === 'niagara' ? [from, to] : undefined,
-        text: cue.type === 'lancework' ? (cue.text ?? '').slice(0, 24) : undefined,
-        ...(cue.type === 'lancework' && cue.art ? { art: cue.art } : {}),
+        text: cue.type !== 'niagara' ? (cue.text ?? '').slice(0, 24) : undefined,
+        ...(cue.type !== 'niagara' && cue.art ? { art: cue.art } : {}),
       });
       return;
     }

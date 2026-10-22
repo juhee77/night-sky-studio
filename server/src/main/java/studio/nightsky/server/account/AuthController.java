@@ -9,6 +9,8 @@ import java.util.HexFormat;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -23,12 +25,14 @@ import studio.nightsky.server.web.ApiException;
 public class AuthController {
     private final AccountRepository accounts;
     private final SessionRepository sessions;
+    private final AccountData accountData;
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
     private final SecureRandom random = new SecureRandom();
 
-    public AuthController(AccountRepository accounts, SessionRepository sessions) {
+    public AuthController(AccountRepository accounts, SessionRepository sessions, AccountData accountData) {
         this.accounts = accounts;
         this.sessions = sessions;
+        this.accountData = accountData;
     }
 
     public record Credentials(
@@ -64,6 +68,16 @@ public class AuthController {
     @GetMapping("/me")
     Map<String, Object> me(CurrentAccount me) {
         return Map.of("name", me.name());
+    }
+
+    /** 계정 지우기: 로그인 표, 클라우드에 저장한 것, 상영관에 올린 글과 누른 좋아요·신고까지 모두 지운다. */
+    @DeleteMapping("/me")
+    @Transactional
+    Map<String, Object> delete(CurrentAccount me) {
+        accountData.deleteAll(me.id());
+        sessions.deleteByAccountId(me.id());
+        accounts.deleteById(me.id());
+        return Map.of("ok", true);
     }
 
     private Map<String, Object> issue(Account account) {

@@ -10,4 +10,6 @@ public interface CloudItemRepository extends JpaRepository<CloudItem, Long> {
     Optional<CloudItem> findByAccountIdAndKindAndClientId(Long accountId, String kind, String clientId);
 
     long countByAccountIdAndKind(Long accountId, String kind);
+
+    void deleteByAccountId(Long accountId);
 }

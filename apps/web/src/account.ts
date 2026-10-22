@@ -3,7 +3,7 @@
 import { normalizeShell, type CustomShell, type Show } from '@nss/engine';
 import type { Drawer } from './drawer.ts';
 import type { Editor } from './editor.ts';
-import { cloudDelete, cloudGet, cloudList, cloudPut, currentAuth, login, logout, signup } from './remote.ts';
+import { cloudDelete, cloudGet, cloudList, cloudPut, currentAuth, deleteAccount, login, logout, signup } from './remote.ts';
 import { putShow } from './storage.ts';
 
 export interface AccountHost {
@@ -34,6 +34,13 @@ export class AccountPanel {
       await logout();
       return '로그아웃했습니다.';
     }));
+    q('account-delete').addEventListener('click', () => {
+      if (!confirm('계정을 지울까요? 클라우드에 저장한 쇼·내 불꽃과 상영관에 올린 것까지 모두 지워지고 되돌릴 수 없습니다. 이 기기에 있는 쇼는 그대로입니다.')) return;
+      void this.run(async () => {
+        await deleteAccount();
+        return '계정을 지웠습니다.';
+      });
+    });
     q('cloud-save-show').addEventListener('click', () => this.run(async () => {
       const show = editor.show;
       await cloudPut('shows', editor.id, show.title || '제목 없는 쇼', JSON.stringify(show));
