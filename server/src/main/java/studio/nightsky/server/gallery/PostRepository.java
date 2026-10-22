@@ -8,4 +8,6 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     List<Post> findByKindAndHiddenFalseOrderByCreatedAtDesc(String kind, Pageable page);
 
     List<Post> findByKindAndHiddenFalseOrderByLikesDescCreatedAtDesc(String kind, Pageable page);
+
+    List<Post> findByAuthorId(Long authorId);
 }

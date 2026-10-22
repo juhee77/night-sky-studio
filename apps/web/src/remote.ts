@@ -110,3 +110,9 @@ export const galleryUpload = (kind: GalleryKind, title: string, data: string) =>
 export const galleryLike = (id: number) => call<{ likes: number; liked: boolean }>('POST', `/api/gallery/${id}/like`);
 export const galleryReport = (id: number) => call<{ hidden: boolean }>('POST', `/api/gallery/${id}/report`);
 export const galleryDelete = (id: number) => call('DELETE', `/api/gallery/${id}`);
+
+/** 계정 지우기: 클라우드에 저장한 것과 상영관에 올린 것까지 모두 */
+export async function deleteAccount(): Promise<void> {
+  await call('DELETE', '/api/auth/me');
+  setAuth(null);
+}

@@ -186,15 +186,16 @@ export class Editor {
     let type: FireworkType = tpl.type;
     if (launcher.kind === 'bridge') type = 'niagara';
     else if (launcher.kind === 'frame') type = 'lancework';
+    else if (launcher.kind === 'drone') type = 'drones';
     else if (launcherKindFor(type) !== 'barge') return 'kind';
     if (!this.allowType(type, tpl.custom)) return 'locked';
     const def = type === 'custom' && tpl.custom ? this.findShell(tpl.custom) : undefined;
     if (type === 'custom' && !def) return 'kind';
 
     const cue: Cue = { t: round3(Math.max(0, t)), at: launcherId, type, size: tpl.size, colors: [...tpl.colors] };
-    if (type === 'niagara' || type === 'lancework') {
-      cue.len = tpl.len;
-      if (type === 'lancework') {
+    if (type === 'niagara' || type === 'lancework' || type === 'drones') {
+      cue.len = type === 'drones' && tpl.type !== 'drones' ? LEN_DEFAULTS.drones : tpl.len;
+      if (type === 'lancework' || type === 'drones') {
         cue.text = tpl.text || '밤하늘';
         if (tpl.art) cue.art = structuredClone(tpl.art);
       }
@@ -268,6 +269,7 @@ export function round3(x: number): number {
 export function launcherLabel(l: Launcher, index: number): string {
   if (l.kind === 'barge') return `바지선 ${l.id.match(/\d+/)?.[0] ?? index + 1}`;
   if (l.kind === 'bridge') return '다리';
+  if (l.kind === 'drone') return '드론 이륙장';
   return '지상 틀';
 }
 
@@ -331,6 +333,9 @@ export function moveToVenue(d: Show, venueId: string): void {
   d.launchers = structuredClone(venue.launchers);
   const ids = new Set(d.launchers.map((l) => l.id));
   const bargeCount = d.launchers.filter((l) => l.kind === 'barge').length;
+  // 다리가 없는 무대(호수 등)에서는 나이아가라를, 지상 틀이 없으면 틀불꽃을 뺀다.
+  const has = (kind: Launcher['kind']) => d.launchers.some((l) => l.kind === kind);
+  d.cues = d.cues.filter((c) => (c.type !== 'niagara' || has('bridge')) && (c.type !== 'lancework' || has('frame')));
   for (const c of d.cues) {
     if (ids.has(c.at)) continue;
     const n = Number(c.at.match(/^barge-(\d+)$/)?.[1] ?? 1);
