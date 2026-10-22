@@ -8,15 +8,9 @@ import {
   venueOf,
   analyzeMusic,
   audienceCues,
-  autoChoreograph,
-  allTubes,
-  isLive,
   detectTempo,
   flatMusicMap,
-  type AutoOptions,
-  type Mood,
   type MusicMap,
-  encodeShow,
   launcherKindFor,
   tapTempo,
   type Cue,
@@ -35,7 +29,9 @@ import { SitePlanner } from './siteplan.ts';
 import { AccountPanel } from './account.ts';
 import { Gallery } from './gallery.ts';
 import { ArtEditor } from './artedit.ts';
-import { remoteEnabled, shortLink } from './remote.ts';
+import { Guide } from './guide.ts';
+import { Compare } from './compare.ts';
+import { remoteEnabled } from './remote.ts';
 import { Panel } from './panel.ts';
 import { runCountdown } from './countdown.ts';
 import { CAMERA_SEATS, Stage } from './stage.ts';
@@ -54,106 +50,10 @@ import {
 import { Timeline } from './timeline.ts';
 import { BASIC_TRACKS, loadBasicTrack } from './tracks.ts';
 import { Transport, waveformPeaks } from './transport.ts';
-
-const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
-
-const el = {
-  stage: $<HTMLCanvasElement>('stage'),
-  timeline: $<HTMLCanvasElement>('timeline'),
-  panel: $<HTMLElement>('panel'),
-  title: $<HTMLInputElement>('title'),
-  saveState: $<HTMLSpanElement>('save-state'),
-  play: $<HTMLButtonElement>('play'),
-  clock: $<HTMLOutputElement>('clock'),
-  music: $<HTMLSelectElement>('music'),
-  musicFile: $<HTMLInputElement>('music-file'),
-  bpm: $<HTMLInputElement>('bpm'),
-  offset: $<HTMLInputElement>('offset'),
-  tap: $<HTMLButtonElement>('tap'),
-  detect: $<HTMLButtonElement>('detect'),
-  seat: $<HTMLSelectElement>('seat'),
-  sound: $<HTMLButtonElement>('sound'),
-  fps: $('fps'),
-  particles: $('particles'),
-  warnings: $<HTMLParagraphElement>('warnings'),
-  snap: $<HTMLSelectElement>('snap'),
-  zoomIn: $<HTMLButtonElement>('zoom-in'),
-  zoomOut: $<HTMLButtonElement>('zoom-out'),
-  undo: $<HTMLButtonElement>('undo'),
-  redo: $<HTMLButtonElement>('redo'),
-  toast: $<HTMLParagraphElement>('toast'),
-  showsBtn: $<HTMLButtonElement>('shows-btn'),
-  dialog: $<HTMLDialogElement>('shows-dialog'),
-  showList: $<HTMLUListElement>('show-list'),
-  newShow: $<HTMLButtonElement>('new-show'),
-  importShow: $<HTMLButtonElement>('import-show'),
-  exportShow: $<HTMLButtonElement>('export-show'),
-  importFile: $<HTMLInputElement>('import-file'),
-  watch: $<HTMLButtonElement>('watch'),
-  watchExit: $<HTMLButtonElement>('watch-exit'),
-  stageWrap: $<HTMLElement>('stage-wrap'),
-  shareBtn: $<HTMLButtonElement>('share-btn'),
-  shareDialog: $<HTMLDialogElement>('share-dialog'),
-  shareLink: $<HTMLInputElement>('share-link'),
-  shareCopy: $<HTMLButtonElement>('share-copy'),
-  shareNative: $<HTMLButtonElement>('share-native'),
-  shareInfo: $<HTMLParagraphElement>('share-info'),
-  officeBtn: $<HTMLButtonElement>('office-btn'),
-  workshopBtn: $<HTMLButtonElement>('workshop-btn'),
-  siteBtn: $<HTMLButtonElement>('site-btn'),
-  accountBtn: $<HTMLButtonElement>('account-btn'),
-  shareShort: $<HTMLButtonElement>('share-short'),
-  siteDialog: $<HTMLDialogElement>('site-dialog'),
-  workshopDialog: $<HTMLDialogElement>('workshop-dialog'),
-  autoBtn: $<HTMLButtonElement>('auto-btn'),
-  autoDialog: $<HTMLDialogElement>('auto-dialog'),
-  autoDensity: $<HTMLInputElement>('auto-density'),
-  autoDensityOut: $<HTMLOutputElement>('auto-density-out'),
-  autoText: $<HTMLInputElement>('auto-text'),
-  autoTextField: $<HTMLDivElement>('auto-text-field'),
-  autoLimits: $<HTMLParagraphElement>('auto-limits'),
-  autoReplace: $<HTMLParagraphElement>('auto-replace'),
-  autoRun: $<HTMLButtonElement>('auto-run'),
-  venue: $<HTMLSelectElement>('venue'),
-  stageBtn: $<HTMLButtonElement>('stage-btn'),
-  stageDialog: $<HTMLDialogElement>('stage-dialog'),
-  stageLocked: $<HTMLParagraphElement>('stage-locked'),
-  skyChips: $<HTMLDivElement>('sky-chips'),
-  windDir: $<HTMLSelectElement>('wind-dir'),
-  windSpeed: $<HTMLInputElement>('wind-speed'),
-  windOut: $<HTMLOutputElement>('wind-out'),
-  cloudOn: $<HTMLInputElement>('cloud-on'),
-  cloudH: $<HTMLInputElement>('cloud-h'),
-  cloudOut: $<HTMLOutputElement>('cloud-out'),
-  countdown: $<HTMLInputElement>('countdown'),
-  photoBtn: $<HTMLButtonElement>('photo-btn'),
-  photoDialog: $<HTMLDialogElement>('photo-dialog'),
-  photoFrom: $<HTMLSpanElement>('photo-from'),
-  photoShutter: $<HTMLDivElement>('photo-shutter'),
-  photoProgress: $<HTMLProgressElement>('photo-progress'),
-  photoPreview: $<HTMLImageElement>('photo-preview'),
-  photoShoot: $<HTMLButtonElement>('photo-shoot'),
-  photoSave: $<HTMLButtonElement>('photo-save'),
-  photoShare: $<HTMLButtonElement>('photo-share'),
-  videoBtn: $<HTMLButtonElement>('video-btn'),
-  videoDialog: $<HTMLDialogElement>('video-dialog'),
-  videoSize: $<HTMLDivElement>('video-size'),
-  videoProgress: $<HTMLProgressElement>('video-progress'),
-  videoStatus: $<HTMLParagraphElement>('video-status'),
-  videoPreview: $<HTMLVideoElement>('video-preview'),
-  videoMake: $<HTMLButtonElement>('video-make'),
-  videoStop: $<HTMLButtonElement>('video-stop'),
-  videoSave: $<HTMLButtonElement>('video-save'),
-  videoShare: $<HTMLButtonElement>('video-share'),
-};
-
-let toastTimer = 0;
-function say(message: string, ms = 4500): void {
-  el.toast.textContent = message;
-  el.toast.hidden = false;
-  clearTimeout(toastTimer);
-  toastTimer = window.setTimeout(() => (el.toast.hidden = true), ms);
-}
+import { $, el, say } from './ui.ts';
+import { wireAuto } from './auto-ui.ts';
+import { wireCapture } from './capture-ui.ts';
+import { wireShare } from './share-ui.ts';
 
 // ── 상태 ──
 useDeviceFontForFrames();
@@ -256,6 +156,31 @@ if (remoteEnabled()) {
     gallery.open();
   });
 }
+
+// ── 여러 관람석에서 나란히 보기 ──
+const compare = new Compare($<HTMLDialogElement>('compare-dialog'), {
+  show: () => editor.show,
+  time: () => transport.time,
+  playing: () => transport.playing,
+  togglePlay: () => togglePlay(),
+  seek: (t) => transport.seek(t),
+});
+$<HTMLButtonElement>('compare-btn').addEventListener('click', () => compare.show());
+
+// ── 처음 쓰는 사람 안내와 용어 사전 ──
+const guide = new Guide($<HTMLDialogElement>('guide-dialog'), $<HTMLDialogElement>('glossary-dialog'));
+const helpDialog = $<HTMLDialogElement>('help-dialog');
+$<HTMLButtonElement>('help-btn').addEventListener('click', () => helpDialog.showModal());
+$<HTMLButtonElement>('help-guide').addEventListener('click', () => {
+  helpDialog.close();
+  guide.open();
+});
+$<HTMLButtonElement>('help-glossary').addEventListener('click', () => {
+  helpDialog.close();
+  guide.openGlossary();
+});
+// 공유 링크로 들어온 사람이나 의뢰 중인 사람에게는 띄우지 않고, 처음 연 브라우저에만
+setTimeout(() => !document.querySelector('dialog[open]') && guide.openIfNew(), 600);
 
 // ── 발사장 설계 ──
 const site = new SitePlanner(el.siteDialog, editor);
@@ -636,8 +561,6 @@ document.addEventListener('fullscreenchange', () => {
 });
 
 // ── 자동 연출 ──
-let autoMood: Mood = 'festive';
-
 function currentMusicMap(): MusicMap {
   const m = editor.show.music;
   const bpm = m?.bpm ?? 120;
@@ -655,282 +578,10 @@ function currentMusicMap(): MusicMap {
   return map;
 }
 
-function autoOptions(seed: number): AutoOptions {
-  const o: AutoOptions = { seed, style: autoMood === 'calm' ? 'calm' : 'grand', mood: autoMood, density: Number(el.autoDensity.value) };
-  if ($<HTMLInputElement>('auto-effects').checked) o.effects = true;
-  if ($<HTMLInputElement>('auto-customs').checked) {
-    const mine = drawer.list().filter((x) => !office.isLocked('custom', x.id));
-    if (mine.length) o.customs = mine.slice(0, 6).map((x) => ({ id: x.id, size: x.build?.size ?? 5 }));
-  }
-  // 실전 모드: 갑판에 실린 통 안에서만
-  if (isLive(editor.show)) o.tubes = allTubes(editor.show.rig);
-  const range = autoRange();
-  if (range && $<HTMLInputElement>('auto-range').checked) o.range = range;
-  const text = el.autoText.value.trim();
-  if (text) o.text = text;
-  const c = editor.show.commission;
-  if (c) {
-    // 의뢰 쇼: 해금한 불꽃과 의뢰 조건, 예산을 지킨다.
-    o.allowed = career.state.unlocked;
-    o.budget = c.budget;
-    for (const r of c.rules) {
-      if (r.kind === 'maxSize') o.maxSize = r.size;
-      else if (r.kind === 'colorsOnly') o.colors = r.colors;
-      else if (r.kind === 'include') (o.include ??= []).push(r.type);
-      else if (r.kind === 'endColors') o.endColors = { seconds: r.seconds, colors: r.colors };
-      else if (r.kind === 'frameText' && !o.text) o.text = c.client.slice(0, 12);
-    }
-  }
-  return o;
-}
-
-/** 고른 불꽃이 있는 구간 (그 앞뒤 박자까지). 고른 것이 없으면 null */
-function autoRange(): { from: number; to: number } | null {
-  const sel = editor.selectedCues;
-  if (!sel.length) return null;
-  const ts = sel.map((c) => c.t);
-  return { from: Math.max(0, Math.min(...ts) - 0.01), to: Math.max(...ts) + 0.01 };
-}
-
-el.autoBtn.addEventListener('click', () => {
-  const range = autoRange();
-  $<HTMLElement>('auto-range-field').hidden = !range;
-  $<HTMLInputElement>('auto-range').checked = !!range;
-  if (range) $<HTMLElement>('auto-range-label').textContent = `고른 불꽃이 있는 구간(${fmtTime(range.from)}~${fmtTime(range.to)})만 다시 만들기`;
-  $<HTMLElement>('auto-customs-field').hidden = !drawer.list().length;
-  const n = editor.show.cues.length;
-  el.autoReplace.textContent = n ? `지금 놓인 불꽃 ${n}개를 지우고 새로 만듭니다. 마음에 들지 않으면 「되돌리기」로 되돌릴 수 있습니다.` : '';
-  const c = editor.show.commission;
-  el.autoLimits.textContent =
-    (c ? `의뢰 쇼라서 해금한 불꽃과 의뢰 조건, 예산(${c.budget}) 안에서 만듭니다. ` : '') +
-    (isLive(editor.show) ? '실전 모드라서 갑판에 실린 통 안에서만 만듭니다.' : '');
-  const hasFrame = editor.show.launchers.some((l) => l.kind === 'frame') && !office.isLocked('lancework');
-  el.autoTextField.hidden = !hasFrame;
-  if (!el.autoText.value && editor.show.title) el.autoText.placeholder = `예: ${editor.show.title.slice(0, 12)}`;
-  el.autoDialog.showModal();
-});
-el.autoDialog.querySelectorAll<HTMLButtonElement>('[data-mood]').forEach((b) =>
-  b.addEventListener('click', () => {
-    autoMood = b.dataset.mood as Mood;
-    el.autoDialog.querySelectorAll('[data-mood]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-  }),
-);
-el.autoDensity.addEventListener('input', () => {
-  const d = Number(el.autoDensity.value);
-  el.autoDensityOut.value = d < 0.5 ? '드문드문' : d < 0.8 ? '보통' : '촘촘하게';
-});
-el.autoRun.addEventListener('click', () => {
-  const seed = Math.floor(Math.random() * 1e9);
-  const o = autoOptions(seed);
-  const cues = autoChoreograph(currentMusicMap(), editor.show.launchers, o);
-  const range = o.range;
-  editor.change((d) => {
-    // 구간만 다시 만들면 그 밖의 불꽃은 그대로 둔다.
-    d.cues = range ? [...d.cues.filter((c) => c.t < range.from || c.t >= range.to), ...cues].sort((a, b) => a.t - b.t) : cues;
-    // 섞어 쓴 내 불꽃은 설계를 쇼 안에 복사해 둔다.
-    for (const c of cues) {
-      const def = c.custom ? drawer.get(c.custom) : undefined;
-      if (def) d.customShells = { ...d.customShells, [def.id]: structuredClone(def) };
-    }
-  });
-  editor.select([]);
-  el.autoDialog.close();
-  if (transport.playing) togglePlay();
-  transport.seek(range ? Math.max(0, range.from - 4) : 0);
-  if (!range) timeline.scroll = 0;
-  say(
-    range
-      ? `${fmtTime(range.from)}~${fmtTime(range.to)} 구간에 불꽃 ${cues.length}개를 다시 놓았습니다.`
-      : `불꽃 ${cues.length}개를 놓았습니다. ▶ 재생해 보고, 마음에 안 들면 「자동 연출」을 다시 누르면 다른 쇼가 나옵니다.`,
-  );
-});
-
-// ── 장노출 사진 ──
-let shutter = 4;
-let photoBlob: Blob | null = null;
-el.photoBtn.addEventListener('click', () => {
-  if (transport.playing) togglePlay();
-  el.photoFrom.textContent = `지금 재생 위치(${fmtTime(transport.time).replace(/\.\d+$/, '')})부터 찍습니다. 시간표에서 위치를 옮긴 뒤 찍어도 됩니다.`;
-  el.photoDialog.showModal();
-});
-el.photoShutter.querySelectorAll<HTMLButtonElement>('[data-sec]').forEach((b) =>
-  b.addEventListener('click', () => {
-    shutter = Number(b.dataset.sec);
-    el.photoShutter.querySelectorAll('[data-sec]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-  }),
-);
-el.photoShoot.addEventListener('click', async () => {
-  el.photoShoot.disabled = true;
-  el.photoProgress.hidden = false;
-  el.photoProgress.value = 0;
-  try {
-    const t0 = transport.time;
-    // 사진·영상 코드는 처음 쓸 때 받아 온다 (편집기를 여는 속도를 위해)
-    const { longExposure } = await import('./capture.ts');
-    photoBlob = await longExposure(
-      { show: editor.show, venue: stage.venue, camera: (t) => stage.cameraAt(t), width: 1920, height: 1080 },
-      t0,
-      shutter,
-      (p) => (el.photoProgress.value = p),
-    );
-    if (el.photoPreview.src) URL.revokeObjectURL(el.photoPreview.src);
-    el.photoPreview.src = URL.createObjectURL(photoBlob);
-    el.photoPreview.hidden = false;
-    el.photoSave.hidden = false;
-    const file = new File([photoBlob], 'photo.png', { type: 'image/png' });
-    el.photoShare.hidden = !navigator.canShare?.({ files: [file] });
-  } catch (err) {
-    say(`사진을 찍지 못했습니다. ${(err as Error).message}`);
-  } finally {
-    el.photoShoot.disabled = false;
-    el.photoShoot.textContent = '다시 찍기';
-    el.photoProgress.hidden = true;
-  }
-});
-const photoName = () => `${(editor.show.title || '밤하늘').replace(/[\\/:*?"<>|]/g, '_')}-장노출.png`;
-el.photoSave.addEventListener('click', () => {
-  if (!photoBlob) return;
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(photoBlob);
-  a.download = photoName();
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-});
-el.photoShare.addEventListener('click', () => {
-  if (!photoBlob) return;
-  const file = new File([photoBlob], photoName(), { type: 'image/png' });
-  void navigator.share?.({ files: [file], title: editor.show.title ?? '밤하늘 연출실' }).catch(() => {});
-});
-
-// ── 영상 ──
-let videoHeight = 720;
-let videoBlob: Blob | null = null;
-let videoAbort: AbortController | null = null;
-el.videoBtn.addEventListener('click', () => {
-  if (transport.playing) togglePlay();
-  el.videoDialog.showModal();
-});
-el.videoSize.querySelectorAll<HTMLButtonElement>('[data-h]').forEach((b) =>
-  b.addEventListener('click', () => {
-    videoHeight = Number(b.dataset.h);
-    el.videoSize.querySelectorAll('[data-h]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-  }),
-);
-el.videoMake.addEventListener('click', async () => {
-  const h = videoHeight;
-  const w = Math.round((h * 16) / 9);
-  const { canMakeVideo, makeVideo } = await import('./capture.ts');
-  if (!(await canMakeVideo(w, h))) {
-    el.videoStatus.textContent = '이 브라우저에서는 영상을 만들 수 없습니다. 최신 Chrome, Edge, Safari에서 해 보세요.';
-    return;
-  }
-  videoAbort = new AbortController();
-  el.videoMake.disabled = true;
-  el.videoStop.hidden = false;
-  el.videoProgress.hidden = false;
-  el.videoPreview.hidden = true;
-  const started = performance.now();
-  try {
-    videoBlob = await makeVideo({
-      show: editor.show,
-      venue: stage.venue,
-      camera: (t) => stage.cameraAt(t),
-      width: w,
-      height: h,
-      fps: 30,
-      from: 0,
-      to: duration(),
-      music: musicBuffer,
-      delayFor: stage.soundDelay,
-      crowd: audienceCues(stage.sim.launches),
-      fanCount,
-      signal: videoAbort.signal,
-      onProgress: (p, stageName) => {
-        el.videoProgress.value = p;
-        el.videoStatus.textContent = `${stageName}… ${Math.round(p * 100)}%`;
-      },
-    });
-    if (el.videoPreview.src) URL.revokeObjectURL(el.videoPreview.src);
-    el.videoPreview.src = URL.createObjectURL(videoBlob);
-    el.videoPreview.hidden = false;
-    el.videoSave.hidden = false;
-    const file = new File([videoBlob], 'show.mp4', { type: 'video/mp4' });
-    el.videoShare.hidden = !navigator.canShare?.({ files: [file] });
-    const mb = (videoBlob.size / 1024 / 1024).toFixed(1);
-    el.videoStatus.textContent = `다 만들었습니다. ${mb}MB, ${Math.round((performance.now() - started) / 1000)}초 걸렸습니다.`;
-  } catch (err) {
-    el.videoStatus.textContent =
-      (err as Error).name === 'AbortError' ? '그만뒀습니다.' : `영상을 만들지 못했습니다. ${(err as Error).message}`;
-  } finally {
-    el.videoMake.disabled = false;
-    el.videoMake.textContent = '다시 만들기';
-    el.videoStop.hidden = true;
-    el.videoProgress.hidden = true;
-  }
-});
-el.videoStop.addEventListener('click', () => videoAbort?.abort());
-el.videoDialog.addEventListener('close', () => videoAbort?.abort());
-const videoName = () => `${(editor.show.title || '밤하늘').replace(/[\\/:*?"<>|]/g, '_')}.mp4`;
-el.videoSave.addEventListener('click', () => {
-  if (!videoBlob) return;
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(videoBlob);
-  a.download = videoName();
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-});
-el.videoShare.addEventListener('click', () => {
-  if (!videoBlob) return;
-  const file = new File([videoBlob], videoName(), { type: 'video/mp4' });
-  void navigator.share?.({ files: [file], title: editor.show.title ?? '밤하늘 연출실' }).catch(() => {});
-});
-
-// ── 공유 링크 ──
-el.shareBtn.addEventListener('click', async () => {
-  const code = await encodeShow(editor.show);
-  const base = new URL(`${import.meta.env.BASE_URL}v/`, location.origin);
-  const link = `${base.href}#s=${code}`;
-  el.shareLink.value = link;
-  const m = editor.show.music;
-  const notes = [`링크 길이 ${link.length.toLocaleString('ko-KR')}자.`];
-  if (link.length > 8000) notes.push('링크가 길어서 일부 메신저에서 잘릴 수 있습니다. 그럴 땐 쇼 파일로 내보내 보내 주세요.');
-  if (m && !m.id.startsWith('basic-')) {
-    notes.push(`음악 파일은 링크에 들어가지 않습니다. 받는 사람이 같은 파일(「${m.title}」, ${fmtTime(m.duration).replace(/\.\d+$/, '')})을 골라야 함께 들립니다. 바로 들려주려면 기본 곡을 쓰세요.`);
-  }
-  el.shareInfo.textContent = notes.join(' ');
-  el.shareNative.hidden = !navigator.share;
-  el.shareShort.hidden = !remoteEnabled();
-  el.shareShort.disabled = false;
-  el.shareShort.dataset.code = code;
-  el.shareDialog.showModal();
-  el.shareLink.select();
-});
-el.shareCopy.addEventListener('click', async () => {
-  try {
-    await navigator.clipboard.writeText(el.shareLink.value);
-    el.shareCopy.textContent = '복사했습니다';
-  } catch {
-    el.shareLink.select();
-    el.shareCopy.textContent = '선택했습니다. ⌘C로 복사하세요';
-  }
-  setTimeout(() => (el.shareCopy.textContent = '링크 복사'), 2500);
-});
-el.shareShort.addEventListener('click', async () => {
-  el.shareShort.disabled = true;
-  try {
-    const short = await shortLink(el.shareShort.dataset.code ?? '');
-    const base = new URL(`${import.meta.env.BASE_URL}v/`, location.origin);
-    el.shareLink.value = `${base.href}#l=${short}`;
-    el.shareInfo.textContent = '짧은 링크를 만들었습니다. 쇼는 서버에 저장되고, 링크에는 짧은 글자만 들어갑니다.';
-    el.shareLink.select();
-  } catch (err) {
-    el.shareInfo.textContent = (err as Error).message;
-    el.shareShort.disabled = false;
-  }
-});
-el.shareNative.addEventListener('click', () => {
-  void navigator.share?.({ title: editor.show.title ?? '밤하늘 연출실', url: el.shareLink.value }).catch(() => {});
-});
+// ── 자동 연출·사진·영상·공유 (각자 파일) ──
+wireAuto({ editor, drawer, office, career, transport, timeline, togglePlay: () => togglePlay(), musicMap: () => currentMusicMap() });
+wireCapture({ editor, stage, transport, togglePlay: () => togglePlay(), duration: () => duration(), music: () => musicBuffer, fanCount: (l) => fanCount(l) });
+wireShare({ editor });
 
 // ── 키보드 ──
 const typing = (t: EventTarget | null) =>
@@ -1117,7 +768,8 @@ function frame(now: number): void {
     transport.seek(end);
     t = end;
   }
-  stage.render(t, transport.playing);
+  // 나란히 보기 창이 열려 있으면 편집 무대는 쉬고, 그 창이 무대를 그린다.
+  if (!compare.open) stage.render(t, transport.playing);
   transport.schedule(stage.sim.launches, fanCount);
   if (transport.playing) timeline.follow(t);
   timeline.draw();

@@ -28,8 +28,8 @@ export type ShellType =
   | 'heart' | 'star' | 'smile' | 'cake' | 'custom'
   | 'crackle' | 'brocade' | 'fish' | 'hummer' | 'leaves' | 'salute' | 'whistle';
 
-/** 시간표에 놓을 수 있는 모든 종류: 하늘 불꽃 + 다리 나이아가라 + 지상 틀불꽃 */
-export type FireworkType = ShellType | 'niagara' | 'lancework';
+/** 시간표에 놓을 수 있는 모든 종류: 하늘 불꽃 + 다리 나이아가라 + 지상 틀불꽃 + 드론 쇼 */
+export type FireworkType = ShellType | 'niagara' | 'lancework' | 'drones';
 
 /** 별을 처음에 어떻게 흩뿌리는가 */
 export type Pattern = 'sphere' | 'ring' | 'palm' | 'heart' | 'star' | 'smile';
@@ -161,23 +161,24 @@ export const SHELLS: Record<ShellType, ShellSpec> = {
 export const SHELL_TYPES = (Object.keys(SHELLS) as ShellType[]).filter((t) => t !== 'custom');
 
 /** 팔레트에 보여 줄 순서 */
-export const FIREWORK_TYPES: FireworkType[] = [...SHELL_TYPES, 'niagara', 'lancework'];
+export const FIREWORK_TYPES: FireworkType[] = [...SHELL_TYPES, 'niagara', 'lancework', 'drones'];
 
 /** 쇼 파일에 쓸 수 있는 모든 종류 (공유 링크의 번호 순서. 뒤에만 더한다) */
 export const ALL_TYPES: FireworkType[] = [
   'chrysanthemum', 'peony', 'willow', 'palm', 'ring', 'crossette', 'heart', 'star', 'smile', 'cake',
   'niagara', 'lancework', 'custom',
   'crackle', 'brocade', 'fish', 'hummer', 'leaves', 'salute', 'whistle',
+  'drones',
 ];
 
-const SPECIAL_LABEL = { niagara: '나이아가라', lancework: '지상 틀불꽃' } as const;
+const SPECIAL_LABEL = { niagara: '나이아가라', lancework: '지상 틀불꽃', drones: '드론 쇼' } as const;
 
 export function typeLabel(t: FireworkType): string {
-  return t === 'niagara' || t === 'lancework' ? SPECIAL_LABEL[t] : SHELLS[t].label;
+  return t === 'niagara' || t === 'lancework' || t === 'drones' ? SPECIAL_LABEL[t] : SHELLS[t].label;
 }
 
 export function isShell(t: FireworkType): t is ShellType {
-  return t !== 'niagara' && t !== 'lancework';
+  return t !== 'niagara' && t !== 'lancework' && t !== 'drones';
 }
 
 /** 불꽃 종류와 크기에 맞는 높이·지름·상승 시간. 케이크는 낮게, 빨리 터진다. */

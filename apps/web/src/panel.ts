@@ -79,7 +79,7 @@ export class Panel {
       shots: c.shots ?? CAKE_DEFAULTS.shots,
       interval: c.interval ?? CAKE_DEFAULTS.interval,
       cakePattern: c.pattern ?? CAKE_DEFAULTS.pattern,
-      len: c.len ?? (c.type === 'lancework' ? LEN_DEFAULTS.lancework : LEN_DEFAULTS.niagara),
+      len: c.len ?? (c.type === 'lancework' ? LEN_DEFAULTS.lancework : c.type === 'drones' ? LEN_DEFAULTS.drones : LEN_DEFAULTS.niagara),
       text: c.text ?? tpl.text,
       custom: c.custom,
       rise: c.rise,
@@ -126,7 +126,7 @@ export class Panel {
       })
       .join('');
 
-    const isSpecial = v.type === 'niagara' || v.type === 'lancework';
+    const isSpecial = v.type === 'niagara' || v.type === 'lancework' || v.type === 'drones';
     const sizeField = isSpecial
       ? ''
       : `<div class="field"><span class="label">크기</span><div class="chips">${SIZES.map(
@@ -165,14 +165,15 @@ export class Panel {
         </div>`;
     } else if (isSpecial) {
       typeFields = `
-        ${v.type === 'lancework' ? `<div class="field"><label for="frame-text">글자 (12자까지)</label><input id="frame-text" maxlength="12" value="${esc(v.text)}" ${v.art ? 'disabled' : ''} /></div>
+        ${v.type === 'lancework' || v.type === 'drones' ? `<div class="field"><label for="frame-text">글자 (12자까지)</label><input id="frame-text" maxlength="12" value="${esc(v.text)}" ${v.art ? 'disabled' : ''} /></div>
           <div class="field"><span class="label">그림 (로고)</span><div class="row">
             <button type="button" id="frame-art">${v.art ? `그림 고치기 (심지 ${artCount(v.art)}개)` : '그림 그리기'}</button>
             ${v.art ? '<button type="button" id="frame-art-clear">그림 빼고 글자로</button>' : ''}
           </div></div>` : ''}
         <div class="field">
-          <label for="len">타는 시간 <output id="len-out">${v.len}초</output></label>
-          <input id="len" type="range" min="3" max="30" step="1" value="${v.len}" />
+          <label for="len">${v.type === 'drones' ? '띄우는 시간' : '타는 시간'} <output id="len-out">${v.len}초</output></label>
+          <input id="len" type="range" min="${v.type === 'drones' ? 15 : 3}" max="${v.type === 'drones' ? 120 : 30}" step="1" value="${v.len}" />
+          ${v.type === 'drones' ? '<p class="note">드론이 이륙장에서 떠올라 하늘에 글자나 그림을 만들고, 머물렀다가 돌아옵니다. 발사장에서 「드론 이륙장 더하기」로 이륙장을 둡니다.</p>' : ''}
         </div>`;
     } else {
       typeFields = `
@@ -202,6 +203,8 @@ export class Panel {
     const where =
       v.type === 'niagara'
         ? '다리 줄에 놓입니다. 다리에 걸려 폭포처럼 흘러내립니다.'
+        : v.type === 'drones'
+          ? '드론 이륙장 줄에 놓입니다. 이륙장이 없으면 발사장에서 「드론 이륙장 더하기」를 누르세요.'
         : v.type === 'lancework'
           ? '지상 틀 줄에 놓입니다. 물 위 틀에서 글자가 왼쪽부터 타오릅니다.'
           : v.type === 'cake'
@@ -212,7 +215,7 @@ export class Panel {
     const first = sel[0];
     const timing = first
       ? `<div class="field timing">
-          <label for="cue-t">${first.type === 'niagara' || first.type === 'lancework' ? '불붙는 시각' : '터지는 시각'}</label>
+          <label for="cue-t">${first.type === 'drones' ? '이륙 시각' : first.type === 'niagara' || first.type === 'lancework' ? '불붙는 시각' : '터지는 시각'}</label>
           <input id="cue-t" type="number" step="0.01" min="0" value="${first.t.toFixed(2)}" ${n > 1 ? 'disabled' : ''} />
           ${cuePrefire(first) > 0 ? `<p class="note">점화 ${fmtTime(first.t - cuePrefire(first))} · 상승 ${cuePrefire(first)}초</p>` : ''}
         </div>
@@ -251,7 +254,7 @@ export class Panel {
             delete c.interval;
             delete c.pattern;
           }
-        }, { type });
+        }, { type, ...(type === 'niagara' || type === 'lancework' || type === 'drones' ? { len: LEN_DEFAULTS[type] } : {}) });
       }),
     );
     all('[data-custom]').forEach((b) =>

@@ -9,4 +9,8 @@ public interface MarkRepository extends JpaRepository<Mark, Long> {
     boolean existsByPostIdAndAccountIdAndKind(Long postId, Long accountId, String kind);
 
     void deleteByPostId(Long postId);
+
+    void deleteByAccountId(Long accountId);
+
+    java.util.List<Mark> findByAccountId(Long accountId);
 }
