@@ -13,6 +13,10 @@ import {
   fireScript,
   fixFaults,
   wirePlan,
+  FALL_ZONE,
+  applyLive,
+  isLive,
+  liveWarnings,
   type LoadPlan,
   RACK_KINDS,
   deckCheck,
@@ -55,6 +59,13 @@ export class SitePlanner {
       b.addEventListener('click', () => this.addRack(b.dataset.rack as RackKind)),
     );
     this.wireDeck();
+    dialog.querySelector('#site-live')!.addEventListener('change', (e) =>
+      editor.change((d) => {
+        d.rig ??= { decks: {} };
+        if ((e.target as HTMLInputElement).checked) d.rig.live = true;
+        else delete d.rig.live;
+      }),
+    );
     dialog.querySelector('#wire-pins')!.addEventListener('change', (e) =>
       editor.change((d) => {
         d.rig ??= { decks: {} };
@@ -84,7 +95,10 @@ export class SitePlanner {
     dialog.querySelector('#load-clear')!.addEventListener('click', () => {
       if (!confirm('모든 바지선 갑판의 랙과 손으로 고른 통을 지울까요?')) return;
       editor.change((d) => {
-        delete d.rig;
+        if (d.rig) {
+          const { checked: _c, fixed: _f, ...keep } = d.rig;
+          d.rig = { ...keep, decks: {} };
+        }
         for (const c of d.cues) delete c.tubes;
       });
     });
@@ -93,7 +107,9 @@ export class SitePlanner {
       if (has && !confirm('지금 갑판의 랙을 모두 지우고 쇼에 맞게 다시 채울까요?')) return;
       const { rig, missing } = rigForShow(editor.show);
       editor.change((d) => {
-        d.rig = rig;
+        // 실전 모드·배선 설정은 두고 갑판만 바꾼다. 통이 바뀌므로 회로 점검은 다시 해야 한다.
+        const { checked: _c, fixed: _f, ...keep } = d.rig ?? { decks: {} };
+        d.rig = { ...keep, decks: rig.decks };
         for (const c of d.cues) delete c.tubes;
       });
       this.dialog.querySelector('#deck-stats')!.textContent = missing.length ? missing.join(' ') : '쇼에 맞게 랙을 채웠습니다.';
@@ -296,6 +312,23 @@ export class SitePlanner {
   }
 
   private plan: LoadPlan | null = null;
+
+  private renderLive(): void {
+    const show = this.editor.show;
+    (this.dialog.querySelector('#site-live') as HTMLInputElement).checked = isLive(show);
+    const box = this.dialog.querySelector('#site-live-issues')!;
+    if (!isLive(show)) {
+      box.innerHTML = '';
+      return;
+    }
+    const { blocked } = applyLive(show, expandShow(show).launches);
+    const list = liveWarnings(blocked);
+    box.innerHTML = list.length
+      ? `<li class="error">불꽃 ${list.length}개(${blocked.length}발)가 쏘아지지 않습니다. 붉은 원은 큰 알이 떨어질 수 있는 구역입니다.</li>` +
+        list.slice(0, 8).map((w) => `<li class="error">${w.cueIndex + 1}번 불꽃: ${w.message.replace('실전 모드: ', '')}</li>`).join('') +
+        (list.length > 8 ? `<li class="error">그 밖에 ${list.length - 8}개</li>` : '')
+      : '<li class="ok">모든 불꽃이 장비에 맞게 쏘아집니다. 붉은 원은 큰 알이 떨어질 수 있는 구역입니다.</li>';
+  }
   /** 회로 점검 결과를 보여 주는 중인지 */
   private checking = false;
 
@@ -511,11 +544,19 @@ export class SitePlanner {
       g.fill();
       g.stroke();
       g.setLineDash([]);
+      // 실전 모드: 큰 알이 터지지 않고 떨어질 수 있는 구역
+      if (isLive(show) && size >= 7) {
+        g.fillStyle = 'rgba(239, 68, 68, 0.22)';
+        g.beginPath();
+        g.arc(sx(l.pos[0]), sy(l.pos[2]), FALL_ZONE[size] * scale, 0, Math.PI * 2);
+        g.fill();
+      }
     }
     show.launchers.forEach((l, i) => this.drawLauncher(g, l, launcherLabel(l, i), sx, sy, scale, font));
 
     this.renderLoading();
     this.renderWiring();
+    this.renderLive();
     this.renderDeck();
     const list = this.dialog.querySelector('#site-warnings')!;
     list.innerHTML = warnings.length

@@ -17,6 +17,7 @@ import {
 } from './show.ts';
 import { SMOKE_LIFE, analyzeSmoke, puffAt, type Puff } from './smoke.ts';
 import { burstHeightAt } from './build.ts';
+import { applyLive, isLive, liveWarnings } from './live.ts';
 import { textShape } from './text.ts';
 
 /** 고정 계산 간격(초) */
@@ -70,6 +71,14 @@ const LANCE_HEIGHT = 22;
 /** 틀불꽃은 왼쪽 끝에서 오른쪽 끝까지 이 시간 동안 차례로 불이 붙는다 */
 const LANCE_IGNITE = 0.6;
 const SKY_DECAY = Math.exp(-6 * STEP);
+
+/** 실전 모드면 장비에 맞춰 발사를 고치고, 쏘아지지 않는 불꽃을 경고로 더한다. */
+function liveShow(show: Show) {
+  const expanded = expandShow(show);
+  if (!isLive(show)) return expanded;
+  const live = applyLive(show, expanded.launches);
+  return { ...expanded, launches: live.launches, warnings: [...expanded.warnings, ...liveWarnings(live.blocked)] };
+}
 
 const FLOAT_FIELDS = [
   'px', 'py', 'pz', 'vx', 'vy', 'vz', 'age', 'life', 'r', 'g', 'b', 'size', 'damp', 'grav',
@@ -255,7 +264,7 @@ export class Simulation {
 
   constructor(show: Show, options: SimOptions = {}) {
     this.show = show;
-    const expanded = expandShow(show);
+    const expanded = liveShow(show);
     this.launches = expanded.launches;
     this.warnings = expanded.warnings;
     this.duration = expanded.duration;
@@ -294,7 +303,7 @@ export class Simulation {
    * 그 뒤만 다시 계산하게 한다. 편집할 때마다 처음부터 계산하지 않기 위해서다.
    */
   setShow(show: Show): void {
-    const expanded = expandShow(show);
+    const expanded = liveShow(show);
     let from = Infinity;
     const sameWorld =
       show.seed === this.show.seed &&

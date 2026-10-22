@@ -60,6 +60,8 @@ export interface Rig {
   /** 회로 점검을 했는지, 고친 핀 ("모듈-핀") */
   checked?: boolean;
   fixed?: string[];
+  /** 실전 모드: 장비까지 맞춰야 쏠 수 있다 */
+  live?: boolean;
 }
 
 export interface Tube {
@@ -212,11 +214,12 @@ export function normalizeRig(raw: Rig, launcherIds: string[]): Rig {
   if (raw?.pins) out.pins = [12, 18, 32].includes(raw.pins) ? raw.pins : 18;
   if (raw?.chain === false) out.chain = false;
   if (raw?.checked) out.checked = true;
+  if (raw?.live) out.live = true;
   if (Array.isArray(raw?.fixed)) out.fixed = raw.fixed.slice(0, 400).map((x) => String(x).slice(0, 8));
   return out;
 }
 
 /** 쇼에 장비가 있는지 (갑판에 랙이 하나라도) */
 export function hasRig(show: Show): boolean {
-  return !!show.rig && Object.values(show.rig.decks).some((d) => d.length > 0);
+  return !!show.rig && (!!show.rig.live || Object.values(show.rig.decks).some((d) => d.length > 0));
 }

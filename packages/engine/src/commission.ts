@@ -13,7 +13,9 @@ export type Rule =
   | { kind: 'colorsOnly'; colors: ColorName[] }
   | { kind: 'endColors'; seconds: number; colors: ColorName[] }
   | { kind: 'finale'; seconds: number }
-  | { kind: 'maxSize'; size: Size };
+  | { kind: 'maxSize'; size: Size }
+  /** 큰 행사: 실전 모드로 장비까지 맞추기 */
+  | { kind: 'live' };
 
 export type Style = 'grand' | 'calm';
 
@@ -139,13 +141,14 @@ const TEMPLATES: Template[] = [
       { kind: 'colorsOnly', colors: pick([['blue', 'white'], ['red', 'white'], ['purple', 'gold']] as ColorName[][]) },
       { kind: 'frameText' },
       { kind: 'finale', seconds: 12 },
+      { kind: 'live' },
     ],
   },
   {
     tier: 2, title: '강변 불꽃 대회 본선', client: '대회 심사위원회',
     quote: '심사위원은 다리 위에서 봅니다. 나이아가라를 꼭 넣고, 박자와 피날레를 중요하게 봐요.',
     music: 'march', seat: 'bridge', style: 'grand', colors: [['gold', 'white'], ['cyan', 'purple']],
-    rules: () => [{ kind: 'include', type: 'niagara' }, { kind: 'finale', seconds: 15 }],
+    rules: () => [{ kind: 'include', type: 'niagara' }, { kind: 'finale', seconds: 15 }, { kind: 'live' }],
   },
 ];
 
