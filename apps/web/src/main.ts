@@ -35,6 +35,8 @@ import { SitePlanner } from './siteplan.ts';
 import { AccountPanel } from './account.ts';
 import { Gallery } from './gallery.ts';
 import { ArtEditor } from './artedit.ts';
+import { Guide } from './guide.ts';
+import { Compare } from './compare.ts';
 import { remoteEnabled, shortLink } from './remote.ts';
 import { Panel } from './panel.ts';
 import { runCountdown } from './countdown.ts';
@@ -256,6 +258,31 @@ if (remoteEnabled()) {
     gallery.open();
   });
 }
+
+// ── 여러 관람석에서 나란히 보기 ──
+const compare = new Compare($<HTMLDialogElement>('compare-dialog'), {
+  show: () => editor.show,
+  time: () => transport.time,
+  playing: () => transport.playing,
+  togglePlay: () => togglePlay(),
+  seek: (t) => transport.seek(t),
+});
+$<HTMLButtonElement>('compare-btn').addEventListener('click', () => compare.show());
+
+// ── 처음 쓰는 사람 안내와 용어 사전 ──
+const guide = new Guide($<HTMLDialogElement>('guide-dialog'), $<HTMLDialogElement>('glossary-dialog'));
+const helpDialog = $<HTMLDialogElement>('help-dialog');
+$<HTMLButtonElement>('help-btn').addEventListener('click', () => helpDialog.showModal());
+$<HTMLButtonElement>('help-guide').addEventListener('click', () => {
+  helpDialog.close();
+  guide.open();
+});
+$<HTMLButtonElement>('help-glossary').addEventListener('click', () => {
+  helpDialog.close();
+  guide.openGlossary();
+});
+// 공유 링크로 들어온 사람이나 의뢰 중인 사람에게는 띄우지 않고, 처음 연 브라우저에만
+setTimeout(() => !document.querySelector('dialog[open]') && guide.openIfNew(), 600);
 
 // ── 발사장 설계 ──
 const site = new SitePlanner(el.siteDialog, editor);
@@ -1117,7 +1144,8 @@ function frame(now: number): void {
     transport.seek(end);
     t = end;
   }
-  stage.render(t, transport.playing);
+  // 나란히 보기 창이 열려 있으면 편집 무대는 쉬고, 그 창이 무대를 그린다.
+  if (!compare.open) stage.render(t, transport.playing);
   transport.schedule(stage.sim.launches, fanCount);
   if (transport.playing) timeline.follow(t);
   timeline.draw();

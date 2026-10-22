@@ -16,6 +16,7 @@
     <header class="topbar">
       <div class="group show-name">
         <button type="button" id="shows-btn">내 쇼</button>
+        <button type="button" id="help-btn" title="시작 안내와 용어 사전">도움말</button>
         <button type="button" id="office-btn">의뢰소</button>
         <button type="button" id="workshop-btn">공작소</button>
         <button type="button" id="gallery-btn" hidden>상영관</button>
@@ -24,6 +25,7 @@
         <input id="title" aria-label="쇼 제목" maxlength="60" />
         <span id="save-state" class="save-state" role="status">저장됨</span>
         <button type="button" id="auto-btn" title="곡의 박자와 세기를 보고 불꽃을 놓아 줍니다">자동 연출</button>
+        <button type="button" id="compare-btn" title="같은 쇼를 두 자리에서 나란히 봅니다">나란히</button>
         <button type="button" id="watch" title="무대만 화면 가득 띄워 처음부터 봅니다">감상</button>
         <button type="button" id="photo-btn" title="셔터를 몇 초 열어 둔 장노출 사진을 찍습니다">사진</button>
         <button type="button" id="video-btn" title="쇼를 소리까지 담은 영상 파일(MP4)로 만듭니다">영상</button>
@@ -163,6 +165,57 @@
         <p class="note">올린 쇼는 누구나 보고 담을 수 있습니다. 제목과 틀불꽃 글자에 쓸 수 없는 말이 있으면 올라가지 않고, 신고가 쌓이면 숨겨집니다.</p>
       </section>
       <p id="gallery-msg" class="note" aria-live="polite"></p>
+    </dialog>
+
+    <dialog id="guide-dialog" class="guide-dialog" aria-labelledby="guide-title">
+      <form method="dialog" class="dialog-head">
+        <h2 id="guide-title">밤하늘 연출실 시작하기 <span id="guide-count" class="note"></span></h2>
+        <button value="close" aria-label="닫기">건너뛰기</button>
+      </form>
+      <h3 id="guide-step-title"></h3>
+      <p id="guide-text"></p>
+      <div class="dialog-actions">
+        <button type="button" id="guide-prev">이전</button>
+        <button type="button" id="guide-try" hidden></button>
+        <button type="button" id="guide-next" class="primary">다음</button>
+      </div>
+      <p class="note">「도움말」에서 언제든 다시 보거나 용어 사전을 열 수 있습니다.</p>
+    </dialog>
+
+    <dialog id="help-dialog" aria-labelledby="help-title">
+      <form method="dialog" class="dialog-head">
+        <h2 id="help-title">도움말</h2>
+        <button value="close" aria-label="닫기">닫기</button>
+      </form>
+      <div class="dialog-actions">
+        <button type="button" id="help-guide" class="primary">시작 안내 다시 보기</button>
+        <button type="button" id="help-glossary">용어 사전</button>
+      </div>
+    </dialog>
+
+    <dialog id="glossary-dialog" class="wide-dialog" aria-labelledby="glossary-title">
+      <form method="dialog" class="dialog-head">
+        <h2 id="glossary-title">불꽃 만드는 사람의 용어 사전</h2>
+        <button value="close" aria-label="닫기">닫기</button>
+      </form>
+      <input id="glossary-search" placeholder="찾을 말 (예: 바지선)" aria-label="용어 찾기" />
+      <ul id="glossary-list" class="glossary"></ul>
+    </dialog>
+
+    <dialog id="compare-dialog" class="compare-dialog" aria-labelledby="compare-title">
+      <form method="dialog" class="dialog-head">
+        <h2 id="compare-title">여러 관람석에서 나란히 보기</h2>
+        <button value="close" aria-label="닫기">닫기</button>
+      </form>
+      <div class="compare-grid">
+        <figure><canvas class="compare-stage" aria-label="첫째 자리에서 본 무대"></canvas><select data-compare-seat="0" aria-label="첫째 자리"></select></figure>
+        <figure><canvas class="compare-stage" aria-label="둘째 자리에서 본 무대"></canvas><select data-compare-seat="1" aria-label="둘째 자리"></select></figure>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" id="compare-play" class="primary">▶ 재생</button>
+        <button type="button" id="compare-restart">처음부터</button>
+      </div>
+      <p class="note">같은 쇼를 같은 순간에 두 자리에서 봅니다. 소리는 편집 화면과 같이 한 번만 납니다.</p>
     </dialog>
 
     <dialog id="share-dialog" aria-labelledby="share-title">
@@ -349,7 +402,8 @@
       </form>
       <div class="live-box">
         <label class="check-label"><input type="checkbox" id="site-live" /> 실전 모드: 허가와 장비까지 맞춰야 쏠 수 있습니다</label>
-        <p class="note">끄면 <b>자유 모드</b>: 어디든 몇 척이든 띄우고, 어긴 것은 경고만 합니다. 켜면 실제처럼 허가 구역(초록 칸) 안에 허가 척수만큼만 띄우고, 자리마다 쏠 수 있는 크기(관람석 안전거리)와 바지선 간격을 지켜야 하며, 바지선 한 척마다 임대·예인 비용이 듭니다. 장전되지 않은 불꽃과 선이 끊긴 핀의 불꽃도 쏘아지지 않고, 장전된 불꽃은 갑판 위 실제 통 자리와 각도로 쏩니다.</p>
+        <details class="live-more"><summary>자유 모드와 실전 모드 차이</summary>
+        <p class="note">끄면 <b>자유 모드</b>: 어디든 몇 척이든 띄우고, 어긴 것은 경고만 합니다. 켜면 실제처럼 허가 구역(초록 칸) 안에 허가 척수만큼만 띄우고, 자리마다 쏠 수 있는 크기(관람석 안전거리)와 바지선 간격을 지켜야 하며, 바지선 한 척마다 임대·예인 비용이 듭니다. 장전되지 않은 불꽃과 선이 끊긴 핀의 불꽃도 쏘아지지 않고, 장전된 불꽃은 갑판 위 실제 통 자리와 각도로 쏩니다.</p></details>
         <ul id="site-live-issues" class="site-warnings"></ul>
       </div>
       <p class="note">연출가처럼 평면도에서 발사 위치를 정합니다. 점선 원은 그 바지선에서 쏘는 가장 큰 알의 안전거리입니다. 관람석이 원 안에 들면 붉게 바뀝니다.</p>
