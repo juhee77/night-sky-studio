@@ -19,6 +19,33 @@ export interface MusicMap {
   energy: Float32Array;
   /** 박마다 두드러지는 정도 (0~1) */
   accent: Float32Array;
+  /** 박마다 높은 소리(쨍한 소리)와 낮은 소리(북·베이스) 세기 (0~1) */
+  high?: Float32Array;
+  low?: Float32Array;
+  /** 곡의 구간 (인트로·벌스·후렴·브릿지·끝) */
+  sections?: Section[];
+  /** 크게 터지는 순간(드롭)과 조용해지는 순간의 시각(초) */
+  drops?: number[];
+  hushes?: number[];
+}
+
+export type SectionKind = 'intro' | 'verse' | 'chorus' | 'bridge' | 'outro';
+
+export const SECTION_LABEL: Record<SectionKind, string> = {
+  intro: '인트로',
+  verse: '벌스',
+  chorus: '후렴',
+  bridge: '브릿지',
+  outro: '끝',
+};
+
+export interface Section {
+  kind: SectionKind;
+  /** 시작·끝 시각(초) */
+  start: number;
+  end: number;
+  /** 구간의 평균 소리 크기 (0~1) */
+  energy: number;
 }
 
 /** 소리 파일 없이(음악 없음) 쓸 때: 천천히 커지는 가상의 곡 */
@@ -31,7 +58,15 @@ export function flatMusicMap(duration: number, bpm = 120, offset = 0): MusicMap 
     energy[i] = 0.3 + 0.6 * (i / n);
     accent[i] = i % 4 === 0 ? 1 : 0.3;
   }
-  return { bpm, offset, duration, energy, accent };
+  // 곡이 없으면 흔한 짜임으로 가정한다: 인트로 → 벌스 → 후렴 → 끝
+  const at = (r: number) => offset + Math.round((n * r) / 4) * 4 * beat;
+  const sections: Section[] = [
+    { kind: 'intro', start: offset, end: at(0.12), energy: 0.3 },
+    { kind: 'verse', start: at(0.12), end: at(0.5), energy: 0.5 },
+    { kind: 'chorus', start: at(0.5), end: at(0.88), energy: 0.75 },
+    { kind: 'outro', start: at(0.88), end: duration, energy: 0.6 },
+  ];
+  return { bpm, offset, duration, energy, accent, sections, drops: [], hushes: [] };
 }
 
 export function analyzeMusic(samples: Float32Array, sampleRate: number, bpm: number, offset: number): MusicMap {
@@ -41,6 +76,7 @@ export function analyzeMusic(samples: Float32Array, sampleRate: number, bpm: num
   const energy = new Float32Array(n);
   const accent = new Float32Array(n);
   const { env, frameRate } = onsetEnvelope(samples, sampleRate);
+  const { low, high } = bandEnergy(samples, sampleRate, beat, offset, n);
   for (let i = 0; i < n; i++) {
     const a = Math.floor((offset + i * beat) * sampleRate);
     const b = Math.min(samples.length, Math.floor((offset + (i + 1) * beat) * sampleRate));
@@ -55,6 +91,7 @@ export function analyzeMusic(samples: Float32Array, sampleRate: number, bpm: num
   }
   normalize(energy);
   normalize(accent);
+  const raw = Float32Array.from(energy);
   // 소리 크기는 한 마디쯤으로 부드럽게 (한 박의 튀는 값에 흔들리지 않게)
   const smooth = new Float32Array(n);
   for (let i = 0; i < n; i++) {
@@ -70,7 +107,126 @@ export function analyzeMusic(samples: Float32Array, sampleRate: number, bpm: num
     smooth[i] = s / w;
   }
   normalize(smooth);
-  return { bpm, offset, duration, energy: smooth, accent };
+  const { drops, hushes } = findDrops(raw, accent, beat, offset);
+  return {
+    bpm, offset, duration, energy: smooth, accent, high, low,
+    sections: findSections(raw, high, low, beat, offset, duration),
+    drops, hushes,
+  };
+}
+
+/** 박마다 낮은 소리(약 200Hz 아래)와 높은 소리(약 2kHz 위) 세기. 한 번 훑으며 한 극 필터로 나눈다. */
+function bandEnergy(samples: Float32Array, rate: number, beat: number, offset: number, n: number) {
+  const low = new Float32Array(n);
+  const high = new Float32Array(n);
+  const count = new Float32Array(n);
+  const aLow = 1 - Math.exp((-2 * Math.PI * 200) / rate);
+  const aHigh = 1 - Math.exp((-2 * Math.PI * 2000) / rate);
+  let lp = 0;
+  let lp2 = 0;
+  const start = Math.max(0, Math.floor(offset * rate));
+  const per = beat * rate;
+  for (let k = start; k < samples.length; k++) {
+    const x = samples[k];
+    lp += aLow * (x - lp);
+    lp2 += aHigh * (x - lp2);
+    const i = Math.floor((k - start) / per);
+    if (i >= n) break;
+    const h = x - lp2;
+    low[i] += lp * lp;
+    high[i] += h * h;
+    count[i]++;
+  }
+  for (let i = 0; i < n; i++) {
+    low[i] = Math.sqrt(low[i] / Math.max(1, count[i]));
+    high[i] = Math.sqrt(high[i] / Math.max(1, count[i]));
+  }
+  normalize(low);
+  normalize(high);
+  return { low, high };
+}
+
+const mean = (a: ArrayLike<number>, from: number, to: number) => {
+  let s = 0;
+  let c = 0;
+  for (let i = Math.max(0, from); i < Math.min(a.length, to); i++) {
+    s += a[i];
+    c++;
+  }
+  return c ? s / c : 0;
+};
+
+/** 크게 터지는 순간: 앞 한 마디보다 뒤 한 마디가 훨씬 크고 그 박이 두드러진다. 조용해지는 순간은 그 반대. */
+function findDrops(energy: Float32Array, accent: Float32Array, beat: number, offset: number) {
+  const n = energy.length;
+  const rise: number[] = [];
+  const fall: number[] = [];
+  for (let i = 4; i < n - 4; i++) {
+    const d = mean(energy, i, i + 4) - mean(energy, i - 4, i);
+    rise.push(d > 0.3 && accent[i] > 0.4 ? d : 0);
+    fall.push(d < -0.3 ? -d : 0);
+  }
+  // 두 마디 안에서 가장 센 곳 하나만
+  const peaks = (score: number[]) => {
+    const out: number[] = [];
+    for (let k = 0; k < score.length; k++) {
+      if (!score[k]) continue;
+      let best = true;
+      for (let j = Math.max(0, k - 8); j <= Math.min(score.length - 1, k + 8); j++) if (score[j] > score[k] || (score[j] === score[k] && j < k)) best = false;
+      if (best) out.push(Math.round((offset + (k + 4) * beat) * 1000) / 1000);
+    }
+    return out;
+  };
+  return { drops: peaks(rise), hushes: peaks(fall) };
+}
+
+/**
+ * 구간 찾기: 마디마다 [크기, 높은 소리, 낮은 소리]를 보고, 앞 두 마디와 뒤 두 마디가 크게 달라지는 곳을 경계로 삼는다.
+ * 이름은 크기로 붙인다: 처음·끝의 조용한 구간은 인트로·끝, 큰 구간은 후렴, 후렴 뒤의 조용한 구간은 브릿지, 나머지는 벌스.
+ */
+function findSections(energy: Float32Array, high: Float32Array, low: Float32Array, beat: number, offset: number, duration: number): Section[] {
+  const bars = Math.floor(energy.length / 4);
+  if (bars < 4) return [{ kind: 'verse', start: offset, end: duration, energy: mean(energy, 0, energy.length) }];
+  const bar = (a: Float32Array) => Array.from({ length: bars }, (_, b) => mean(a, b * 4, b * 4 + 4));
+  const E = bar(energy);
+  const H = bar(high);
+  const L = bar(low);
+  const nov: number[] = new Array(bars).fill(0);
+  for (let b = 2; b < bars - 1; b++) {
+    const d = (a: number[]) => Math.abs(mean(a, b, b + 2) - mean(a, b - 2, b));
+    nov[b] = d(E) + 0.7 * d(H) + 0.7 * d(L);
+  }
+  // 가장 큰 변화의 3할이 넘는 봉우리만 경계로 본다.
+  const cut = Math.max(0.15, 0.3 * Math.max(...nov));
+  const peak = (b: number) => nov[b] >= (nov[b - 1] ?? 0) && nov[b] >= (nov[b + 1] ?? 0);
+  // 센 경계부터 고르되, 서로 네 마디 이상 떨어지게
+  const cand = nov.map((v, b) => [v, b] as const).filter(([v, b]) => v > cut && peak(b)).sort((x, y) => y[0] - x[0]);
+  const bounds: number[] = [];
+  for (const [, b] of cand) if (bounds.every((x) => Math.abs(x - b) >= 4)) bounds.push(b);
+  bounds.sort((x, y) => x - y);
+  const edges = [0, ...bounds, bars];
+  // 소리 빛깔: 높은 소리가 많으면 +, 낮은 소리가 많으면 -
+  const secs = edges.slice(0, -1).map((b0, k) => ({ b0, b1: edges[k + 1], e: mean(E, b0, edges[k + 1]), tilt: mean(H, b0, edges[k + 1]) - mean(L, b0, edges[k + 1]) }));
+  const sorted = secs.map((x) => x.e).sort((x, y) => x - y);
+  const med = sorted[Math.floor(sorted.length / 2)];
+  const top = sorted[sorted.length - 1];
+  let seenChorus = false;
+  let verseTilt: number | null = null;
+  const out: Section[] = secs.map((x, k) => {
+    let kind: SectionKind;
+    if (k === 0 && x.e < med) kind = 'intro';
+    else if (k === secs.length - 1 && secs.length > 1 && x.e < med) kind = 'outro';
+    else if (x.e >= Math.max(med, top * 0.8)) kind = 'chorus';
+    // 후렴 뒤에 나오는 덜 큰 구간: 벌스와 소리 빛깔이 다르면 브릿지, 비슷하면 다음 벌스
+    else if (seenChorus && (verseTilt === null || Math.abs(x.tilt - verseTilt) > 0.25 || x.e < med)) kind = 'bridge';
+    else kind = 'verse';
+    if (kind === 'chorus') seenChorus = true;
+    if (kind === 'verse' && verseTilt === null) verseTilt = x.tilt;
+    const start = k === 0 ? offset : offset + x.b0 * 4 * beat;
+    const end = k === secs.length - 1 ? duration : offset + x.b1 * 4 * beat;
+    return { kind, start: Math.round(start * 1000) / 1000, end: Math.round(end * 1000) / 1000, energy: Math.round(x.e * 100) / 100 };
+  });
+  return out;
 }
 
 function normalize(a: Float32Array): void {

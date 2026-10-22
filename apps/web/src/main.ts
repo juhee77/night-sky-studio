@@ -151,6 +151,8 @@ const editor = new Editor(newId(), structuredClone(demoShow));
 const transport = new Transport();
 let musicBuffer: AudioBuffer | null = null;
 let peaks: Float32Array | null = null;
+/** 곡 분석 결과 (시간표 표시와 자동 연출이 같이 쓴다) */
+let musicMapCache: { key: string; map: MusicMap } | null = null;
 let warnIdx = new Set<number>();
 let clipboard: Cue[] = [];
 
@@ -237,6 +239,7 @@ const timeline: Timeline = new Timeline(el.timeline, editor, {
   seek: (t) => transport.seek(Math.min(t, duration())),
   duration,
   waveform: () => peaks,
+  structure: () => (musicBuffer ? currentMusicMap() : null),
   musicDuration: () => musicBuffer?.duration ?? 0,
   warnings: () => warnIdx,
 });
@@ -562,7 +565,6 @@ document.addEventListener('fullscreenchange', () => {
 
 // ── 자동 연출 ──
 let autoStyle: AutoOptions['style'] = 'grand';
-let musicMapCache: { key: string; map: MusicMap } | null = null;
 
 function currentMusicMap(): MusicMap {
   const m = editor.show.music;
