@@ -238,6 +238,28 @@
       </div>
     </dialog>
 
+    <dialog id="art-dialog" class="wide-dialog" aria-labelledby="art-title">
+      <form method="dialog" class="dialog-head">
+        <h2 id="art-title">지상 틀 그림 그리기</h2>
+        <button value="close" aria-label="닫기">닫기</button>
+      </form>
+      <p class="note">칸을 누르거나 끌어서 심지를 세웁니다. 그림이 있으면 글자 대신 그림이 물 위 틀에서 왼쪽부터 타오릅니다. 로고는 굵고 단순할수록 잘 보입니다.</p>
+      <div class="chips">
+        <button type="button" data-art-mode="paint" aria-pressed="true">칠하기</button>
+        <button type="button" data-art-mode="erase" aria-pressed="false">지우기</button>
+        <select id="art-size" aria-label="칸 수"></select>
+        <span id="art-presets" class="chips"></span>
+        <button type="button" id="art-clear">모두 지우기</button>
+      </div>
+      <canvas id="art-canvas" class="art-canvas" aria-label="틀 그림 칸"></canvas>
+      <div class="dialog-actions">
+        <input id="art-text" maxlength="12" placeholder="글자에서 시작 (예: 은하)" aria-label="시작할 글자" />
+        <button type="button" id="art-from-text">글자를 칸으로</button>
+        <span id="art-count" class="note"></span>
+        <button type="button" id="art-save" class="primary">이 그림 쓰기</button>
+      </div>
+    </dialog>
+
     <dialog id="stage-dialog" aria-labelledby="stage-title">
       <form method="dialog" class="dialog-head">
         <h2 id="stage-title">무대 설정</h2>

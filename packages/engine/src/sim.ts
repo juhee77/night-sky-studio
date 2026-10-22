@@ -19,6 +19,7 @@ import { SMOKE_LIFE, analyzeSmoke, puffAt, type Puff } from './smoke.ts';
 import { burstHeightAt } from './build.ts';
 import { applyLive, isLive, liveWarnings } from './live.ts';
 import { textShape } from './text.ts';
+import { artShape } from './art.ts';
 
 /** 고정 계산 간격(초) */
 export const STEP = 1 / 120;
@@ -542,7 +543,7 @@ export class Simulation {
 
   /** 지상 틀불꽃에 불을 붙인다. 글자를 이루는 심지마다 제자리에서 타는 입자 하나. */
   private lightFrame(l: Launch, age: number): void {
-    const shape = textShape(l.text ?? '');
+    const shape = l.art ? artShape(l.art) : textShape(l.text ?? '');
     if (!shape.points.length) return;
     const scale = LANCE_HEIGHT;
     const half = (shape.width * scale) / 2;

@@ -10,6 +10,7 @@ import type { CakePattern, Cue, Launcher, Show } from './show.ts';
 import { SKY_IDS } from './weather.ts';
 import { hasRig, normalizeRig, type Rig } from './rig.ts';
 import { normalizeMapVenue, type MapVenue } from './mapvenue.ts';
+import { artFromString, artToString } from './art.ts';
 
 const KINDS: Launcher['kind'][] = ['barge', 'bridge', 'frame'];
 const PATTERNS: CakePattern[] = ['fan', 'zigzag', 'straight'];
@@ -91,6 +92,7 @@ export function packShow(show: Show): Packed {
     if (c.custom !== undefined) p.ex.push([i, 'c', c.custom]);
     if (c.rise) p.ex.push([i, 'r', RISE_EFFECTS.indexOf(c.rise)]);
     if (c.tubes?.length) p.ex.push([i, 'u', c.tubes.join(',')]);
+    if (c.art) p.ex.push([i, 'g', artToString(c.art)]);
   });
   // 실제로 쓴 내 불꽃만 담는다.
   const used = new Set(cues.map((c) => c.custom).filter(Boolean));
@@ -139,7 +141,10 @@ export function unpackShow(p: Packed): Show {
     else if (key === 't') c.text = String(value).slice(0, 24);
     else if (key === 'c') c.custom = String(value).slice(0, 24);
     else if (key === 'r' && RISE_EFFECTS[num]) c.rise = RISE_EFFECTS[num];
-    else if (key === 'u') c.tubes = String(value).split(',').slice(0, 8).map((x) => x.slice(0, 32));
+    else if (key === 'g') {
+      const art = artFromString(String(value));
+      if (art) c.art = art;
+    } else if (key === 'u') c.tubes = String(value).split(',').slice(0, 8).map((x) => x.slice(0, 32));
   }
   const show: Show = {
     version: 1,

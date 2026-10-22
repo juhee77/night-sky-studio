@@ -15,7 +15,11 @@ export type Rule =
   | { kind: 'finale'; seconds: number }
   | { kind: 'maxSize'; size: Size }
   /** 큰 행사: 실전 모드로 장비까지 맞추기 */
-  | { kind: 'live' };
+  | { kind: 'live' }
+  /** 맞춤 의뢰: 지상 틀에 그림(로고)을 세우기 */
+  | { kind: 'frameArt'; subject: string }
+  /** 맞춤 의뢰: 제작 공방에서 만든 우리만의 불꽃 쓰기 */
+  | { kind: 'workshopShell' };
 
 export type Style = 'grand' | 'calm';
 
@@ -37,6 +41,8 @@ export interface Commission {
   seat: string;
   taste: { colors: ColorName[]; style: Style };
   rules: Rule[];
+  /** 맞춤 의뢰 */
+  custom?: true;
   /** 납품한 결과 (납품 전에는 없음) */
   delivered?: { total: number; stars: number; reward: number; at: number };
 }
@@ -97,6 +103,8 @@ interface Template {
   style: Style;
   colors: ColorName[][];
   rules: (pick: <T>(xs: T[]) => T) => Rule[];
+  /** 맞춤 의뢰 (공방·틀 그림이 있어야 납품할 수 있다) */
+  custom?: true;
 }
 
 const TEMPLATES: Template[] = [
@@ -150,6 +158,19 @@ const TEMPLATES: Template[] = [
     music: 'march', seat: 'bridge', style: 'grand', colors: [['gold', 'white'], ['cyan', 'purple']],
     rules: () => [{ kind: 'include', type: 'niagara' }, { kind: 'finale', seconds: 15 }, { kind: 'live' }],
   },
+  // 맞춤 의뢰: 공방과 틀 그림으로 직접 만들어야 받을 수 있다.
+  {
+    tier: 1, title: '카페 개업 축하', client: '별빛 카페 사장님',
+    quote: '우리 카페 로고를 물 위 틀불꽃으로 세워 주세요. 별 모양 로고예요. 색은 금색과 흰색으로요.',
+    music: 'calm', seat: 'front-near', style: 'calm', colors: [['gold', 'white']], custom: true,
+    rules: () => [{ kind: 'frameArt', subject: '별 모양 카페 로고' }, { kind: 'colorsOnly', colors: ['gold', 'white'] }],
+  },
+  {
+    tier: 2, title: '브랜드 전용 불꽃', client: '은하 제과 마케팅팀',
+    quote: '회사 로고를 틀불꽃으로 세우고, 우리 회사만의 불꽃을 직접 만들어 하늘에 띄워 주세요. 다른 데서 본 불꽃은 싫어요.',
+    music: 'drive', seat: 'front-far', style: 'grand', colors: [['red', 'gold'], ['blue', 'white']], custom: true,
+    rules: () => [{ kind: 'frameArt', subject: '회사 로고' }, { kind: 'workshopShell' }, { kind: 'finale', seconds: 12 }],
+  },
 ];
 
 /** 평판으로 받을 수 있는 의뢰 등급 */
@@ -190,6 +211,7 @@ export function generateCommissions(seed: number, reputation: number, count = 3)
       seat: t.seat,
       taste: { colors: pick(t.colors), style: t.style },
       rules: t.rules(pick),
+      ...(t.custom ? { custom: true as const } : {}),
     };
     if (cloud) c.cloud = cloud;
     out.push(c);

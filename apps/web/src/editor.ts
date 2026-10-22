@@ -13,7 +13,11 @@ import {
   type Launcher,
   type Show,
   type Size,
-  type RiseEffect, MAP_PRESET, type MapVenue } from '@nss/engine';
+  type RiseEffect,
+  type FrameArt,
+  MAP_PRESET,
+  type MapVenue,
+} from '@nss/engine';
 
 export type Change = 'show' | 'selection' | 'template';
 
@@ -35,6 +39,8 @@ export interface Template {
   custom?: string;
   /** 올라가는 모습 (없으면 기본 불티 꼬리) */
   rise?: RiseEffect;
+  /** 지상 틀 그림 */
+  art?: FrameArt;
 }
 
 export type Snap = 'beat' | 'half' | 'off';
@@ -188,7 +194,10 @@ export class Editor {
     const cue: Cue = { t: round3(Math.max(0, t)), at: launcherId, type, size: tpl.size, colors: [...tpl.colors] };
     if (type === 'niagara' || type === 'lancework') {
       cue.len = tpl.len;
-      if (type === 'lancework') cue.text = tpl.text || '밤하늘';
+      if (type === 'lancework') {
+        cue.text = tpl.text || '밤하늘';
+        if (tpl.art) cue.art = structuredClone(tpl.art);
+      }
     } else if (type === 'cake') {
       Object.assign(cue, { shots: tpl.shots, interval: tpl.interval, pattern: tpl.cakePattern });
       if (tpl.angle) cue.angle = tpl.angle;

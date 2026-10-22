@@ -155,7 +155,8 @@ export class Office {
     const track = BASIC_TRACKS.find((t) => t.id === c.music);
     return `
       <article class="commission-card tier-${c.tier}">
-        <header><h4>${esc(c.title)}</h4><span class="note">${esc(c.client)}</span></header>
+        <header><h4>${esc(c.title)}${c.custom ? '<span class="custom-badge">맞춤 의뢰</span>' : ''}</h4><span class="note">${esc(c.client)}</span></header>
+        ${c.custom ? '<p class="note">맞춤 의뢰는 공작소의 제작 공방과 지상 틀 그림으로 직접 만들어야 납품할 수 있습니다.</p>' : ''}
         <p class="quote">“${esc(c.quote)}”</p>
         <ul class="rules">${c.rules.map((r) => `<li>${esc(ruleLabel(r))}</li>`).join('')}</ul>
         <dl class="facts">

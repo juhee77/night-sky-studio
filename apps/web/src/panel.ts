@@ -2,6 +2,8 @@
 // 종류마다 고를 수 있는 값이 다르다: 케이크는 발 수·간격, 나이아가라는 시간, 틀불꽃은 글자.
 
 import {
+  artCount,
+  type FrameArt,
   RISE_EFFECTS,
   RISE_LABEL,
   type RiseEffect,
@@ -40,6 +42,8 @@ export class Panel {
   private editor: Editor;
   private isLocked: (t: FireworkType, custom?: string) => boolean;
   private shells: () => CustomShell[];
+  /** 틀 그림 그리기 창 (저장하면 그림, 지우면 null, 그냥 닫으면 undefined) */
+  editArt?: (art: FrameArt | undefined) => Promise<FrameArt | null | undefined>;
 
   constructor(
     root: HTMLElement,
@@ -79,6 +83,7 @@ export class Panel {
       text: c.text ?? tpl.text,
       custom: c.custom,
       rise: c.rise,
+      art: c.art,
     };
   }
 
@@ -160,7 +165,11 @@ export class Panel {
         </div>`;
     } else if (isSpecial) {
       typeFields = `
-        ${v.type === 'lancework' ? `<div class="field"><label for="frame-text">글자 (12자까지)</label><input id="frame-text" maxlength="12" value="${esc(v.text)}" /></div>` : ''}
+        ${v.type === 'lancework' ? `<div class="field"><label for="frame-text">글자 (12자까지)</label><input id="frame-text" maxlength="12" value="${esc(v.text)}" ${v.art ? 'disabled' : ''} /></div>
+          <div class="field"><span class="label">그림 (로고)</span><div class="row">
+            <button type="button" id="frame-art">${v.art ? `그림 고치기 (심지 ${artCount(v.art)}개)` : '그림 그리기'}</button>
+            ${v.art ? '<button type="button" id="frame-art-clear">그림 빼고 글자로</button>' : ''}
+          </div></div>` : ''}
         <div class="field">
           <label for="len">타는 시간 <output id="len-out">${v.len}초</output></label>
           <input id="len" type="range" min="3" max="30" step="1" value="${v.len}" />
@@ -308,6 +317,13 @@ export class Panel {
       const p = pattern.value as CakePattern;
       this.apply((c) => (c.pattern = p), { cakePattern: p });
     });
+
+    q('#frame-art')?.addEventListener('click', async () => {
+      const art = await this.editArt?.(v.art);
+      if (art === undefined) return;
+      this.apply((c) => (art ? (c.art = art) : delete c.art), { art: art ?? undefined });
+    });
+    q('#frame-art-clear')?.addEventListener('click', () => this.apply((c) => delete c.art, { art: undefined }));
 
     const text = q<HTMLInputElement>('#frame-text');
     text?.addEventListener('change', () => {
