@@ -2,6 +2,8 @@
 // 실제 불꽃 알처럼 바깥 층과 심에 별을 채우고, 움직임과 두 번 터지기를 정한 뒤, 시험 발사로 확인한다.
 
 import {
+  TAIL_LABEL,
+  type TailLength,
   STAR_KIND_LABEL,
   COLORS,
   COLOR_NAMES,
@@ -41,6 +43,9 @@ const GRID = 13;
 const HALF = (GRID - 1) / 2;
 
 /** 시간 차 연출 등 효과 모음: 누르면 그 효과로 설계를 바꾼다 */
+/** 꼬리를 남기는 별 종류 (꼬리 길이를 고를 수 있다) */
+const TAILED: StarKind[] = ['tail', 'willow', 'brocade', 'kamuro'];
+
 const EFFECTS: Record<string, () => Partial<CustomShell>> = {
   '위에서 아래로 반짝': () => ({
     layers: [{ role: 'outer', shape: { kind: 'sphere', count: 130 }, star: 'dot', color: 'white', scale: 1, delay: 0, sequence: { order: 'down', span: 1.4, mode: 'sparkle' } }],
@@ -57,6 +62,21 @@ const EFFECTS: Record<string, () => Partial<CustomShell>> = {
   '옆으로 물결': () => ({
     layers: [{ role: 'outer', shape: { kind: 'sphere', count: 110 }, star: 'dot', color: 'cyan', scale: 1, delay: 0, sequence: { order: 'sweep', span: 1.2, mode: 'light' } }],
     motion: { speed: 1, droop: 0.3, life: 2.2, flicker: false },
+    chain: undefined,
+    split: undefined,
+  }),
+  '심 먼저, 바깥은 위에서 아래로 터짐': () => ({
+    layers: [
+      { role: 'outer', shape: { kind: 'sphere', count: 80 }, star: 'dot', color: 'gold', scale: 1, delay: 0, sequence: { order: 'down', span: 1.6, mode: 'pop' } },
+      { role: 'pistil', shape: { kind: 'sphere', count: 36 }, star: 'dot', color: 'cyan', scale: 0.45, delay: 0 },
+    ],
+    motion: { speed: 1, droop: 0.3, life: 2.4, flicker: false },
+    chain: undefined,
+    split: undefined,
+  }),
+  '긴 버들 (카무로)': () => ({
+    layers: [{ role: 'outer', shape: { kind: 'sphere', count: 70 }, star: 'kamuro', color: 'gold', scale: 1, delay: 0, tail: 'long' }],
+    motion: { speed: 0.95, droop: 0.75, life: 6.5, flicker: false },
     chain: undefined,
     split: undefined,
   }),
@@ -388,6 +408,9 @@ export class Workshop {
         <div class="field"><span class="label">별 종류</span><div class="chips">
           ${(Object.keys(STAR_LABEL) as StarKind[]).map((k) => `<button type="button" data-star="${k}" aria-pressed="${L.star === k}">${STAR_LABEL[k]}</button>`).join('')}
         </div></div>
+        ${TAILED.includes(L.star) ? `<div class="field"><span class="label">꼬리 길이</span><div class="chips">
+          ${(Object.keys(TAIL_LABEL) as TailLength[]).map((k) => `<button type="button" data-tail="${k}" aria-pressed="${(L.tail ?? 'normal') === k}">${TAIL_LABEL[k]}</button>`).join('')}
+        </div></div>` : ''}
         <div class="field"><span class="label">색</span><div class="swatches">${swatches('color', L.color)}</div></div>
         ${sequenceFields(L.sequence)}
         <div class="field">
@@ -402,7 +425,7 @@ export class Workshop {
         <legend>움직임</legend>
         <div class="field"><label for="ws-speed">퍼지는 크기 <output>${Math.round(s.motion.speed * 100)}%</output></label><input id="ws-speed" type="range" min="0.5" max="1.5" step="0.05" value="${s.motion.speed}" /></div>
         <div class="field"><label for="ws-droop">아래로 늘어짐 <output>${Math.round(s.motion.droop * 100)}%</output></label><input id="ws-droop" type="range" min="0" max="1" step="0.05" value="${s.motion.droop}" /></div>
-        <div class="field"><label for="ws-life">사라지는 시간 <output>${s.motion.life.toFixed(1)}초</output></label><input id="ws-life" type="range" min="0.8" max="5" step="0.1" value="${s.motion.life}" /></div>
+        <div class="field"><label for="ws-life">사라지는 시간 <output>${s.motion.life.toFixed(1)}초</output></label><input id="ws-life" type="range" min="0.8" max="8" step="0.1" value="${s.motion.life}" /></div>
         <label class="check-label"><input type="checkbox" id="ws-flicker" ${s.motion.flicker ? 'checked' : ''} /> 깜빡이며 사라지기</label>
         <div class="field"><label for="ws-chain">여러 단 터지기 <output>${s.chain ?? 1}단</output></label><input id="ws-chain" type="range" min="1" max="4" step="1" value="${s.chain ?? 1}" /></div>
         <div class="field">
@@ -482,6 +505,15 @@ export class Workshop {
     slider('ws-scale', (x) => `${Math.round(x * 100)}%`, (x) => (this.cur.scale = x));
     slider('ws-delay', (x) => `${x.toFixed(2)}초`, (x) => (this.cur.delay = x));
     all('[data-star]').forEach((b) => b.addEventListener('click', () => this.change(() => (this.cur.star = b.dataset.star as StarKind), true)));
+    all('[data-tail]').forEach((b) =>
+      b.addEventListener('click', () =>
+        this.change(() => {
+          const t = b.dataset.tail as TailLength;
+          if (t === 'normal') delete this.cur.tail;
+          else this.cur.tail = t;
+        }, true),
+      ),
+    );
     all('[data-color]').forEach((b) => b.addEventListener('click', () => this.change(() => (this.cur.color = b.dataset.color as ColorName), true)));
     all('[data-then]').forEach((b) =>
       b.addEventListener('click', () => this.change(() => (this.cur.then = { color: b.dataset.then as ColorName, at: this.cur.then?.at ?? 0.6 }), true)),
