@@ -136,6 +136,12 @@ export function paintBackdrop(
     fillWorld(ctx, m, [[-X * 3, 0, 8800], [X * 3, 0, 8800], [X * 3, 6, 8800], [-X * 3, 6, 8800]], w, h, 'rgba(70, 76, 130, 0.5)');
   }
 
+  // 멀리 둘러싼 산 능선 (먼 것부터)
+  for (const mt of [...(venue.mountains ?? [])].sort((a, b) => b.z - a.z)) {
+    const pts: Vec3[] = [[mt.ridge[0][0], 0, mt.z], ...mt.ridge.map(([x, y]): Vec3 => [x, y, mt.z]), [mt.ridge[mt.ridge.length - 1][0], 0, mt.z]];
+    fillWorld(ctx, m, pts, w, h, mt.z > 3000 ? '#0a0b1a' : '#07080f');
+  }
+
   // 멀리 있는 줄부터 그려야 가까운 건물이 앞을 가린다.
   const buildings = [...venue.buildings].sort((a, b) => b.z - a.z);
   for (const b of buildings) {

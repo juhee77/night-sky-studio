@@ -331,6 +331,9 @@ export function moveToVenue(d: Show, venueId: string): void {
   d.launchers = structuredClone(venue.launchers);
   const ids = new Set(d.launchers.map((l) => l.id));
   const bargeCount = d.launchers.filter((l) => l.kind === 'barge').length;
+  // 다리가 없는 무대(호수 등)에서는 나이아가라를, 지상 틀이 없으면 틀불꽃을 뺀다.
+  const has = (kind: Launcher['kind']) => d.launchers.some((l) => l.kind === kind);
+  d.cues = d.cues.filter((c) => (c.type !== 'niagara' || has('bridge')) && (c.type !== 'lancework' || has('frame')));
   for (const c of d.cues) {
     if (ids.has(c.at)) continue;
     const n = Number(c.at.match(/^barge-(\d+)$/)?.[1] ?? 1);
