@@ -43,6 +43,8 @@ export interface ShellBuild {
   assembly?: Assembly;
   /** 원통 알의 칸 수: 2 이상이면 칸마다 차례로 터진다 */
   breaks?: number;
+  /** 손으로 한 작업 기록 (굴리기·종이 바르기·할약 붓기). 보여 주기용 */
+  hand?: { roll?: number; paste?: number; pour?: number };
   /** 바깥 별이 켜지는 순서 (별마다 넣은 지연 도화선) */
   sequence?: Sequence;
   /** 알 겉에 붙인 상승 효과 */
@@ -321,11 +323,15 @@ export function normalizeBuild(raw: ShellBuild): ShellBuild {
             method: (['rolled', 'pumped', 'cut'] as const).includes(raw.star.method) ? raw.star.method : 'pumped',
             sizeMm: clamp(raw.star.sizeMm, 5, 25),
             dryHours: clamp(raw.star.dryHours, 0, 96),
+            ...(raw.star.handCare !== undefined ? { handCare: clamp(raw.star.handCare, 0, 1) } : {}),
             ...(raw.star.inner ? { inner: { color: raw.star.inner.color, outerShare: clamp(raw.star.inner.outerShare, 0.1, 0.9) } } : {}),
           },
         }
       : {}),
     ...(raw.rise && RISE_EFFECTS.includes(raw.rise) ? { rise: raw.rise } : {}),
+    ...(raw.hand
+      ? { hand: Object.fromEntries(Object.entries(raw.hand).filter(([k]) => ['roll', 'paste', 'pour'].includes(k)).map(([k, v]) => [k, clamp(v as number, 0, 1)])) }
+      : {}),
     ...(raw.sequence ? { sequence: normalizeSequence(raw.sequence) } : {}),
     ...(raw.breaks !== undefined && raw.breaks > 1 ? { breaks: Math.round(clamp(raw.breaks, 2, 4)) } : {}),
     ...(raw.assembly
@@ -350,6 +356,8 @@ export interface StarMaking {
   dryHours: number;
   /** 안층 (색이 바뀌는 별): 색과, 별 전체에서 바깥층이 차지하는 두께 비율 */
   inner?: { color: ColorName; outerShare: number };
+  /** 굴림판에서 손으로 굴린 고르기 (0~1). 없으면 방식만으로 정한다 */
+  handCare?: number;
 }
 
 export const STAR_METHOD_LABEL: Record<StarMethod, string> = { rolled: '굴리기', pumped: '찍기', cut: '자르기' };
@@ -381,8 +389,10 @@ export interface StarEffect {
 export function starEffect(s: StarMaking): StarEffect {
   const method = { rolled: { care: 0.9, cost: 1.25 }, pumped: { care: 0.65, cost: 1 }, cut: { care: 0.25, cost: 0.8 } }[s.method];
   const dry = Math.min(1, s.dryHours / 48);
+  // 손으로 고르게 굴리면 별 크기가 고르고, 들쭉날쭉 굴리면 방식이 좋아도 고르지 않다.
+  const hand = s.handCare === undefined ? 1 : 0.55 + 0.6 * s.handCare;
   return {
-    care: method.care * (0.6 + 0.4 * dry),
+    care: Math.min(1, method.care * (0.6 + 0.4 * dry) * hand),
     life: Math.max(0.8, Math.min(5, 2.2 * (s.sizeMm / 12) ** 0.8)),
     misfire: Math.max(0, (1 - dry) * 0.45),
     starSize: s.sizeMm < 9 ? 'small' : s.sizeMm > 16 ? 'large' : 'medium',
