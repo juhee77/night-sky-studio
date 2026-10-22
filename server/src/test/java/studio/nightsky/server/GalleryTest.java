@@ -105,4 +105,19 @@ class GalleryTest {
         mvc.perform(post("/api/gallery/" + id + "/report").header("Authorization", signup())).andExpect(jsonPath("$.hidden").value(true));
         mvc.perform(get("/api/gallery/" + id).header("Authorization", r1)).andExpect(status().isNotFound());
     }
+
+    @Test
+    void 계정을_지우면_클라우드와_상영관의_것도_지워지고_누른_좋아요도_빠진다() throws Exception {
+        var a = signup();
+        var b = signup();
+        var mine = upload(a, "show", "지울 쇼", pack("{\"v\":1}"));
+        var theirs = upload(b, "show", "남의 쇼", pack("{\"v\":1}"));
+        mvc.perform(post("/api/gallery/" + theirs + "/like").header("Authorization", a)).andExpect(jsonPath("$.likes").value(1));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/shows/s1").header("Authorization", a)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"t\",\"data\":\"{}\"}")).andExpect(status().isOk());
+        mvc.perform(delete("/api/auth/me").header("Authorization", a)).andExpect(status().isOk());
+        mvc.perform(get("/api/auth/me").header("Authorization", a)).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/gallery/" + mine).header("Authorization", b)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/gallery/" + theirs).header("Authorization", b)).andExpect(jsonPath("$.item.likes").value(0));
+    }
 }
