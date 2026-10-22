@@ -23,3 +23,4 @@ export * from './chem.ts';
 export * from './testfire.ts';
 export * from './site.ts';
 export * from './rig.ts';
+export * from './loading.ts';

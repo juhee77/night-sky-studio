@@ -318,6 +318,14 @@ dialog.site-dialog { width: min(900px, calc(100% - 24px)); max-height: min(94vh,
 .deck-canvas { width: 100%; height: 220px; display: block; border-radius: 10px; border: 1px solid var(--line); touch-action: none; cursor: grab; }
 .deck-rack { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: end; margin-top: 8px; }
 .deck-rack .field { min-width: 180px; }
+.loading { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+.loading h3 { margin: 0 0 6px; font-size: 15px; }
+.load-table-wrap { max-height: 300px; overflow: auto; margin-top: 8px; border: 1px solid var(--line); border-radius: 8px; }
+.load-table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.load-table th { position: sticky; top: 0; background: var(--panel, #17142a); text-align: left; }
+.load-table th, .load-table td { padding: 4px 8px; border-bottom: 1px solid var(--line); }
+.load-table tr.missing td { color: #f87171; }
+.load-table select { font-size: 12px; padding: 2px 4px; }
 dialog.workshop-dialog { width: min(1080px, calc(100% - 24px)); max-height: min(94vh, 1000px); }
 .ws-layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px; margin: 12px 0; }
 .ws-preview { display: flex; flex-direction: column; gap: 8px; min-width: 0; }

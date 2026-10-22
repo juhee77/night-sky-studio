@@ -4,6 +4,13 @@
 import {
   DECK,
   RACKS,
+  allTubes,
+  expandShow,
+  fits,
+  loadPlan,
+  rigForShow,
+  tubeLabel,
+  type LoadPlan,
   RACK_KINDS,
   deckCheck,
   footprint,
@@ -23,6 +30,7 @@ import {
   type Launcher,
 } from '@nss/engine';
 import { launcherLabel, type Editor } from './editor.ts';
+import { fmtTime } from './format.ts';
 
 export class SitePlanner {
   private dialog: HTMLDialogElement;
@@ -44,6 +52,23 @@ export class SitePlanner {
       b.addEventListener('click', () => this.addRack(b.dataset.rack as RackKind)),
     );
     this.wireDeck();
+    dialog.querySelector('#load-clear')!.addEventListener('click', () => {
+      if (!confirm('모든 바지선 갑판의 랙과 손으로 고른 통을 지울까요?')) return;
+      editor.change((d) => {
+        delete d.rig;
+        for (const c of d.cues) delete c.tubes;
+      });
+    });
+    dialog.querySelector('#load-fill')!.addEventListener('click', () => {
+      const has = Object.values(editor.show.rig?.decks ?? {}).some((d) => d.length);
+      if (has && !confirm('지금 갑판의 랙을 모두 지우고 쇼에 맞게 다시 채울까요?')) return;
+      const { rig, missing } = rigForShow(editor.show);
+      editor.change((d) => {
+        d.rig = rig;
+        for (const c of d.cues) delete c.tubes;
+      });
+      this.dialog.querySelector('#deck-stats')!.textContent = missing.length ? missing.join(' ') : '쇼에 맞게 랙을 채웠습니다.';
+    });
     editor.on((c) => c === 'show' && dialog.open && this.render());
     dialog.querySelector('#site-add')!.addEventListener('click', () => {
       let id = '';
@@ -190,6 +215,7 @@ export class SitePlanner {
     this.dialog.querySelector('#deck-title')!.textContent = `${launcherLabel(l, show.launchers.indexOf(l))} 갑판 (${DECK.len}m × ${DECK.wid}m, ${DECK.kg / 1000}t까지)`;
     const racks = this.racks();
     const report = deckCheck(racks);
+    const plan = this.plan ?? loadPlan(show);
     const bad = new Set(report.problems.map((p) => p.rack));
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const { w, h, scale, sx, sy } = this.deckLayout();
@@ -221,7 +247,9 @@ export class SitePlanner {
       // 통: 위에서 보면 기운 쪽으로 짧은 선이 뻗는다
       for (const t of rackTubes(id, r)) {
         const rad = (RACKS[r.kind].size ?? 3) * 0.02 * scale + 1.5;
-        g.fillStyle = '#111';
+        // 장전된 통은 그 불꽃의 첫 색으로 칠한다.
+        const row = plan.byTube.get(t.id);
+        g.fillStyle = row ? '#f4a261' : '#111';
         g.beginPath();
         g.arc(sx(t.x), sy(t.y), rad, 0, Math.PI * 2);
         g.fill();
@@ -236,6 +264,50 @@ export class SitePlanner {
     this.dialog.querySelector('#deck-stats')!.textContent = `무게 ${report.kg}kg / ${DECK.kg}kg · 차지한 넓이 ${report.area}m² · ${tubes || '랙 없음'}`;
     this.dialog.querySelector('#deck-problems')!.innerHTML = report.problems.map((p) => `<li class="error">${p.message}</li>`).join('');
     this.renderRackControls(racks.find((r) => r.id === this.rackSel));
+  }
+
+  private plan: LoadPlan | null = null;
+
+  /** 장전 계획 표: 통을 손으로 바꿀 수 있다 */
+  private renderLoading(): void {
+    const show = this.editor.show;
+    const plan = (this.plan = loadPlan(show));
+    const tubes = allTubes(show.rig);
+    const launches = expandShow(show).launches;
+    this.dialog.querySelector('#load-shortages')!.innerHTML = plan.rows.length
+      ? plan.shortages.length
+        ? plan.shortages.map((x) => `<li class="error">${x}</li>`).join('')
+        : '<li class="ok">모든 불꽃이 통에 들어갔습니다.</li>'
+      : '<li class="ok">바지선에서 쏘는 불꽃이 없습니다.</li>';
+    const name = (id: string) => launcherLabel(show.launchers.find((l) => l.id === id)!, 0);
+    this.dialog.querySelector('#load-rows')!.innerHTML = plan.rows
+      .map((r, i) => {
+        const cue = show.cues[r.cueIndex];
+        const l = launches.find((x) => x.cueIndex === r.cueIndex && x.sub === r.sub)!;
+        const free = tubes.filter((t) => (t.id === r.tube || !plan.byTube.has(t.id)) && fits(t, cue, l));
+        const opts = [`<option value="">${r.tube && !r.manual ? `자동 (${tubeLabel(r.tube)})` : '자동'}</option>`]
+          .concat(free.map((t) => `<option value="${t.id}" ${r.manual && t.id === r.tube ? 'selected' : ''}>${tubeLabel(t.id)}</option>`))
+          .join('');
+        return `<tr class="${r.tube ? '' : 'missing'}"><td>${fmtTime(r.fireAt)}</td><td>${name(r.launcher)}</td><td>${r.label}</td><td>${r.cake ? '케이크' : `${r.size}호`}</td><td>${r.angle}°</td><td>${
+          r.tube || free.length ? `<select data-load="${i}" aria-label="통 고르기">${opts}</select>` : '없음'
+        }</td></tr>`;
+      })
+      .join('');
+    this.dialog.querySelectorAll<HTMLSelectElement>('[data-load]').forEach((sel) =>
+      sel.addEventListener('change', () => {
+        const r = plan.rows[Number(sel.dataset.load)];
+        const v = sel.value;
+        this.editor.change((d) => {
+          const cue = d.cues[r.cueIndex];
+          const k = r.cake ? 0 : r.sub;
+          const list = cue.tubes ? [...cue.tubes] : [];
+          while (list.length <= k) list.push('');
+          list[k] = v;
+          if (list.every((x) => !x)) delete cue.tubes;
+          else cue.tubes = list;
+        });
+      }),
+    );
   }
 
   private renderRackControls(r: PlacedRack | undefined): void {
@@ -382,6 +454,7 @@ export class SitePlanner {
     }
     show.launchers.forEach((l, i) => this.drawLauncher(g, l, launcherLabel(l, i), sx, sy, scale, font));
 
+    this.renderLoading();
     this.renderDeck();
     const list = this.dialog.querySelector('#site-warnings')!;
     list.innerHTML = warnings.length

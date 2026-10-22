@@ -56,7 +56,7 @@ export interface Rig {
 }
 
 export interface Tube {
-  /** 랙 id + '.' + 통 번호 */
+  /** 바지선 id + '/' + 랙 id + '.' + 통 번호 (쇼 전체에서 하나뿐) */
   id: string;
   launcher: string;
   rack: string;
@@ -91,7 +91,7 @@ export function rackTubes(launcher: string, r: PlacedRack): Tube[] {
     const [dx, dy] = r.rot === 90 ? [across, along] : [along, across];
     const fan = r.kind === 'fan5' ? -(r.spread ?? 40) / 2 + ((r.spread ?? 40) * k) / (s.tubes - 1) : 0;
     out.push({
-      id: `${r.id}.${k + 1}`,
+      id: `${launcher}/${r.id}.${k + 1}`,
       launcher,
       rack: r.id,
       kind: r.kind,
@@ -102,6 +102,11 @@ export function rackTubes(launcher: string, r: PlacedRack): Tube[] {
     });
   }
   return out;
+}
+
+/** 화면에 보일 통 이름: 랙과 통 번호 (바지선은 따로 보인다) */
+export function tubeLabel(id: string): string {
+  return id.slice(id.indexOf('/') + 1);
 }
 
 /** 쇼의 모든 통 */
