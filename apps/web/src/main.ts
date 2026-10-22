@@ -8,9 +8,12 @@ import {
   analyzeMusic,
   audienceCues,
   autoChoreograph,
+  allTubes,
+  isLive,
   detectTempo,
   flatMusicMap,
   type AutoOptions,
+  type Mood,
   type MusicMap,
   encodeShow,
   launcherKindFor,
@@ -564,7 +567,7 @@ document.addEventListener('fullscreenchange', () => {
 });
 
 // ── 자동 연출 ──
-let autoStyle: AutoOptions['style'] = 'grand';
+let autoMood: Mood = 'festive';
 
 function currentMusicMap(): MusicMap {
   const m = editor.show.music;
@@ -584,7 +587,16 @@ function currentMusicMap(): MusicMap {
 }
 
 function autoOptions(seed: number): AutoOptions {
-  const o: AutoOptions = { seed, style: autoStyle, density: Number(el.autoDensity.value) };
+  const o: AutoOptions = { seed, style: autoMood === 'calm' ? 'calm' : 'grand', mood: autoMood, density: Number(el.autoDensity.value) };
+  if ($<HTMLInputElement>('auto-effects').checked) o.effects = true;
+  if ($<HTMLInputElement>('auto-customs').checked) {
+    const mine = drawer.list().filter((x) => !office.isLocked('custom', x.id));
+    if (mine.length) o.customs = mine.slice(0, 6).map((x) => ({ id: x.id, size: x.build?.size ?? 5 }));
+  }
+  // 실전 모드: 갑판에 실린 통 안에서만
+  if (isLive(editor.show)) o.tubes = allTubes(editor.show.rig);
+  const range = autoRange();
+  if (range && $<HTMLInputElement>('auto-range').checked) o.range = range;
   const text = el.autoText.value.trim();
   if (text) o.text = text;
   const c = editor.show.commission;
@@ -603,20 +615,35 @@ function autoOptions(seed: number): AutoOptions {
   return o;
 }
 
+/** 고른 불꽃이 있는 구간 (그 앞뒤 박자까지). 고른 것이 없으면 null */
+function autoRange(): { from: number; to: number } | null {
+  const sel = editor.selectedCues;
+  if (!sel.length) return null;
+  const ts = sel.map((c) => c.t);
+  return { from: Math.max(0, Math.min(...ts) - 0.01), to: Math.max(...ts) + 0.01 };
+}
+
 el.autoBtn.addEventListener('click', () => {
+  const range = autoRange();
+  $<HTMLElement>('auto-range-field').hidden = !range;
+  $<HTMLInputElement>('auto-range').checked = !!range;
+  if (range) $<HTMLElement>('auto-range-label').textContent = `고른 불꽃이 있는 구간(${fmtTime(range.from)}~${fmtTime(range.to)})만 다시 만들기`;
+  $<HTMLElement>('auto-customs-field').hidden = !drawer.list().length;
   const n = editor.show.cues.length;
   el.autoReplace.textContent = n ? `지금 놓인 불꽃 ${n}개를 지우고 새로 만듭니다. 마음에 들지 않으면 「되돌리기」로 되돌릴 수 있습니다.` : '';
   const c = editor.show.commission;
-  el.autoLimits.textContent = c ? `의뢰 쇼라서 해금한 불꽃과 의뢰 조건, 예산(${c.budget}) 안에서 만듭니다.` : '';
+  el.autoLimits.textContent =
+    (c ? `의뢰 쇼라서 해금한 불꽃과 의뢰 조건, 예산(${c.budget}) 안에서 만듭니다. ` : '') +
+    (isLive(editor.show) ? '실전 모드라서 갑판에 실린 통 안에서만 만듭니다.' : '');
   const hasFrame = editor.show.launchers.some((l) => l.kind === 'frame') && !office.isLocked('lancework');
   el.autoTextField.hidden = !hasFrame;
   if (!el.autoText.value && editor.show.title) el.autoText.placeholder = `예: ${editor.show.title.slice(0, 12)}`;
   el.autoDialog.showModal();
 });
-el.autoDialog.querySelectorAll<HTMLButtonElement>('[data-style]').forEach((b) =>
+el.autoDialog.querySelectorAll<HTMLButtonElement>('[data-mood]').forEach((b) =>
   b.addEventListener('click', () => {
-    autoStyle = b.dataset.style as AutoOptions['style'];
-    el.autoDialog.querySelectorAll('[data-style]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    autoMood = b.dataset.mood as Mood;
+    el.autoDialog.querySelectorAll('[data-mood]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
   }),
 );
 el.autoDensity.addEventListener('input', () => {
@@ -625,14 +652,28 @@ el.autoDensity.addEventListener('input', () => {
 });
 el.autoRun.addEventListener('click', () => {
   const seed = Math.floor(Math.random() * 1e9);
-  const cues = autoChoreograph(currentMusicMap(), editor.show.launchers, autoOptions(seed));
-  editor.change((d) => (d.cues = cues));
+  const o = autoOptions(seed);
+  const cues = autoChoreograph(currentMusicMap(), editor.show.launchers, o);
+  const range = o.range;
+  editor.change((d) => {
+    // 구간만 다시 만들면 그 밖의 불꽃은 그대로 둔다.
+    d.cues = range ? [...d.cues.filter((c) => c.t < range.from || c.t >= range.to), ...cues].sort((a, b) => a.t - b.t) : cues;
+    // 섞어 쓴 내 불꽃은 설계를 쇼 안에 복사해 둔다.
+    for (const c of cues) {
+      const def = c.custom ? drawer.get(c.custom) : undefined;
+      if (def) d.customShells = { ...d.customShells, [def.id]: structuredClone(def) };
+    }
+  });
   editor.select([]);
   el.autoDialog.close();
   if (transport.playing) togglePlay();
-  transport.seek(0);
-  timeline.scroll = 0;
-  say(`불꽃 ${cues.length}개를 놓았습니다. ▶ 재생해 보고, 마음에 안 들면 「자동 연출」을 다시 누르면 다른 쇼가 나옵니다.`);
+  transport.seek(range ? Math.max(0, range.from - 4) : 0);
+  if (!range) timeline.scroll = 0;
+  say(
+    range
+      ? `${fmtTime(range.from)}~${fmtTime(range.to)} 구간에 불꽃 ${cues.length}개를 다시 놓았습니다.`
+      : `불꽃 ${cues.length}개를 놓았습니다. ▶ 재생해 보고, 마음에 안 들면 「자동 연출」을 다시 누르면 다른 쇼가 나옵니다.`,
+  );
 });
 
 // ── 장노출 사진 ──
