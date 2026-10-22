@@ -7,7 +7,7 @@
 
 import { SIZE_SPECS, type Size } from './catalog.ts';
 import type { ColorName } from './colors.ts';
-import type { CustomShell, StarKind } from './custom.ts';
+import { normalizeSequence, type CustomShell, type Sequence, type StarKind } from './custom.ts';
 import { evaluateMix, normalizeComposition, type Composition } from './chem.ts';
 
 export type ShellForm = 'round' | 'cylinder';
@@ -43,6 +43,8 @@ export interface ShellBuild {
   assembly?: Assembly;
   /** 원통 알의 칸 수: 2 이상이면 칸마다 차례로 터진다 */
   breaks?: number;
+  /** 바깥 별이 켜지는 순서 (별마다 넣은 지연 도화선) */
+  sequence?: Sequence;
 }
 
 /** 알 조립: 할약 채우기, 반구 맞붙이기, 종이 바르기 */
@@ -238,6 +240,7 @@ export function buildToShell(b: ShellBuild, base: CustomShell): CustomShell {
       color: mix ? mix.color : b.starColor,
       ...(mix ? { tint: [...mix.rgb] as [number, number, number] } : {}),
       ...(then ? { then: { ...then } } : {}),
+      ...(b.sequence ? { sequence: { ...b.sequence } } : {}),
       scale: 1,
       delay: 0,
     },
@@ -318,6 +321,7 @@ export function normalizeBuild(raw: ShellBuild): ShellBuild {
           },
         }
       : {}),
+    ...(raw.sequence ? { sequence: normalizeSequence(raw.sequence) } : {}),
     ...(raw.breaks !== undefined && raw.breaks > 1 ? { breaks: Math.round(clamp(raw.breaks, 2, 4)) } : {}),
     ...(raw.assembly
       ? { assembly: { chargeOffset: clamp(raw.assembly.chargeOffset, 0, 1), seam: clamp(raw.assembly.seam, 0, 1), paste: clamp(raw.assembly.paste, 0, 1) } }
