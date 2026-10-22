@@ -18,6 +18,7 @@
         <button type="button" id="shows-btn">내 쇼</button>
         <button type="button" id="office-btn">의뢰소</button>
         <button type="button" id="workshop-btn">공작소</button>
+        <button type="button" id="gallery-btn" hidden>상영관</button>
         <button type="button" id="account-btn" hidden>계정</button>
         <button type="button" id="site-btn" title="위에서 내려다보며 바지선·다리·지상 틀 자리를 정합니다">발사장</button>
         <input id="title" aria-label="쇼 제목" maxlength="60" />
@@ -134,6 +135,34 @@
         <ul id="cloud-shows" class="show-list"></ul>
       </section>
       <p id="account-msg" class="note" aria-live="polite"></p>
+    </dialog>
+
+    <dialog id="gallery-dialog" class="wide-dialog" aria-labelledby="gallery-title">
+      <form method="dialog" class="dialog-head">
+        <h2 id="gallery-title">상영관</h2>
+        <button value="close" aria-label="닫기">닫기</button>
+      </form>
+      <section id="gallery-need-login" hidden>
+        <p class="note">상영관은 로그인하면 볼 수 있습니다.</p>
+        <button type="button" id="gallery-login" class="primary">로그인하러 가기</button>
+      </section>
+      <section id="gallery-body">
+        <div class="chips">
+          <button type="button" data-gkind="show" aria-pressed="true">쇼</button>
+          <button type="button" data-gkind="shell" aria-pressed="false">내 불꽃</button>
+          <span class="note">·</span>
+          <button type="button" data-gsort="new" aria-pressed="true">새로 올라온</button>
+          <button type="button" data-gsort="top" aria-pressed="false">좋아요 많은</button>
+        </div>
+        <ul id="gallery-list" class="show-list"></ul>
+        <div class="dialog-actions">
+          <button type="button" id="gallery-up-show" class="primary">지금 쇼 올리기</button>
+          <select id="gallery-shell" aria-label="올릴 내 불꽃"></select>
+          <button type="button" id="gallery-up-shell">내 불꽃 올리기</button>
+        </div>
+        <p class="note">올린 쇼는 누구나 보고 담을 수 있습니다. 제목과 틀불꽃 글자에 쓸 수 없는 말이 있으면 올라가지 않고, 신고가 쌓이면 숨겨집니다.</p>
+      </section>
+      <p id="gallery-msg" class="note" aria-live="polite"></p>
     </dialog>
 
     <dialog id="share-dialog" aria-labelledby="share-title">

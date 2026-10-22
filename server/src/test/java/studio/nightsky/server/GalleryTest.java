@@ -1,0 +1,108 @@
+package studio.nightsky.server;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.UUID;
+import java.util.zip.Deflater;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
+
+@SpringBootTest
+class GalleryTest {
+    @Autowired
+    WebApplicationContext context;
+
+    MockMvc mvc;
+
+    @BeforeEach
+    void setUp() {
+        mvc = MockMvcBuilders.webAppContextSetup(context).build();
+    }
+
+    private String signup() throws Exception {
+        var name = "g" + UUID.randomUUID().toString().substring(0, 10);
+        var res = mvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"" + name + "\",\"password\":\"night-sky-123\"}"))
+                .andReturn().getResponse().getContentAsString();
+        return "Bearer " + res.replaceAll(".*\"token\":\"([0-9a-f]+)\".*", "$1");
+    }
+
+    /** 화면의 공유 링크처럼: JSON → deflate-raw → base64url */
+    static String pack(String json) {
+        var d = new Deflater(Deflater.DEFAULT_COMPRESSION, true);
+        d.setInput(json.getBytes(StandardCharsets.UTF_8));
+        d.finish();
+        var out = new ByteArrayOutputStream();
+        var buf = new byte[4096];
+        while (!d.finished()) out.write(buf, 0, d.deflate(buf));
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(out.toByteArray());
+    }
+
+    private long upload(String auth, String kind, String title, String data) throws Exception {
+        var res = mvc.perform(post("/api/gallery").header("Authorization", auth).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"kind\":\"" + kind + "\",\"title\":\"" + title + "\",\"data\":\"" + data.replace("\"", "\\\"") + "\"}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return Long.parseLong(res.replaceAll("\\D", ""));
+    }
+
+    @Test
+    void 올린_쇼를_다른_계정에서_보고_좋아요를_누르고_담을_수_있다() throws Exception {
+        var a = signup();
+        var b = signup();
+        var show = pack("{\"v\":1,\"ti\":\"여름밤\",\"ex\":[[0,\"t\",\"안녕\"]]}");
+        var id = upload(a, "show", "여름밤 불꽃", show);
+        upload(a, "shell", "별사탕", "{\"id\":\"s1\",\"name\":\"별사탕\"}");
+        mvc.perform(get("/api/gallery").param("kind", "show").header("Authorization", b))
+                .andExpect(jsonPath("$[0].title").value("여름밤 불꽃"))
+                .andExpect(jsonPath("$[0].mine").value(false));
+        mvc.perform(get("/api/gallery/" + id).header("Authorization", b)).andExpect(jsonPath("$.data").value(show));
+        mvc.perform(post("/api/gallery/" + id + "/like").header("Authorization", b)).andExpect(jsonPath("$.likes").value(1));
+        mvc.perform(get("/api/gallery").param("kind", "shell").header("Authorization", b)).andExpect(jsonPath("$[0].title").value("별사탕"));
+        // 좋아요를 한 번 더 누르면 취소
+        mvc.perform(post("/api/gallery/" + id + "/like").header("Authorization", b)).andExpect(jsonPath("$.likes").value(0));
+        // 남의 것은 내릴 수 없다
+        mvc.perform(delete("/api/gallery/" + id).header("Authorization", b)).andExpect(status().isForbidden());
+        mvc.perform(delete("/api/gallery/" + id).header("Authorization", a)).andExpect(status().isOk());
+    }
+
+    @Test
+    void 금칙어는_제목과_틀불꽃_글자에서_막는다() throws Exception {
+        var a = signup();
+        mvc.perform(post("/api/gallery").header("Authorization", a).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"kind\":\"shell\",\"title\":\"시 발 불꽃\",\"data\":\"{}\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("쓸 수 없는 말이 들어 있습니다. 제목이나 틀불꽃 글자를 고쳐 주세요."));
+        var bad = pack("{\"v\":1,\"ex\":[[0,\"t\",\"F.U.C.K\"]]}");
+        mvc.perform(post("/api/gallery").header("Authorization", a).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"kind\":\"show\",\"title\":\"좋은 쇼\",\"data\":\"" + bad + "\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void 세_계정이_신고하면_숨겨진다() throws Exception {
+        var author = signup();
+        var id = upload(author, "show", "신고될 쇼", pack("{\"v\":1}"));
+        mvc.perform(post("/api/gallery/" + id + "/report").header("Authorization", author)).andExpect(status().isBadRequest());
+        var r1 = signup();
+        mvc.perform(post("/api/gallery/" + id + "/report").header("Authorization", r1)).andExpect(jsonPath("$.hidden").value(false));
+        // 같은 계정이 여러 번 눌러도 한 번
+        mvc.perform(post("/api/gallery/" + id + "/report").header("Authorization", r1)).andExpect(jsonPath("$.hidden").value(false));
+        mvc.perform(post("/api/gallery/" + id + "/report").header("Authorization", signup())).andExpect(jsonPath("$.hidden").value(false));
+        mvc.perform(post("/api/gallery/" + id + "/report").header("Authorization", signup())).andExpect(jsonPath("$.hidden").value(true));
+        mvc.perform(get("/api/gallery/" + id).header("Authorization", r1)).andExpect(status().isNotFound());
+    }
+}

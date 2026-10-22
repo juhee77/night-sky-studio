@@ -27,3 +27,6 @@ VITE_API_URL=http://127.0.0.1:8080 npm run dev -w @nss/web
 | `POST /api/auth/signup`, `/login` `{name, password}` → `{token, name}` | 가입·로그인 |
 | `POST /api/auth/logout`, `GET /api/auth/me` | 로그아웃, 내 계정 |
 | `GET/PUT/DELETE /api/shows/{id}`, `/api/shells/{id}` | 쇼·내 불꽃 클라우드 저장 (로그인 필요, `Authorization: Bearer`) |
+| `GET /api/gallery?kind=show\|shell&sort=new\|top` | 상영관 목록 (숨긴 것 제외) |
+| `POST /api/gallery` `{kind, title, data}` | 올리기 (제목·틀불꽃 글자 금칙어 검사, `banned-words.txt`) |
+| `GET /api/gallery/{id}`, `POST …/like`, `POST …/report`, `DELETE …` | 구경, 좋아요(다시 누르면 취소), 신고(서로 다른 계정 셋이면 숨김), 내 것 내리기 |

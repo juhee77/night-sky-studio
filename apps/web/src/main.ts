@@ -32,6 +32,7 @@ import { Office } from './office.ts';
 import { Workshop } from './workshop.ts';
 import { SitePlanner } from './siteplan.ts';
 import { AccountPanel } from './account.ts';
+import { Gallery } from './gallery.ts';
 import { remoteEnabled, shortLink } from './remote.ts';
 import { Panel } from './panel.ts';
 import { runCountdown } from './countdown.ts';
@@ -240,6 +241,17 @@ if (remoteEnabled()) {
   el.accountBtn.addEventListener('click', () => {
     if (transport.playing) togglePlay();
     account.open();
+  });
+  const gallery = new Gallery($<HTMLDialogElement>('gallery-dialog'), editor, drawer, {
+    openShow: (id, show) => openShow(id, show),
+    say,
+    login: () => account.open(),
+  });
+  const galleryBtn = $<HTMLButtonElement>('gallery-btn');
+  galleryBtn.hidden = false;
+  galleryBtn.addEventListener('click', () => {
+    if (transport.playing) togglePlay();
+    gallery.open();
   });
 }
 

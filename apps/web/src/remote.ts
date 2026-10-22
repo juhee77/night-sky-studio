@@ -89,3 +89,24 @@ export const cloudGet = (kind: CloudKind, id: string) => call<{ id: string; titl
 export const cloudPut = (kind: CloudKind, id: string, title: string, data: string) =>
   call<{ id: string }>('PUT', `/api/${kind}/${encodeURIComponent(id)}`, { title, data });
 export const cloudDelete = (kind: CloudKind, id: string) => call('DELETE', `/api/${kind}/${encodeURIComponent(id)}`);
+
+// ── 상영관 갤러리 ──
+export type GalleryKind = 'show' | 'shell';
+
+export interface GalleryItem {
+  id: number;
+  kind: GalleryKind;
+  title: string;
+  author: string;
+  likes: number;
+  liked: boolean;
+  mine: boolean;
+  createdAt: string;
+}
+
+export const galleryList = (kind: GalleryKind, sort: 'new' | 'top') => call<GalleryItem[]>('GET', `/api/gallery?kind=${kind}&sort=${sort}`);
+export const galleryGet = (id: number) => call<{ item: GalleryItem; data: string }>('GET', `/api/gallery/${id}`);
+export const galleryUpload = (kind: GalleryKind, title: string, data: string) => call<{ id: number }>('POST', '/api/gallery', { kind, title, data });
+export const galleryLike = (id: number) => call<{ likes: number; liked: boolean }>('POST', `/api/gallery/${id}/like`);
+export const galleryReport = (id: number) => call<{ hidden: boolean }>('POST', `/api/gallery/${id}/report`);
+export const galleryDelete = (id: number) => call('DELETE', `/api/gallery/${id}`);
