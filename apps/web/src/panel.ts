@@ -2,6 +2,9 @@
 // 종류마다 고를 수 있는 값이 다르다: 케이크는 발 수·간격, 나이아가라는 시간, 틀불꽃은 글자.
 
 import {
+  RISE_EFFECTS,
+  RISE_LABEL,
+  type RiseEffect,
   CAKE_DEFAULTS,
   COLORS,
   COLOR_NAMES,
@@ -75,6 +78,7 @@ export class Panel {
       len: c.len ?? (c.type === 'lancework' ? LEN_DEFAULTS.lancework : LEN_DEFAULTS.niagara),
       text: c.text ?? tpl.text,
       custom: c.custom,
+      rise: c.rise,
     };
   }
 
@@ -176,6 +180,13 @@ export class Panel {
             <input id="fan-spread" type="range" min="10" max="80" step="5" value="${v.fanSpread}" ${v.fanCount === 1 ? 'disabled' : ''} aria-label="부채꼴 펼침 각도" />
             <output id="fan-out">${v.fanSpread}°</output>
           </div>
+        </div>
+        <div class="field">
+          <label for="rise">올라가는 모습</label>
+          <select id="rise">
+            <option value="" ${!v.rise ? 'selected' : ''}>희미한 불티 (기본)</option>
+            ${RISE_EFFECTS.map((r) => `<option value="${r}" ${v.rise === r ? 'selected' : ''}>${RISE_LABEL[r]}</option>`).join('')}
+          </select>
         </div>`;
     }
 
@@ -316,6 +327,12 @@ export class Panel {
       spread.addEventListener('input', () => (q('#fan-out')!.textContent = `${spread.value}°`));
       spread.addEventListener('change', applyFan);
     }
+
+    const rise = q<HTMLSelectElement>('#rise');
+    rise?.addEventListener('change', () => {
+      const r = (rise.value || undefined) as RiseEffect | undefined;
+      this.apply((c) => (r ? (c.rise = r) : delete c.rise), { rise: r });
+    });
 
     const tInput = q<HTMLInputElement>('#cue-t');
     tInput?.addEventListener('change', () => {

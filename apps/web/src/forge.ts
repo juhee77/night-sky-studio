@@ -2,6 +2,9 @@
 // 별을 붙인 자리가 곧 날아가는 방향이고, 도화선·발사약이 터지는 때와 높이를 정한다.
 
 import {
+  RISE_EFFECTS,
+  RISE_LABEL,
+  type RiseEffect,
   STAR_KIND_LABEL,
   COLORANT_LABEL,
   COLORS,
@@ -544,6 +547,10 @@ export function forgeControls(b: ShellBuild): string {
       <div class="field"><label for="forge-paper">종이 겹 수 <output>${b.paper}겹</output></label><input id="forge-paper" type="range" min="2" max="12" step="1" value="${b.paper}" /></div>
       <div class="field"><label for="forge-fuse">도화선 길이 <output>${Math.round(b.fuse * 100)}%</output></label><input id="forge-fuse" type="range" min="0.6" max="1.5" step="0.05" value="${b.fuse}" /></div>
       <div class="field"><label for="forge-lift">발사약 양 <output>${Math.round(b.lift * 100)}%</output></label><input id="forge-lift" type="range" min="0.5" max="1.4" step="0.05" value="${b.lift}" /></div>
+      <div class="field"><label for="forge-rise">알 겉에 붙인 상승 효과</label><select id="forge-rise">
+        <option value="" ${!b.rise ? 'selected' : ''}>없음 (희미한 불티)</option>
+        ${RISE_EFFECTS.map((r) => `<option value="${r}" ${b.rise === r ? 'selected' : ''}>${RISE_LABEL[r]}</option>`).join('')}
+      </select></div>
       <p class="note">100%가 이 크기에 알맞은 양입니다. 도화선은 꼭대기에 닿는 때에 맞춰야 박자에 맞게 터지고, 발사약이 적으면 낮게 올라갑니다.</p>
     </fieldset>`;
 }
@@ -686,6 +693,13 @@ export function wireForge(box: Element, b: ShellBuild, apply: (fn: (b: ShellBuil
   );
   slider('forge-pcount', (v) => `${v}알`, (x, v) => x.pistil && (x.pistil.count = v));
   all('[data-pcolor]').forEach((el) => el.addEventListener('click', () => apply((x) => x.pistil && (x.pistil.color = el.dataset.pcolor as ColorName), true)));
+  box.querySelector<HTMLSelectElement>('#forge-rise')?.addEventListener('change', (e) =>
+    apply((x) => {
+      const v = (e.target as HTMLSelectElement).value as RiseEffect | '';
+      if (v) x.rise = v;
+      else delete x.rise;
+    }, true),
+  );
   slider('forge-break', (v) => `${Math.round(v * 100)}%`, (x, v) => (x.breakCharge = v));
   slider('forge-paper', (v) => `${v}겹`, (x, v) => (x.paper = v));
   slider('forge-fuse', (v) => `${Math.round(v * 100)}%`, (x, v) => (x.fuse = v));

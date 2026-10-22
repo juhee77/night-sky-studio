@@ -22,7 +22,7 @@ export function soundDelay(ear: Vec3, l: Launch): number {
 
 /** 별이 내는 소리: 터진 뒤 start초부터 len초 동안 */
 export interface StarSound {
-  kind: 'crackle' | 'whistle' | 'hummer' | 'salute';
+  kind: 'crackle' | 'whistle' | 'hummer' | 'salute' | 'rise-whistle';
   start: number;
   len: number;
 }
@@ -43,6 +43,8 @@ export function starSounds(l: Launch): StarSound[] {
     if (shell.salute) out.push({ kind: 'salute', start: 0, len: 0.3 });
     if (shell.effect) add(shell.effect, shell.starLife);
   }
+  // 올라가며 내는 휘파람: 쏘아 올린 때부터 터질 때까지 (터진 때 기준으로 음수)
+  if (l.rise === 'whistle') out.push({ kind: 'rise-whistle', start: l.fireAt - l.burstAt, len: l.burstAt - l.fireAt });
   // 같은 소리는 한 번만 (두 층이 같은 별이면)
   return out.filter((s, i) => out.findIndex((x) => x.kind === s.kind) === i);
 }

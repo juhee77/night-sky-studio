@@ -95,7 +95,7 @@ export class Sfx {
   }
 
   /** 휘슬: 높은 휘파람 소리가 떨리며 내려간다 (별 여러 개라 조금씩 어긋난 셋) */
-  whistle(when: number, len: number, level: number): Scheduled | null {
+  whistle(when: number, len: number, level: number, rising = false): Scheduled | null {
     if (this.late(when)) return null;
     const ctx = this.ctx;
     const g = ctx.createGain();
@@ -106,10 +106,12 @@ export class Sfx {
     g.connect(this.out);
     let last: OscillatorNode | null = null;
     for (const [k, detune] of [[0, 0], [1, 1.07], [2, 0.94]] as const) {
+      // 별 휘슬은 셋이 내려가고, 올라가는 알의 휘슬은 한 줄기로 올라간다.
+      if (rising && k > 0) continue;
       const o = ctx.createOscillator();
       o.type = 'sine';
-      o.frequency.setValueAtTime(2900 * (detune || 1), when + k * 0.05);
-      o.frequency.exponentialRampToValueAtTime(1300 * (detune || 1), when + len);
+      o.frequency.setValueAtTime((rising ? 900 : 2900) * (detune || 1), when + k * 0.05);
+      o.frequency.exponentialRampToValueAtTime((rising ? 2700 : 1300) * (detune || 1), when + len);
       const vib = ctx.createOscillator();
       vib.frequency.value = 23 + k * 3;
       const vg = ctx.createGain();
@@ -177,6 +179,7 @@ export class Sfx {
   star(when: number, s: StarSound, level: number): Scheduled | null {
     if (s.kind === 'crackle') return this.crackle(when, s.len, level);
     if (s.kind === 'whistle') return this.whistle(when, s.len, level);
+    if (s.kind === 'rise-whistle') return this.whistle(when, s.len, level * 0.8, true);
     if (s.kind === 'hummer') return this.hum(when, s.len, level);
     return this.salute(when, level);
   }

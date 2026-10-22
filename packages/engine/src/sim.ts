@@ -405,7 +405,6 @@ export class Simulation {
   }
 
   private updateRising(): void {
-    const pool = this.pool;
     for (let i = 0; i < this.rising.length; ) {
       const s = this.rising[i];
       s.age += STEP;
@@ -415,7 +414,25 @@ export class Simulation {
       const burstAge = spec.prefire * (flight?.burstAt ?? 1);
       risePosition(s.launch, Math.min(s.age, burstAge), this.wind, s.pos, flight?.height ?? 1);
 
-      const seed = hash32(s.launch.seed, this.step, 3);
+      this.riseTrail(s, burstAge);
+
+      if (s.age >= burstAge) {
+        this.burst(s.launch, s.pos);
+        this.rising.splice(i, 1);
+      } else {
+        i++;
+      }
+    }
+  }
+
+  /** 올라가는 모습: 꼬리 종류, 올라가며 피는 작은 꽃, 갈라지는 줄기 */
+  private riseTrail(s: { launch: Launch; age: number; pos: Vec3 }, burstAge: number): void {
+    const pool = this.pool;
+    const l = s.launch;
+    const seed = hash32(l.seed, this.step, 3);
+    const rise = l.rise;
+    if (!rise || rise === 'flowers' || rise === 'branches') {
+      // 기본: 희미한 불티 꼬리
       if (rand01(seed) < 0.6 * this.density) {
         pool.spawn(
           s.pos[0], s.pos[1], s.pos[2],
@@ -425,12 +442,56 @@ export class Simulation {
           1.6, TRAIL_DAMP, 9.8, FLAG_SPARK, seed,
         );
       }
-
-      if (s.age >= burstAge) {
-        this.burst(s.launch, s.pos);
-        this.rising.splice(i, 1);
-      } else {
-        i++;
+    } else {
+      // 금빛·은빛·색 꼬리: 굵고 밝고 오래 남는다. 휘슬은 가늘고 밝은 꼬리.
+      const rgb: readonly number[] =
+        rise === 'gold' ? [1.1, 0.75, 0.3] :
+        rise === 'silver' ? [1.2, 1.2, 1.25] :
+        rise === 'color' ? COLORS[l.colors[0] ?? 'gold'] :
+        [1.1, 1.0, 0.85];
+      const n = rise === 'whistle' ? 1 : 3;
+      for (let k = 0; k < n; k++) {
+        const ks = hash32(seed, k, 4);
+        if (rand01(ks) > 0.9 * this.density) continue;
+        pool.spawn(
+          s.pos[0], s.pos[1], s.pos[2],
+          (rand01(ks, 1) - 0.5) * 2, -3 - rand01(ks, 2) * 3, (rand01(ks, 3) - 0.5) * 2,
+          rise === 'whistle' ? 0.25 : 0.7 + rand01(ks, 4) * 0.6,
+          rgb[0], rgb[1], rgb[2],
+          rise === 'whistle' ? 1.5 : 2.3, WILLOW_SPARK_DAMP, 3, FLAG_SPARK | (rise === 'silver' ? FLAG_GLITTER : 0), ks,
+        );
+      }
+    }
+    if (rise === 'flowers' || rise === 'branches') {
+      // 상승 꽃: 올라가는 길에 네 번, 작은 꽃이 핀다. 갈라지는 줄기: 중간쯤에서 곁줄기가 뻗는다.
+      const marks = rise === 'flowers' ? [0.3, 0.48, 0.66, 0.84] : [0.45];
+      for (const [m, at] of marks.entries()) {
+        const t = burstAge * at;
+        if (s.age - STEP >= t || s.age < t) continue;
+        const ms = hash32(l.seed, m, 77);
+        const count = rise === 'flowers' ? 12 : 5;
+        const rgb = COLORS[l.colors[(m + 1) % l.colors.length] ?? 'gold'];
+        for (let k = 0; k < count; k++) {
+          const ks = hash32(ms, k, 1);
+          const a = (k / count) * Math.PI * 2 + rand01(ks) * 0.3;
+          if (rise === 'flowers') {
+            const e = (rand01(ks, 1) - 0.5) * 1.6;
+            const sp = 42;
+            pool.spawn(
+              s.pos[0], s.pos[1], s.pos[2],
+              Math.cos(a) * Math.cos(e) * sp, Math.sin(e) * sp, Math.sin(a) * Math.cos(e) * sp,
+              0.7 + rand01(ks, 2) * 0.2, rgb[0], rgb[1], rgb[2], 3.4, Math.exp(-2.6 * STEP), 9.8, FLAG_EMBER, ks,
+            );
+          } else {
+            // 곁줄기: 위로 비스듬히 뻗으며 불티 꼬리를 남긴다.
+            const sp = 45;
+            pool.spawn(
+              s.pos[0], s.pos[1], s.pos[2],
+              Math.cos(a) * sp * 0.6, sp * 0.8, Math.sin(a) * sp * 0.6,
+              1.6, 1.1, 0.8, 0.4, 3, Math.exp(-1.2 * STEP), 9.8, FLAG_SPARK_TAIL | FLAG_EMBER, ks,
+            );
+          }
+        }
       }
     }
   }

@@ -2,6 +2,7 @@
 // 실제 불꽃 알처럼 바깥 층과 안쪽 심(芯)에 별을 채우고, 별마다 모양·색·움직임을 정한다.
 // 쇼 파일에 정의를 같이 담아서, 공유 링크로 보내도 받는 사람에게 같은 불꽃이 터진다.
 
+import { RISE_EFFECTS, type RiseEffect } from './catalog.ts';
 import type { ColorName } from './colors.ts';
 import { COLOR_NAMES } from './colors.ts';
 import { normalizeBuild, type ShellBuild } from './build.ts';
@@ -117,6 +118,8 @@ export interface CustomShell {
   dud?: number;
   /** 여러 단 터지기: 원통 알의 칸이 차례로 떨어지며 터진다 (2~4) */
   chain?: number;
+  /** 올라가는 모습 (알 겉에 붙인 상승 효과) */
+  rise?: RiseEffect;
   motion: {
     /** 퍼지는 속도 배율 (0.5~1.5) */
     speed: number;
@@ -200,6 +203,7 @@ export function normalizeShell(raw: CustomShell): CustomShell {
     shell.assembly = { offset: [o[0] ?? 0, o[1] ?? 0, o[2] ?? 0], seam: clamp(raw.assembly.seam, 0, 1) };
   }
   if (raw.dud !== undefined) shell.dud = clamp(raw.dud, 0, 0.5);
+  if (raw.rise && RISE_EFFECTS.includes(raw.rise)) shell.rise = raw.rise;
   if (raw.chain !== undefined && raw.chain > 1) shell.chain = Math.round(clamp(raw.chain, 2, 4));
   if (raw.flight) shell.flight = { height: clamp(raw.flight.height, 0.4, 1.3), burstAt: clamp(raw.flight.burstAt, 0.6, 1.5) };
   if (raw.build) shell.build = normalizeBuild(raw.build);
