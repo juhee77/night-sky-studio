@@ -74,6 +74,13 @@ export const UNLOCK_PRICES: Partial<Record<FireworkType, number>> = {
   cake: 100,
   lancework: 120,
   niagara: 150,
+  brocade: 60,
+  crackle: 70,
+  leaves: 70,
+  fish: 80,
+  hummer: 80,
+  whistle: 80,
+  salute: 90,
 };
 
 const TRACKS = { march: 'basic-1', calm: 'basic-2', drive: 'basic-3' } as const;

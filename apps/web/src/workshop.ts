@@ -2,6 +2,7 @@
 // 실제 불꽃 알처럼 바깥 층과 심에 별을 채우고, 움직임과 두 번 터지기를 정한 뒤, 시험 발사로 확인한다.
 
 import {
+  STAR_KIND_LABEL,
   COLORS,
   COLOR_NAMES,
   DEFAULT_CRAFT,
@@ -31,7 +32,7 @@ import { Stage } from './stage.ts';
 const COLOR_LABEL: Record<ColorName, string> = {
   gold: '금색', white: '흰색', red: '빨강', green: '초록', blue: '파랑', pink: '분홍', cyan: '하늘', purple: '보라',
 };
-const STAR_LABEL: Record<StarKind, string> = { tail: '꼬리 있는 별', dot: '점 별', glitter: '반짝이는 별', willow: '버들 꼬리' };
+const STAR_LABEL = STAR_KIND_LABEL;
 const css = (c: ColorName) => `rgb(${COLORS[c].map((v) => Math.round(Math.min(1, v) * 255)).join(',')})`;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 

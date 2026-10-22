@@ -1,7 +1,7 @@
 // 효과음 합성: 발사음, 폭발음, 나이아가라·틀불꽃 소리, 관객 함성과 박수.
 // 실시간 재생(AudioContext)과 영상 만들기(OfflineAudioContext)가 같은 소리를 쓴다.
 
-import { mulberry32, type CrowdCue, type Launch, type Size } from '@nss/engine';
+import { mulberry32, starSounds, type CrowdCue, type Launch, type Size, type StarSound } from '@nss/engine';
 
 export interface Scheduled {
   node: AudioScheduledSourceNode;
@@ -68,6 +68,117 @@ export class Sfx {
     o.start(when);
     o.stop(when + 0.18);
     return { node: o, end: when + 0.18 };
+  }
+
+  /** 크래클: 아주 짧은 '탁' 소리를 촘촘하게 무작위로 */
+  crackle(when: number, len: number, level: number): Scheduled | null {
+    if (this.late(when)) return null;
+    const ctx = this.ctx;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise;
+    src.loop = true;
+    const f = ctx.createBiquadFilter();
+    f.type = 'highpass';
+    f.frequency.value = 1800;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, when);
+    const rnd = mulberry32(Math.floor(when * 977));
+    for (let t = 0; t < len; t += 0.006 + rnd() * 0.022) {
+      const fade = t > len * 0.6 ? (len - t) / (len * 0.4) : 1;
+      g.gain.setValueAtTime(0.35 * level * fade * (0.3 + rnd() * 0.7), when + t);
+      g.gain.setValueAtTime(0, when + t + 0.003);
+    }
+    src.connect(f).connect(g).connect(this.out);
+    src.start(when, (when * 5.1) % 1);
+    src.stop(when + len + 0.05);
+    return { node: src, end: when + len };
+  }
+
+  /** 휘슬: 높은 휘파람 소리가 떨리며 내려간다 (별 여러 개라 조금씩 어긋난 셋) */
+  whistle(when: number, len: number, level: number): Scheduled | null {
+    if (this.late(when)) return null;
+    const ctx = this.ctx;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(0.09 * level, when + 0.08);
+    g.gain.setValueAtTime(0.09 * level, when + len * 0.7);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + len);
+    g.connect(this.out);
+    let last: OscillatorNode | null = null;
+    for (const [k, detune] of [[0, 0], [1, 1.07], [2, 0.94]] as const) {
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(2900 * (detune || 1), when + k * 0.05);
+      o.frequency.exponentialRampToValueAtTime(1300 * (detune || 1), when + len);
+      const vib = ctx.createOscillator();
+      vib.frequency.value = 23 + k * 3;
+      const vg = ctx.createGain();
+      vg.gain.value = 40;
+      vib.connect(vg).connect(o.frequency);
+      o.connect(g);
+      o.start(when + k * 0.05);
+      vib.start(when + k * 0.05);
+      o.stop(when + len + 0.05);
+      vib.stop(when + len + 0.05);
+      last = o;
+    }
+    return last && { node: last, end: when + len };
+  }
+
+  /** 허머: 낮게 윙윙 떨리는 소리 */
+  hum(when: number, len: number, level: number): Scheduled | null {
+    if (this.late(when)) return null;
+    const ctx = this.ctx;
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.value = 170;
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 9;
+    const lg = ctx.createGain();
+    lg.gain.value = 45;
+    lfo.connect(lg).connect(o.frequency);
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.value = 900;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(0.1 * level, when + 0.1);
+    g.gain.setValueAtTime(0.1 * level, when + len * 0.75);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + len);
+    o.connect(f).connect(g).connect(this.out);
+    o.start(when);
+    lfo.start(when);
+    o.stop(when + len + 0.05);
+    lfo.stop(when + len + 0.05);
+    return { node: o, end: when + len };
+  }
+
+  /** 살루트: 날카로운 '딱'과 아주 큰 '쾅' */
+  salute(when: number, level: number): Scheduled | null {
+    if (this.late(when)) return null;
+    const ctx = this.ctx;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise;
+    const f = ctx.createBiquadFilter();
+    f.type = 'highpass';
+    f.frequency.value = 900;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(Math.min(1, 0.9 * level), when + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + 0.12);
+    src.connect(f).connect(g).connect(this.out);
+    src.start(when, (when * 2.7) % 1);
+    src.stop(when + 0.15);
+    this.boom(when, 10, 3, 1.6 * level);
+    return { node: src, end: when + 0.15 };
+  }
+
+  /** 별 소리 하나를 건다 */
+  star(when: number, s: StarSound, level: number): Scheduled | null {
+    if (s.kind === 'crackle') return this.crackle(when, s.len, level);
+    if (s.kind === 'whistle') return this.whistle(when, s.len, level);
+    if (s.kind === 'hummer') return this.hum(when, s.len, level);
+    return this.salute(when, level);
   }
 
   /** 카운트다운 소리: 짧은 삐 소리 (마지막은 높고 길게) */
@@ -198,8 +309,14 @@ export function scheduleSounds(
       const count = plan.fanCount(l);
       // 멀리서 들으면 소리가 작아진다.
       const fade = d > 0 ? Math.min(1, 2 / (1 + d)) : 1;
-      if (bursts) add(sfx.boom(toCtx(l.burstAt + d), l.size, count, fade));
+      const sounds = starSounds(l);
+      // 살루트는 보통 폭발음 대신 더 큰 소리를 낸다.
+      if (bursts && !sounds.some((x) => x.kind === 'salute')) add(sfx.boom(toCtx(l.burstAt + d), l.size, count, fade));
       if (fires) add(sfx.thump(toCtx(l.fireAt + d), count, fade));
+      for (const snd of sounds) {
+        const at = l.burstAt + d + snd.start;
+        if (at >= from && at < to) add(sfx.star(toCtx(at), snd, fade));
+      }
     }
   }
   for (const c of plan.crowd ?? []) {

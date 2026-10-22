@@ -25,7 +25,8 @@ export const SIZE_SPECS: Record<Size, SizeSpec> = {
 /** 하늘로 쏘아 올려 터지는 불꽃. 케이크는 작은 알 여러 발을 차례로 쏜다. */
 export type ShellType =
   | 'chrysanthemum' | 'peony' | 'willow' | 'palm' | 'ring' | 'crossette'
-  | 'heart' | 'star' | 'smile' | 'cake' | 'custom';
+  | 'heart' | 'star' | 'smile' | 'cake' | 'custom'
+  | 'crackle' | 'brocade' | 'fish' | 'hummer' | 'leaves' | 'salute' | 'whistle';
 
 /** 시간표에 놓을 수 있는 모든 종류: 하늘 불꽃 + 다리 나이아가라 + 지상 틀불꽃 */
 export type FireworkType = ShellType | 'niagara' | 'lancework';
@@ -34,6 +35,9 @@ export type FireworkType = ShellType | 'niagara' | 'lancework';
 export type Pattern = 'sphere' | 'ring' | 'palm' | 'heart' | 'star' | 'smile';
 
 export type Tail = 'none' | 'spark' | 'willow' | 'palm';
+
+/** 별 자체가 내는 소리나 특이한 움직임 */
+export type ShellEffect = 'crackle' | 'hummer' | 'fish' | 'leaf' | 'whistle';
 
 export interface ShellSpec {
   label: string;
@@ -55,6 +59,10 @@ export interface ShellSpec {
   glitter: boolean;
   /** 날아가다 십자로 갈라지는가 */
   split: boolean;
+  /** 소리·움직임 효과 */
+  effect?: ShellEffect;
+  /** 살루트: 별 없이 번쩍 하고 크게 쾅 */
+  salute?: boolean;
 }
 
 export const SHELLS: Record<ShellType, ShellSpec> = {
@@ -99,6 +107,34 @@ export const SHELLS: Record<ShellType, ShellSpec> = {
     label: '내 불꽃', pattern: 'sphere', starsAt5: 100, starLife: 2, drag: 1.6, spreadScale: 1,
     starSize: 5, tail: 'none', ember: false, glitter: false, split: false,
   },
+  crackle: {
+    label: '크래클', pattern: 'sphere', starsAt5: 80, starLife: 1.6, drag: 1.7, spreadScale: 0.85,
+    starSize: 4, tail: 'none', ember: false, glitter: false, split: false, effect: 'crackle',
+  },
+  brocade: {
+    label: '브로케이드', pattern: 'sphere', starsAt5: 90, starLife: 3.2, drag: 1.1, spreadScale: 0.9,
+    starSize: 5.5, tail: 'willow', ember: true, glitter: false, split: false,
+  },
+  fish: {
+    label: '피시', pattern: 'sphere', starsAt5: 40, starLife: 1.8, drag: 1.5, spreadScale: 0.7,
+    starSize: 3.5, tail: 'none', ember: false, glitter: false, split: false, effect: 'fish',
+  },
+  hummer: {
+    label: '허머', pattern: 'sphere', starsAt5: 24, starLife: 2.0, drag: 1.4, spreadScale: 0.7,
+    starSize: 4, tail: 'none', ember: false, glitter: false, split: false, effect: 'hummer',
+  },
+  leaves: {
+    label: '낙엽', pattern: 'sphere', starsAt5: 60, starLife: 4.0, drag: 2.6, spreadScale: 0.65,
+    starSize: 4.5, tail: 'none', ember: true, glitter: false, split: false, effect: 'leaf',
+  },
+  salute: {
+    label: '살루트', pattern: 'sphere', starsAt5: 30, starLife: 0.25, drag: 3, spreadScale: 0.35,
+    starSize: 3, tail: 'none', ember: false, glitter: false, split: false, salute: true,
+  },
+  whistle: {
+    label: '휘슬', pattern: 'sphere', starsAt5: 16, starLife: 1.6, drag: 1.0, spreadScale: 0.8,
+    starSize: 3.5, tail: 'spark', ember: false, glitter: false, split: false, effect: 'whistle',
+  },
   // 케이크 한 발. 높이와 지름은 크기표 대신 shellSize()에서 정한다.
   cake: {
     label: '케이크', pattern: 'sphere', starsAt5: 22, starLife: 1.1, drag: 2.2, spreadScale: 1,
@@ -113,7 +149,11 @@ export const SHELL_TYPES = (Object.keys(SHELLS) as ShellType[]).filter((t) => t 
 export const FIREWORK_TYPES: FireworkType[] = [...SHELL_TYPES, 'niagara', 'lancework'];
 
 /** 쇼 파일에 쓸 수 있는 모든 종류 (공유 링크의 번호 순서. 뒤에만 더한다) */
-export const ALL_TYPES: FireworkType[] = [...FIREWORK_TYPES, 'custom'];
+export const ALL_TYPES: FireworkType[] = [
+  'chrysanthemum', 'peony', 'willow', 'palm', 'ring', 'crossette', 'heart', 'star', 'smile', 'cake',
+  'niagara', 'lancework', 'custom',
+  'crackle', 'brocade', 'fish', 'hummer', 'leaves', 'salute', 'whistle',
+];
 
 const SPECIAL_LABEL = { niagara: '나이아가라', lancework: '지상 틀불꽃' } as const;
 

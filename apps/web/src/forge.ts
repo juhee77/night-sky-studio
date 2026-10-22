@@ -2,6 +2,7 @@
 // 별을 붙인 자리가 곧 날아가는 방향이고, 도화선·발사약이 터지는 때와 높이를 정한다.
 
 import {
+  STAR_KIND_LABEL,
   COLORANT_LABEL,
   COLORS,
   COLOR_NAMES,
@@ -34,7 +35,7 @@ import {
 const COLOR_LABEL: Record<ColorName, string> = {
   gold: '금색', white: '흰색', red: '빨강', green: '초록', blue: '파랑', pink: '분홍', cyan: '하늘', purple: '보라',
 };
-const STAR_LABEL: Record<StarKind, string> = { tail: '꼬리 있는 별', dot: '점 별', glitter: '반짝이는 별', willow: '버들 꼬리' };
+const STAR_LABEL = STAR_KIND_LABEL;
 const css = (c: ColorName) => `rgb(${COLORS[c].map((v) => Math.round(Math.min(1, v) * 255)).join(',')})`;
 const rgbCss = (rgb: readonly number[]) => `rgb(${rgb.map((v) => Math.round(Math.min(1, v) * 255)).join(',')})`;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
