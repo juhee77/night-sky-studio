@@ -264,6 +264,21 @@
         <ul id="load-shortages" class="site-warnings"></ul>
         <div class="load-table-wrap"><table class="load-table"><thead><tr><th>점화</th><th>위치</th><th>불꽃</th><th>크기</th><th>각도</th><th>통</th></tr></thead><tbody id="load-rows"></tbody></table></div>
       </section>
+      <section class="loading">
+        <h3>배선과 발사 스크립트</h3>
+        <p class="note">통마다 점화 모듈의 핀을 잇습니다. 실제 장비처럼 발사 스크립트를 CSV로 내보낼 수 있습니다.</p>
+        <div class="deck-rack">
+          <div class="field"><label for="wire-pins">모듈 하나의 핀 수</label><select id="wire-pins"><option value="12">12핀</option><option value="18">18핀</option><option value="32">32핀</option></select></div>
+          <label class="check-label"><input type="checkbox" id="wire-chain" /> 같은 때 같은 불꽃(부채꼴)은 한 핀에 묶기</label>
+        </div>
+        <p id="wire-stats" class="note"></p>
+        <div class="chips">
+          <button type="button" id="wire-check">회로 점검</button>
+          <button type="button" id="wire-fix" hidden>끊긴 선 고치기</button>
+          <button type="button" id="wire-csv">발사 스크립트 내보내기 (CSV)</button>
+        </div>
+        <ul id="wire-faults" class="site-warnings"></ul>
+      </section>
     </dialog>
 
     <dialog id="workshop-dialog" class="workshop-dialog" aria-labelledby="ws-title">

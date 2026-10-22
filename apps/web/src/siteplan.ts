@@ -10,6 +10,9 @@ import {
   loadPlan,
   rigForShow,
   tubeLabel,
+  fireScript,
+  fixFaults,
+  wirePlan,
   type LoadPlan,
   RACK_KINDS,
   deckCheck,
@@ -52,6 +55,32 @@ export class SitePlanner {
       b.addEventListener('click', () => this.addRack(b.dataset.rack as RackKind)),
     );
     this.wireDeck();
+    dialog.querySelector('#wire-pins')!.addEventListener('change', (e) =>
+      editor.change((d) => {
+        d.rig ??= { decks: {} };
+        d.rig.pins = Number((e.target as HTMLSelectElement).value);
+      }),
+    );
+    dialog.querySelector('#wire-chain')!.addEventListener('change', (e) =>
+      editor.change((d) => {
+        d.rig ??= { decks: {} };
+        if ((e.target as HTMLInputElement).checked) delete d.rig.chain;
+        else d.rig.chain = false;
+      }),
+    );
+    dialog.querySelector('#wire-check')!.addEventListener('click', () => {
+      this.checking = true;
+      this.renderWiring();
+    });
+    dialog.querySelector('#wire-fix')!.addEventListener('click', () => editor.change((d) => fixFaults(d)));
+    dialog.querySelector('#wire-csv')!.addEventListener('click', () => {
+      const blob = new Blob([fireScript(editor.show)], { type: 'text/csv;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${(editor.show.title || '쇼').replace(/[\\/:*?"<>|]/g, '_')} 발사 스크립트.csv`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    });
     dialog.querySelector('#load-clear')!.addEventListener('click', () => {
       if (!confirm('모든 바지선 갑판의 랙과 손으로 고른 통을 지울까요?')) return;
       editor.change((d) => {
@@ -267,6 +296,37 @@ export class SitePlanner {
   }
 
   private plan: LoadPlan | null = null;
+  /** 회로 점검 결과를 보여 주는 중인지 */
+  private checking = false;
+
+  private renderWiring(): void {
+    const show = this.editor.show;
+    const w = wirePlan(show, this.plan ?? loadPlan(show));
+    (this.dialog.querySelector('#wire-pins') as HTMLSelectElement).value = String(show.rig?.pins ?? 18);
+    (this.dialog.querySelector('#wire-chain') as HTMLInputElement).checked = show.rig?.chain !== false;
+    const loose = w.fires.filter((f) => f.module === null).length;
+    const pins = w.modules.reduce((n, m) => n + m.used, 0);
+    this.dialog.querySelector('#wire-stats')!.textContent =
+      `모듈 ${w.modules.length}개 · 핀 ${pins}개 · 한 핀에 묶은 곳 ${w.chained}곳 · 발사 ${w.fires.length}번` +
+      (loose ? ` · 통이 없어 잇지 못한 발사 ${loose}번` : '') +
+      (show.rig?.checked ? ' · 회로 점검함' : ' · 회로 점검 전');
+    const box = this.dialog.querySelector('#wire-faults')!;
+    const fix = this.dialog.querySelector<HTMLButtonElement>('#wire-fix')!;
+    if (!this.checking) {
+      box.innerHTML = '';
+      fix.hidden = true;
+      return;
+    }
+    const where = (m: number) => {
+      const mod = w.modules.find((x) => x.id === m)!;
+      const l = show.launchers.find((x) => x.id === mod.launcher)!;
+      return launcherLabel(l, show.launchers.indexOf(l));
+    };
+    box.innerHTML = w.faults.length
+      ? w.faults.map((f) => `<li class="error">모듈 ${f.module} 핀 ${f.pin} 선이 끊겼습니다 (${where(f.module)}).</li>`).join('')
+      : '<li class="ok">끊긴 선이 없습니다.</li>';
+    fix.hidden = !w.faults.length;
+  }
 
   /** 장전 계획 표: 통을 손으로 바꿀 수 있다 */
   private renderLoading(): void {
@@ -455,6 +515,7 @@ export class SitePlanner {
     show.launchers.forEach((l, i) => this.drawLauncher(g, l, launcherLabel(l, i), sx, sy, scale, font));
 
     this.renderLoading();
+    this.renderWiring();
     this.renderDeck();
     const list = this.dialog.querySelector('#site-warnings')!;
     list.innerHTML = warnings.length
