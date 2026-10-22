@@ -669,6 +669,7 @@ export class Simulation {
           const lifeSpread = precise ? 0 : craft.spreadLife;
           let starLife = life * (1 - lifeSpread + rand01(s, 5) * 2 * lifeSpread);
           let aux = colorAux;
+          let starFlags = flags;
           // 꼬리 길이: aux 24~27비트 (0 보통, 1 짧게, 2 길게, 3 카무로)
           const tailCode = layer.star === 'kamuro' ? 3 : layer.tail === 'short' ? 1 : layer.tail === 'long' ? 2 : 0;
           if (seq) {
@@ -680,8 +681,15 @@ export class Simulation {
               seq.order === 'sweep' ? (1 + dx / n) / 2 :
               rand01(s, 14);
             const ignite = 0.25 + order * seq.span;
-            starLife = seq.mode === 'sparkle' ? ignite + 0.3 : ignite + starLife * 0.8;
-            aux = (Math.round((ignite / starLife) * 255) << 16) | (seq.mode === 'sparkle' ? 0 : colorAux);
+            if (seq.mode === 'pop') {
+              // 차례가 올 때까지 어둡게 날다가, 그 자리에서 작은 불꽃으로 터진다 (두 번 터지기와 같은 방식).
+              starLife = ignite;
+              aux = 255 << 16;
+              starFlags |= FLAG_SPLIT | FLAG_SPLIT_BURST;
+            } else {
+              starLife = seq.mode === 'sparkle' ? ignite + 0.3 : ignite + starLife * 0.8;
+              aux = (Math.round((ignite / starLife) * 255) << 16) | (seq.mode === 'sparkle' ? 0 : colorAux);
+            }
           }
           aux = (aux | (tailCode << 24)) >>> 0;
           const ok = this.pool.spawn(
@@ -689,7 +697,7 @@ export class Simulation {
             dx * speed, dy * speed, dz * speed,
             starLife,
             rgb[0], rgb[1], rgb[2],
-            layer.star === 'dot' ? 5.5 : 4.5, damp, grav, flags, s, aux,
+            layer.star === 'dot' ? 5.5 : 4.5, damp, grav, starFlags, s, aux,
           );
           // 늦게 피는 층: 나이를 음수로 두면 그때까지 보이지도 움직이지도 않는다.
           if (ok && layer.delay + delayK > 0) this.pool.age[this.pool.count - 1] = -(layer.delay + delayK);

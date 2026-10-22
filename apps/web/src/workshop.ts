@@ -65,6 +65,15 @@ const EFFECTS: Record<string, () => Partial<CustomShell>> = {
     chain: undefined,
     split: undefined,
   }),
+  '심 먼저, 바깥은 위에서 아래로 터짐': () => ({
+    layers: [
+      { role: 'outer', shape: { kind: 'sphere', count: 80 }, star: 'dot', color: 'gold', scale: 1, delay: 0, sequence: { order: 'down', span: 1.6, mode: 'pop' } },
+      { role: 'pistil', shape: { kind: 'sphere', count: 36 }, star: 'dot', color: 'cyan', scale: 0.45, delay: 0 },
+    ],
+    motion: { speed: 1, droop: 0.3, life: 2.4, flicker: false },
+    chain: undefined,
+    split: undefined,
+  }),
   '긴 버들 (카무로)': () => ({
     layers: [{ role: 'outer', shape: { kind: 'sphere', count: 70 }, star: 'kamuro', color: 'gold', scale: 1, delay: 0, tail: 'long' }],
     motion: { speed: 0.95, droop: 0.75, life: 6.5, flicker: false },

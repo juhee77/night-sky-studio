@@ -66,8 +66,8 @@ export interface Sequence {
   order: 'down' | 'up' | 'sweep' | 'random';
   /** 첫 별과 마지막 별 사이 시간(초) */
   span: number;
-  /** sparkle 반짝 터지고 꺼짐, light 켜져서 계속 탐 */
-  mode: 'sparkle' | 'light';
+  /** sparkle 반짝 터지고 꺼짐, light 켜져서 계속 탐, pop 차례가 오면 그 자리에서 작은 불꽃으로 터짐 */
+  mode: 'sparkle' | 'light' | 'pop';
 }
 
 export const SEQUENCE_LABEL: Record<Sequence['order'], string> = {
@@ -81,7 +81,7 @@ export function normalizeSequence(raw: Sequence): Sequence {
   return {
     order: (['down', 'up', 'sweep', 'random'] as const).includes(raw.order) ? raw.order : 'down',
     span: clamp(raw.span, 0.3, 3),
-    mode: raw.mode === 'light' ? 'light' : 'sparkle',
+    mode: raw.mode === 'light' || raw.mode === 'pop' ? raw.mode : 'sparkle',
   };
 }
 
