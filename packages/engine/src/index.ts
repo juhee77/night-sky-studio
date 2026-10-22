@@ -28,3 +28,5 @@ export * from './wiring.ts';
 export * from './live.ts';
 export * from './mapvenue.ts';
 export * from './art.ts';
+export * from './hand.ts';
+export * from './bench.ts';

@@ -32,4 +32,12 @@ public class Mark {
         this.accountId = accountId;
         this.kind = kind;
     }
+
+    public Long getPostId() {
+        return postId;
+    }
+
+    public String getKind() {
+        return kind;
+    }
 }

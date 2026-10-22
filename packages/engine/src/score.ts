@@ -66,6 +66,10 @@ export function ruleLabel(r: Rule): string {
       return `지상 틀에 그림 세우기: ${r.subject}`;
     case 'workshopShell':
       return '제작 공방에서 만든 우리만의 불꽃 쓰기';
+    case 'kamuroFinish':
+      return `마지막 ${r.seconds}초를 긴 버들(카무로)로 마무리`;
+    case 'outerPop':
+      return '바깥 층이 차례로 작게 터지는 불꽃 넣기';
   }
 }
 
@@ -114,6 +118,18 @@ function checkRule(r: Rule, show: Show, launches: Launch[], end: number): RuleRe
     case 'workshopShell': {
       const ok = cues.some((c) => c.type === 'custom' && c.custom && !!show.customShells?.[c.custom]?.build);
       return { rule: r, label, ok, detail: ok ? undefined : '제작 공방에서 만든 불꽃이 없습니다.' };
+    }
+    case 'kamuroFinish': {
+      // 내 불꽃 가운데 카무로 별이나 꼬리를 길게 늘인 버들 별
+      const from = end - r.seconds;
+      const longWillow = (id?: string) =>
+        !!id && (show.customShells?.[id]?.layers ?? []).some((l) => l.star === 'kamuro' || ((l.star === 'willow' || l.star === 'brocade') && l.tail === 'long'));
+      const ok = cues.some((c) => c.t >= from && c.type === 'custom' && longWillow(c.custom));
+      return { rule: r, label, ok, detail: ok ? undefined : `마지막 ${r.seconds}초에 긴 버들 내 불꽃이 없습니다.` };
+    }
+    case 'outerPop': {
+      const ok = cues.some((c) => c.type === 'custom' && (show.customShells?.[c.custom ?? '']?.layers ?? []).some((l) => l.sequence?.mode === 'pop'));
+      return { rule: r, label, ok, detail: ok ? undefined : '바깥 층이 차례로 터지는 내 불꽃이 없습니다.' };
     }
     case 'live': {
       if (!isLive(show)) return { rule: r, label, ok: false, detail: '실전 모드가 꺼져 있습니다.' };

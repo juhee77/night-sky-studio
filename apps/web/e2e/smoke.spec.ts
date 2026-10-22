@@ -1,0 +1,58 @@
+import { expect, test, type Page } from '@playwright/test';
+
+/** 편집기를 열고, 처음 뜨는 시작 안내를 건너뛴다 */
+async function open(page: Page): Promise<void> {
+  await page.goto('/');
+  const guide = page.locator('#guide-dialog');
+  await expect(guide).toBeVisible({ timeout: 15_000 });
+  await guide.getByRole('button', { name: /건너뛰기/ }).click();
+  await expect(guide).toBeHidden();
+}
+
+test('편집기가 열리고 무대와 시간표가 보이며, 시작 안내는 한 번만 뜬다', async ({ page }) => {
+  await open(page);
+  await expect(page.locator('#stage')).toBeVisible();
+  await expect(page.locator('#timeline')).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem('nss:guided'))).toBe('1');
+  await page.reload();
+  await page.waitForTimeout(1500);
+  await expect(page.locator('#guide-dialog')).toBeHidden();
+});
+
+test('자동 연출로 불꽃을 놓고 재생하면 시계가 간다', async ({ page }) => {
+  await open(page);
+  await page.locator('#auto-btn').click();
+  await page.locator('[data-mood="romantic"]').click();
+  await page.locator('#auto-run').click();
+  await expect(page.locator('#toast')).toContainText('불꽃');
+  await page.locator('#play').click();
+  await page.waitForTimeout(2000);
+  await page.locator('#play').click();
+  const clock = await page.locator('#clock').inputValue().catch(async () => page.locator('#clock').textContent());
+  expect(clock).not.toMatch(/^0:00\.00/);
+});
+
+test('공유 링크를 만들면 상영관에서 같은 쇼가 열린다', async ({ page }) => {
+  await open(page);
+  const title = await page.locator('#title').inputValue();
+  await page.locator('#share-btn').click();
+  await expect(page.locator('#share-link')).toHaveValue(/\/v\/#s=/);
+  const link = await page.locator('#share-link').inputValue();
+  await page.goto(link);
+  await expect(page.locator('body')).toContainText(title || '불꽃쇼', { timeout: 15_000 });
+  await expect(page.getByRole('button', { name: /쇼 보기/ })).toBeVisible();
+});
+
+test('공작소·발사장·도움말 창이 열리고 닫힌다', async ({ page }) => {
+  await open(page);
+  for (const [btn, dialog] of [['#workshop-btn', '#workshop-dialog'], ['#site-btn', '#site-dialog'], ['#help-btn', '#help-dialog']]) {
+    await page.locator(btn).click();
+    await expect(page.locator(dialog)).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.locator(dialog)).toBeHidden();
+  }
+  // 공작소의 제작 공방 탭에서 알 단면이 그려진다
+  await page.locator('#workshop-btn').click();
+  await page.getByRole('tab', { name: '제작 공방' }).click();
+  await expect(page.locator('#forge-section')).toBeVisible();
+});

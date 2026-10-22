@@ -6,3 +6,5 @@ dist/
 server/build/
 server/.gradle/
 server/data/
+test-results/
+playwright-report/

@@ -1,9 +1,9 @@
-// 기본 곡 3개. 음원 파일을 싣지 않고 브라우저 안에서 합성한다.
+// 기본 곡 다섯 개. 음원 파일을 싣지 않고 브라우저 안에서 합성한다.
 // 저작권 걱정이 없고, 박자와 첫 박 위치를 정확히 알고 있어서 박자 찾기가 필요 없다.
 
 import { mulberry32 } from '@nss/engine';
 
-type Style = 'march' | 'calm' | 'drive';
+type Style = 'march' | 'calm' | 'drive' | 'waltz' | 'epic';
 
 export interface BasicTrack {
   id: string;
@@ -19,10 +19,25 @@ export const BASIC_TRACKS: BasicTrack[] = [
   { id: 'basic-1', title: '밤하늘 행진', bpm: 112, bars: 28, root: 220, style: 'march' },
   { id: 'basic-2', title: '느린 강물', bpm: 84, bars: 20, root: 196, style: 'calm' },
   { id: 'basic-3', title: '피날레 질주', bpm: 132, bars: 32, root: 233.08, style: 'drive' },
+  { id: 'basic-4', title: '별빛 왈츠', bpm: 108, bars: 40, root: 261.63, style: 'waltz' },
+  { id: 'basic-5', title: '긴 여름밤', bpm: 104, bars: 56, root: 207.65, style: 'epic' },
 ];
 
+/** 한 마디의 박 수 (왈츠는 3박자) */
+const beatsPerBar = (t: BasicTrack) => (t.style === 'waltz' ? 3 : 4);
+
+/** 긴 여름밤의 짜임: 인트로 → 벌스 → 후렴 → 브릿지 → 후렴 → 끝 (자동 연출의 구간 찾기가 알아보기 좋게) */
+function epicPart(bar: number): 'intro' | 'verse' | 'chorus' | 'bridge' | 'outro' {
+  if (bar < 4) return 'intro';
+  if (bar < 16) return 'verse';
+  if (bar < 28) return 'chorus';
+  if (bar < 34) return 'bridge';
+  if (bar < 48) return 'chorus';
+  return 'outro';
+}
+
 export function trackDuration(t: BasicTrack): number {
-  return (t.bars * 4 * 60) / t.bpm + 1.5;
+  return (t.bars * beatsPerBar(t) * 60) / t.bpm + 1.5;
 }
 
 const RATE = 32000;
@@ -101,13 +116,22 @@ export async function renderTrack(t: BasicTrack): Promise<AudioBuffer> {
     s.stop(at + 0.06);
   };
 
-  const barsPerChord = t.style === 'calm' ? 2 : 1;
+  const barsPerChord = t.style === 'calm' || t.style === 'waltz' ? 2 : 1;
+  const per = beatsPerBar(t);
   for (let bar = 0; bar < t.bars; bar++) {
-    const barStart = bar * 4 * beat;
+    const barStart = bar * per * beat;
     const chord = PROGRESSION[Math.floor(bar / barsPerChord) % 4];
     const intro = bar < 2;
     const finale = bar >= t.bars - 4;
 
+    if (t.style === 'waltz') {
+      waltzBar(bar, barStart, chord);
+      continue;
+    }
+    if (t.style === 'epic') {
+      epicBar(epicPart(bar), barStart, chord, finale);
+      continue;
+    }
     if (bar % barsPerChord === 0) {
       const len = barsPerChord * 4 * beat;
       for (const n of chord) note('triangle', semi(t.root, n), barStart, len, 0.07, padFilter, 0.3);
@@ -145,6 +169,45 @@ export async function renderTrack(t: BasicTrack): Promise<AudioBuffer> {
   }
 
   return ctx.startRendering();
+
+  /** 왈츠: 첫 박에 낮은 음, 둘째·셋째 박에 화음 (쿵짝짝) */
+  function waltzBar(bar: number, barStart: number, chord: number[]): void {
+    if (bar % barsPerChord === 0) for (const n of chord) note('triangle', semi(t.root, n), barStart, barsPerChord * 3 * beat, 0.05, padFilter, 0.4);
+    note('sawtooth', semi(t.root / 2, chord[0]), barStart, beat * 0.9, bar < 2 ? 0.07 : 0.13, bassFilter);
+    if (bar >= 2) {
+      kick(barStart, 0.5);
+      for (const b of [1, 2]) for (const n of chord) note('triangle', semi(t.root, n + 12), barStart + b * beat, beat * 0.5, 0.03, padFilter);
+    }
+    if (bar >= 6) {
+      // 가락: 한 마디에 세 음
+      for (let b = 0; b < 3; b++) note('sine', semi(t.root, chord[(bar + b) % 3] + 24), barStart + b * beat, beat * 0.9, 0.04, padFilter, 0.05);
+    }
+  }
+
+  /** 긴 여름밤: 구간마다 세기와 악기를 바꾼다 */
+  function epicBar(part: ReturnType<typeof epicPart>, barStart: number, chord: number[], finale: boolean): void {
+    const big = part === 'chorus';
+    for (const n of chord) note('triangle', semi(t.root, n), barStart, 4 * beat, part === 'bridge' ? 0.05 : 0.07, padFilter, part === 'intro' ? 0.8 : 0.3);
+    for (let b = 0; b < 4; b++) {
+      const at = barStart + b * beat;
+      if (part !== 'bridge') note('sawtooth', semi(t.root / 2, chord[0]), at, beat * 0.8, part === 'intro' || part === 'outro' ? 0.05 : big ? 0.16 : 0.11, bassFilter);
+      if (part === 'verse') {
+        if (b % 2 === 0) kick(at, 0.7);
+        hat(at + beat / 2, 0.06);
+      } else if (big) {
+        kick(at);
+        hat(at + beat / 4, 0.08);
+        hat(at + beat / 2);
+        hat(at + (3 * beat) / 4, 0.08);
+        for (let e = 0; e < 2; e++) note('square', semi(t.root, chord[(b * 2 + e) % 3] + (finale ? 24 : 12)), at + (e * beat) / 2, beat * 0.4, 0.04, padFilter);
+      } else if (part === 'bridge') {
+        // 브릿지: 북 없이 높은 소리만
+        note('sine', semi(t.root, chord[b % 3] + 24), at, beat * 0.9, 0.05, padFilter, 0.1);
+      } else if (part === 'outro' && b === 0) {
+        kick(at, 0.4);
+      }
+    }
+  }
 }
 
 const cache = new Map<string, Promise<AudioBuffer>>();

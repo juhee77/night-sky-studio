@@ -11,9 +11,11 @@
     "build:pages": "npm run build:pages -w @nss/web",
     "preview": "npm run preview -w @nss/web",
     "test": "node --test \"packages/engine/test/*.test.ts\"",
-    "typecheck": "tsc -p packages/engine && tsc -p apps/web"
+    "typecheck": "tsc -p packages/engine && tsc -p apps/web",
+    "e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@types/node": "^26.6.5",
     "typescript": "^7.0.2",
     "vite": "^8.3.4"

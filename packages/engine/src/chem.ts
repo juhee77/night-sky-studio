@@ -32,6 +32,8 @@ export interface Composition {
   helper: number;
   /** 접착제: 별을 단단하게. 많으면 연기 */
   binder: number;
+  /** 저어 섞은 고르기 (0~1, 작업대). 없으면 잘 섞인 것으로 본다. 덜 섞으면 색이 탁하다 */
+  stir?: number;
 }
 
 export interface MixResult {
@@ -93,6 +95,7 @@ export function evaluateMix(c: Composition): MixResult {
 
   let purity = 0.45 + Math.min(0.3, p.col * 1.2) + Math.min(0.3, p.helper * 2.5) - p.fuel * 0.5 - p.binder * 0.8;
   if (hasBlue) purity -= Math.max(0, heat - 0.75) * 1.4; // 뜨거우면 파랑이 날아간다
+  if (c.stir !== undefined) purity *= 0.55 + 0.45 * clamp(c.stir, 0, 1);
   purity = clamp(purity, 0.15, 1);
 
   let brightness = 0.35 + heat * 0.6 + (metal / total) * 1.2;
@@ -137,6 +140,7 @@ export function normalizeComposition(raw: Composition): Composition {
     helper: clamp(raw.helper, 0, 100),
     binder: clamp(raw.binder, 0, 100),
   };
+  if (raw.stir !== undefined) out.stir = clamp(raw.stir, 0, 1);
   if (raw.colorant2 && colorants.includes(raw.colorant2)) {
     out.colorant2 = raw.colorant2;
     out.colorant2Amount = clamp(raw.colorant2Amount ?? 0, 0, 100);
