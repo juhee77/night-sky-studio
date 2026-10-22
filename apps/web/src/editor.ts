@@ -13,8 +13,7 @@ import {
   type Launcher,
   type Show,
   type Size,
-  type RiseEffect,
-} from '@nss/engine';
+  type RiseEffect, MAP_PRESET, type MapVenue } from '@nss/engine';
 
 export type Change = 'show' | 'selection' | 'template';
 
@@ -286,13 +285,40 @@ export function withDefaultLaunchers(show: Show): Show {
 }
 
 /**
+ * 지도에서 고른 무대로 옮긴다. 다리가 없으므로 나이아가라는 빠지고,
+ * 지상 틀이 없으면 틀불꽃도 빠진다. 빠진 불꽃 수를 돌려준다.
+ */
+export function moveToMapVenue(d: Show, map: MapVenue, launchers: Launcher[]): number {
+  d.venue = { ...d.venue, preset: MAP_PRESET, map };
+  d.launchers = launchers;
+  const ids = new Set(launchers.map((l) => l.id));
+  const bargeCount = launchers.filter((l) => l.kind === 'barge').length;
+  const hasFrame = launchers.some((l) => l.kind === 'frame');
+  const before = d.cues.length;
+  d.cues = d.cues.filter((c) => c.type !== 'niagara' && (c.type !== 'lancework' || hasFrame));
+  for (const c of d.cues) {
+    if (ids.has(c.at)) continue;
+    if (c.type === 'lancework') {
+      c.at = 'ground';
+      continue;
+    }
+    const n = Number(c.at.match(/^barge-(\d+)$/)?.[1] ?? 1);
+    c.at = `barge-${Math.min(Math.max(1, n), bargeCount)}`;
+  }
+  if (d.rig) for (const id of Object.keys(d.rig.decks)) if (!ids.has(id)) delete d.rig.decks[id];
+  d.seat = { id: 'front-near' };
+  return before - d.cues.length;
+}
+
+/**
  * 쇼를 다른 무대로 옮긴다. 발사 위치는 새 무대의 기본 위치로 바꾸고,
  * 새 무대에 없는 바지선에 놓인 불꽃은 번호가 가장 가까운 바지선으로 옮긴다.
  */
 export function moveToVenue(d: Show, venueId: string): void {
   const venue = VENUES[venueId];
   if (!venue) return;
-  d.venue = { ...d.venue, preset: venueId };
+  const { map: _map, ...rest } = d.venue;
+  d.venue = { ...rest, preset: venueId };
   d.launchers = structuredClone(venue.launchers);
   const ids = new Set(d.launchers.map((l) => l.id));
   const bargeCount = d.launchers.filter((l) => l.kind === 'barge').length;

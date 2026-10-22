@@ -26,3 +26,4 @@ export * from './rig.ts';
 export * from './loading.ts';
 export * from './wiring.ts';
 export * from './live.ts';
+export * from './mapvenue.ts';

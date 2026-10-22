@@ -5,6 +5,7 @@ import {
   SKIES,
   SKY_IDS,
   VENUES,
+  venueOf,
   analyzeMusic,
   audienceCues,
   autoChoreograph,
@@ -24,7 +25,7 @@ import {
 } from '@nss/engine';
 import { Career } from './career.ts';
 import { demoShow } from './demo-show.ts';
-import { Editor, moveToVenue, newShow, round3, withDefaultLaunchers, type Snap } from './editor.ts';
+import { Editor, moveToMapVenue, moveToVenue, newShow, round3, withDefaultLaunchers, type Snap } from './editor.ts';
 import { fmtDate, fmtTime } from './format.ts';
 import { importMusicFile, iphoneMusicHint, loadMusic, monoForTempo, musicErrorMessage, useDeviceFontForFrames } from './media.ts';
 import { Drawer } from './drawer.ts';
@@ -467,11 +468,19 @@ el.sound.addEventListener('click', () => {
 
 // ── 무대와 관람석 ──
 for (const v of Object.values(VENUES)) el.venue.add(new Option(`${v.label} (${v.place})`, v.id));
+el.venue.add(new Option('지도에서 고르기…', '__map'));
 
 /** 무대에 맞게 관람석 목록을 다시 채운다. */
 function syncVenueInputs(): void {
-  const venue = VENUES[editor.show.venue.preset] ?? VENUES['river-bridge-city'];
+  const venue = venueOf(editor.show) ?? VENUES['river-bridge-city'];
+  // 지도 무대는 고른 장소 이름으로 한 줄
+  let mapOpt = el.venue.querySelector<HTMLOptionElement>('option[value="map"]');
+  if (venue.id === 'map') {
+    if (!mapOpt) el.venue.add((mapOpt = new Option('', 'map')), el.venue.querySelector('option[value="__map"]'));
+    mapOpt.textContent = `${venue.label} (지도)`;
+  } else mapOpt?.remove();
   el.venue.value = venue.id;
+  if (el.seat.dataset.venue === 'map') el.seat.dataset.venue = '';
   // 의뢰 쇼는 의뢰받은 무대에서만 한다.
   el.venue.disabled = !!editor.show.commission;
   if (el.seat.dataset.venue !== venue.id) {
@@ -546,8 +555,36 @@ el.stageBtn.addEventListener('click', () => {
   el.stageDialog.showModal();
 });
 
+let mapStage: import('./mapstage.ts').MapStage | null = null;
+async function pickOnMap(): Promise<void> {
+  try {
+    if (!mapStage) {
+      const { MapStage } = await import('./mapstage.ts');
+      mapStage = new MapStage($<HTMLDialogElement>('map-dialog'));
+    }
+  } catch {
+    say('지도를 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.');
+    syncVenueInputs();
+    return;
+  }
+  const r = await mapStage.pick(editor.show);
+  if (!r) {
+    syncVenueInputs();
+    return;
+  }
+  let dropped = 0;
+  editor.change((d) => (dropped = moveToMapVenue(d, r.venue, r.launchers)));
+  stage.setSeat('front-near');
+  syncVenueInputs();
+  say(`무대를 「${r.venue.name}」(지도)로 옮겼습니다. 건물 ${r.venue.buildings.length}채로 스카이라인을 만들었습니다.${dropped ? ` 다리·지상 틀이 없어 불꽃 ${dropped}개를 뺐습니다.` : ''}`);
+}
+
 el.venue.addEventListener('change', () => {
   const id = el.venue.value;
+  if (id === '__map' || id === 'map') {
+    void pickOnMap();
+    return;
+  }
   editor.change((d) => moveToVenue(d, id));
   const v = VENUES[id];
   say(`무대를 「${v.label}」(${v.place})로 옮겼습니다. 발사 위치도 이 무대에 맞게 바뀌었습니다.`);

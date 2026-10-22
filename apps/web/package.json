@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@nss/engine": "*",
+    "maplibre-gl": "^6.15.0",
     "mediabunny": "^1.61.6"
   }
 }
