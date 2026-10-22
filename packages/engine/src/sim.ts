@@ -72,6 +72,8 @@ const LANCE_HEIGHT = 22;
 /** 틀불꽃은 왼쪽 끝에서 오른쪽 끝까지 이 시간 동안 차례로 불이 붙는다 */
 const LANCE_IGNITE = 0.6;
 const SKY_DECAY = Math.exp(-6 * STEP);
+/** 꼬리 길이 배율: 보통, 짧게, 길게, 카무로 */
+const TAIL_MUL = [1, 0.45, 2.2, 3.2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
 
 /** 실전 모드면 장비에 맞춰 발사를 고치고, 쏘아지지 않는 불꽃을 경고로 더한다. */
 function liveShow(show: Show) {
@@ -629,7 +631,7 @@ export class Simulation {
         if (layer.star === 'tail') flags |= FLAG_SPARK_TAIL;
         if (layer.star === 'willow') flags |= FLAG_WILLOW_TAIL;
         if (layer.star === 'glitter') flags |= FLAG_GLITTER;
-        if (layer.star === 'brocade') flags |= FLAG_WILLOW_TAIL | FLAG_EMBER;
+        if (layer.star === 'brocade' || layer.star === 'kamuro') flags |= FLAG_WILLOW_TAIL | FLAG_EMBER;
         if (layer.star === 'crackle' || layer.star === 'hummer' || layer.star === 'fish' || layer.star === 'leaf' || layer.star === 'whistle') {
           flags |= EFFECT_FLAG[layer.star];
         }
@@ -667,6 +669,8 @@ export class Simulation {
           const lifeSpread = precise ? 0 : craft.spreadLife;
           let starLife = life * (1 - lifeSpread + rand01(s, 5) * 2 * lifeSpread);
           let aux = colorAux;
+          // 꼬리 길이: aux 24~27비트 (0 보통, 1 짧게, 2 길게, 3 카무로)
+          const tailCode = layer.star === 'kamuro' ? 3 : layer.tail === 'short' ? 1 : layer.tail === 'long' ? 2 : 0;
           if (seq) {
             // 하늘 기준 방향으로 순서를 정한다 (알이 굴러도 위는 위다).
             const n = Math.hypot(dx, dy, dz) || 1;
@@ -679,6 +683,7 @@ export class Simulation {
             starLife = seq.mode === 'sparkle' ? ignite + 0.3 : ignite + starLife * 0.8;
             aux = (Math.round((ignite / starLife) * 255) << 16) | (seq.mode === 'sparkle' ? 0 : colorAux);
           }
+          aux = (aux | (tailCode << 24)) >>> 0;
           const ok = this.pool.spawn(
             atK[0], atK[1], atK[2],
             dx * speed, dy * speed, dz * speed,
@@ -903,26 +908,30 @@ export class Simulation {
         }
       }
 
+      // 꼬리 길이: 남기는 불티가 사는 시간 배율
+      const tail = TAIL_MUL[(p.aux[i] >>> 24) & 15];
       if (f & FLAG_SPARK_TAIL) {
         const s = hash32(p.seed[i], this.step, 5);
         if (rand01(s) < 0.45 * this.density) {
           p.spawn(
             p.px[i], p.py[i], p.pz[i],
             vx * 0.15 + (rand01(s, 1) - 0.5) * 3, vy * 0.15 + (rand01(s, 2) - 0.5) * 3, vz * 0.15 + (rand01(s, 3) - 0.5) * 3,
-            0.3 + rand01(s, 4) * 0.4,
+            (0.3 + rand01(s, 4) * 0.4) * tail,
             SPARK_RGB[0] * 0.9, SPARK_RGB[1] * 0.9, SPARK_RGB[2] * 0.9,
             1.7, SPARK_DAMP, 6, FLAG_SPARK, s,
           );
         }
       } else if (f & FLAG_WILLOW_TAIL) {
         const s = hash32(p.seed[i], this.step, 6);
-        if (rand01(s) < 0.5 * this.density) {
+        // 카무로는 불티를 더 촘촘하고 굵게, 아주 오래 남긴다.
+        const kamuro = tail >= TAIL_MUL[3];
+        if (rand01(s) < (kamuro ? 0.85 : 0.5) * this.density) {
           p.spawn(
             p.px[i], p.py[i], p.pz[i],
             vx * 0.05 + (rand01(s, 1) - 0.5) * 1.2, vy * 0.05, vz * 0.05 + (rand01(s, 3) - 0.5) * 1.2,
-            0.7 + rand01(s, 4) * 0.6,
+            (0.7 + rand01(s, 4) * 0.6) * tail,
             1.0 * 0.75, 0.7 * 0.75, 0.3 * 0.75,
-            1.9, WILLOW_SPARK_DAMP, 2.5, FLAG_SPARK, s,
+            kamuro ? 2.4 : 1.9, WILLOW_SPARK_DAMP, kamuro ? 1.6 : 2.5, FLAG_SPARK, s,
           );
         }
       } else if (f & FLAG_PALM_TAIL) {
