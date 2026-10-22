@@ -15,6 +15,8 @@ import {
   wirePlan,
   FALL_ZONE,
   BARGE_RENT,
+  addDronePad,
+  removeDronePad,
   allowedSizeAt,
   applyLive,
   isLive,
@@ -117,6 +119,12 @@ export class SitePlanner {
       this.dialog.querySelector('#deck-stats')!.textContent = missing.length ? missing.join(' ') : '쇼에 맞게 랙을 채웠습니다.';
     });
     editor.on((c) => c === 'show' && dialog.open && this.render());
+    dialog.querySelector('#site-drone')!.addEventListener('click', () => {
+      const has = editor.show.launchers.some((l) => l.kind === 'drone');
+      if (has && !confirm('드론 이륙장과 거기 놓인 드론 쇼를 뺄까요?')) return;
+      editor.change((d) => (has ? removeDronePad(d) : (this.selected = addDronePad(d))));
+      this.render();
+    });
     dialog.querySelector('#site-add')!.addEventListener('click', () => {
       let id = '';
       editor.change((d) => (id = addBarge(d)));
@@ -590,6 +598,7 @@ export class SitePlanner {
     }
     show.launchers.forEach((l, i) => this.drawLauncher(g, l, launcherLabel(l, i), sx, sy, scale, font));
 
+    (this.dialog.querySelector('#site-drone') as HTMLButtonElement).textContent = show.launchers.some((l) => l.kind === 'drone') ? '드론 이륙장 빼기' : '드론 이륙장 더하기';
     this.renderLoading();
     this.renderWiring();
     this.renderLive();
@@ -619,7 +628,7 @@ export class SitePlanner {
     const on = l.id === this.selected;
     const x = sx(l.pos[0]);
     const y = sy(l.pos[2]);
-    g.fillStyle = on ? '#fbbf24' : l.kind === 'barge' ? '#f4a261' : l.kind === 'bridge' ? '#7dd8ee' : '#c4b5fd';
+    g.fillStyle = on ? '#fbbf24' : l.kind === 'barge' ? '#f4a261' : l.kind === 'bridge' ? '#7dd8ee' : l.kind === 'drone' ? '#86efac' : '#c4b5fd';
     if (l.kind === 'bridge' && l.from && l.to) {
       g.fillRect(sx(l.from[0]), y - 4, (l.to[0] - l.from[0]) * scale, 8);
     } else if (l.kind === 'frame') {

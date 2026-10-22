@@ -59,6 +59,8 @@ export const SHELL_COST: Record<Size, number> = { 3: 1, 5: 3, 7: 8, 10: 20 };
 export function cueCost(c: Cue, shells?: Record<string, CustomShell>): number {
   if (c.type === 'niagara') return 1.5 * (c.len ?? LEN_DEFAULTS.niagara);
   if (c.type === 'lancework') return (c.len ?? LEN_DEFAULTS.lancework) + 0.5 * [...(c.text ?? '')].length;
+  // 드론은 빌려 쓰는 비용이 크고, 오래 띄울수록 더 든다.
+  if (c.type === 'drones') return 15 + 0.8 * (c.len ?? LEN_DEFAULTS.drones);
   if (c.type === 'cake') return 0.25 * (c.shots ?? CAKE_DEFAULTS.shots) * (c.size / 3);
   // 내 불꽃은 개발비를 낸 대신 원가가 기본 불꽃보다 싸다.
   if (c.type === 'custom') {
@@ -97,6 +99,7 @@ export const UNLOCK_PRICES: Partial<Record<FireworkType, number>> = {
   hummer: 80,
   whistle: 80,
   salute: 90,
+  drones: 200,
 };
 
 const TRACKS = { march: 'basic-1', calm: 'basic-2', drive: 'basic-3', waltz: 'basic-4', epic: 'basic-5' } as const;

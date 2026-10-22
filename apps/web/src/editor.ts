@@ -186,15 +186,16 @@ export class Editor {
     let type: FireworkType = tpl.type;
     if (launcher.kind === 'bridge') type = 'niagara';
     else if (launcher.kind === 'frame') type = 'lancework';
+    else if (launcher.kind === 'drone') type = 'drones';
     else if (launcherKindFor(type) !== 'barge') return 'kind';
     if (!this.allowType(type, tpl.custom)) return 'locked';
     const def = type === 'custom' && tpl.custom ? this.findShell(tpl.custom) : undefined;
     if (type === 'custom' && !def) return 'kind';
 
     const cue: Cue = { t: round3(Math.max(0, t)), at: launcherId, type, size: tpl.size, colors: [...tpl.colors] };
-    if (type === 'niagara' || type === 'lancework') {
-      cue.len = tpl.len;
-      if (type === 'lancework') {
+    if (type === 'niagara' || type === 'lancework' || type === 'drones') {
+      cue.len = type === 'drones' && tpl.type !== 'drones' ? LEN_DEFAULTS.drones : tpl.len;
+      if (type === 'lancework' || type === 'drones') {
         cue.text = tpl.text || '밤하늘';
         if (tpl.art) cue.art = structuredClone(tpl.art);
       }
@@ -268,6 +269,7 @@ export function round3(x: number): number {
 export function launcherLabel(l: Launcher, index: number): string {
   if (l.kind === 'barge') return `바지선 ${l.id.match(/\d+/)?.[0] ?? index + 1}`;
   if (l.kind === 'bridge') return '다리';
+  if (l.kind === 'drone') return '드론 이륙장';
   return '지상 틀';
 }
 

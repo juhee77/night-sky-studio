@@ -12,7 +12,8 @@ import { hasRig, normalizeRig, type Rig } from './rig.ts';
 import { normalizeMapVenue, type MapVenue } from './mapvenue.ts';
 import { artFromString, artToString } from './art.ts';
 
-const KINDS: Launcher['kind'][] = ['barge', 'bridge', 'frame'];
+/** 발사 위치 종류 번호 (뒤에만 더한다) */
+const KINDS: Launcher['kind'][] = ['barge', 'bridge', 'frame', 'drone'];
 const PATTERNS: CakePattern[] = ['fan', 'zigzag', 'straight'];
 /** 색 하나 = 글자 하나 */
 const COLOR_CODES = 'abcdefgh';

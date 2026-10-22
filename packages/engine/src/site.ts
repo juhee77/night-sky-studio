@@ -96,7 +96,8 @@ export function siteCheck(show: Show): SiteWarning[] {
   const barges = show.launchers.filter((l) => l.kind === 'barge');
   for (const l of show.launchers) {
     const name = label(l, show);
-    if (l.kind !== 'bridge' && (l.pos[2] < near + 10 || l.pos[2] > far - 10)) {
+    // 드론 이륙장은 땅 위에 둬도 된다.
+    if (l.kind !== 'bridge' && l.kind !== 'drone' && (l.pos[2] < near + 10 || l.pos[2] > far - 10)) {
       out.push({ launcher: l.id, level: 'error', message: `${name}이 물 밖에 있습니다. 물 위로 옮기세요.` });
     }
     if (l.kind !== 'barge') continue;
@@ -143,6 +144,28 @@ export function addBarge(show: Show): string {
   return id;
 }
 
+/**
+ * 드론 이륙장을 하나 둔다 (이미 있으면 그 id). 바지선들보다 조금 관람석 쪽 물 위(작은 바지선)에 놓는다.
+ * 드론 그림은 100m 안팎으로 크므로 관람석과 너무 가까우면 화면 밖으로 나간다.
+ */
+export function addDronePad(show: Show): string {
+  const have = show.launchers.find((l) => l.kind === 'drone');
+  if (have) return have.id;
+  const venue = venueOf(show);
+  const barges = show.launchers.filter((l) => l.kind === 'barge');
+  const z = barges.length ? barges.reduce((s, l) => s + l.pos[2], 0) / barges.length - 150 : (venue?.nearShoreZ ?? -640) + 450;
+  const near = venue ? venue.nearShoreZ + 200 : -440;
+  show.launchers.push({ id: 'drone', kind: 'drone', pos: [0, 0, Math.round(Math.max(near, z))] });
+  return 'drone';
+}
+
+/** 드론 이륙장을 빼면 거기 놓인 드론 쇼도 뺀다. */
+export function removeDronePad(show: Show): void {
+  const ids = new Set(show.launchers.filter((l) => l.kind === 'drone').map((l) => l.id));
+  show.launchers = show.launchers.filter((l) => l.kind !== 'drone');
+  show.cues = show.cues.filter((c) => !ids.has(c.at));
+}
+
 /** 바지선을 뺀다. 거기 놓인 불꽃은 가장 가까운 다른 바지선으로 옮긴다. 마지막 하나는 뺄 수 없다. */
 export function removeBarge(show: Show, id: string): boolean {
   const l = show.launchers.find((x) => x.id === id && x.kind === 'barge');
@@ -180,7 +203,8 @@ export function moveLauncher(show: Show, id: string, x: number, z: number): void
     if (l.to) l.to = [l.to[0] + shift, l.to[1], l.to[2]];
     return;
   }
-  const p = clampToWater(venue, [x, l.pos[1], z]);
+  // 드론 이륙장은 물가든 땅이든 둘 수 있다.
+  const p = l.kind === 'drone' ? ([Math.max(-3000, Math.min(3000, x)), l.pos[1], Math.max(-3000, Math.min(3000, z))] as Vec3) : clampToWater(venue, [x, l.pos[1], z]);
   l.pos = [r(p[0]), p[1], r(p[2])];
 }
 

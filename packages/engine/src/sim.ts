@@ -72,6 +72,31 @@ const LANCE_HEIGHT = 22;
 /** 틀불꽃은 왼쪽 끝에서 오른쪽 끝까지 이 시간 동안 차례로 불이 붙는다 */
 const LANCE_IGNITE = 0.6;
 const SKY_DECAY = Math.exp(-6 * STEP);
+/** 드론 불빛 표시 (aux 29비트): 틀불꽃 심지처럼 제자리 입자지만 불티를 튀기지 않고 늘 밝다 */
+const DRONE_BIT = 1 << 29;
+/** 드론 쇼: 모양 아래쪽 높이와 글자 높이(m), 한 쇼의 최대 대수 */
+const DRONE_HEIGHT = 150;
+const DRONE_SCALE = 90;
+const MAX_DRONES = 400;
+
+/** 드론 자리: 글자·그림 점을 고른 칸에 맞춰 줄인다 (드론끼리 너무 붙지 않게, 많아야 MAX_DRONES대) */
+const droneGridCache = new WeakMap<[number, number][], [number, number][]>();
+function droneGrid(points: [number, number][]): [number, number][] {
+  const hit = droneGridCache.get(points);
+  if (hit) return hit;
+  let out = points;
+  for (let rows = 12; rows >= 4; rows--) {
+    const seen = new Map<string, [number, number]>();
+    for (const [x, y] of points) {
+      const key = `${Math.round(x * rows)},${Math.round(y * rows)}`;
+      if (!seen.has(key)) seen.set(key, [Math.round(x * rows) / rows, Math.round(y * rows) / rows]);
+    }
+    out = [...seen.values()];
+    if (out.length <= MAX_DRONES) break;
+  }
+  droneGridCache.set(points, out);
+  return out;
+}
 /** 꼬리 길이 배율: 보통, 짧게, 길게, 카무로 */
 const TAIL_MUL = [1, 0.45, 2.2, 3.2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
 
@@ -401,13 +426,15 @@ export class Simulation {
         this.rising.push({ launch, age: now - launch.fireAt, pos: [...launch.origin] });
       } else if (launch.type === 'niagara') {
         this.curtains.push({ launch, age: now - launch.fireAt });
-      } else {
+      } else if (launch.type === 'lancework') {
         this.lightFrame(launch, now - launch.fireAt);
       }
+      // 드론 쇼는 상태 없이 매 걸음 자리를 계산한다 (updateDrones)
     }
 
     this.updateRising();
     this.updateCurtains();
+    this.updateDrones(now);
     this.updateParticles();
 
     this.skyLight[0] *= SKY_DECAY;
@@ -540,6 +567,43 @@ export class Simulation {
         );
       }
       i++;
+    }
+  }
+
+  /**
+   * 드론 쇼: 이륙장에서 떠올라 하늘에 모양(글자·틀 그림)을 만들고 머물렀다가 돌아온다.
+   * 드론마다 매 걸음 한 걸음짜리 불빛 입자를 새로 놓는다 (상태가 없어 되감기·저장점이 쉽다).
+   */
+  private updateDrones(now: number): void {
+    for (const l of this.launches) {
+      if (l.type !== 'drones') continue;
+      const age = now - l.fireAt;
+      const len = l.len ?? 30;
+      if (age < 0 || age >= len) continue;
+      const shape = l.art ? artShape(l.art) : textShape(l.text ?? '');
+      const pts = droneGrid(shape.points);
+      const width = shape.width;
+      const n = pts.length;
+      const cols = Math.ceil(Math.sqrt(n));
+      const rise = Math.min(8, len * 0.3);
+      const land = Math.min(5, len * 0.2);
+      // 떠오를 때와 돌아올 때 부드럽게
+      const ease = (x: number) => x * x * (3 - 2 * x);
+      const k = age < rise ? ease(age / rise) : age > len - land ? ease((len - age) / land) : 1;
+      for (let i = 0; i < n; i++) {
+        const [px, py] = pts[i];
+        const home: Vec3 = [l.origin[0] + ((i % cols) - cols / 2) * 3, l.origin[1] + 1, l.origin[2] + (Math.floor(i / cols) - cols / 2) * 3];
+        const target: Vec3 = [l.origin[0] + (px - width / 2) * DRONE_SCALE, l.origin[1] + DRONE_HEIGHT + py * DRONE_SCALE, l.origin[2]];
+        // 드론마다 조금씩 늦게 출발해 하나의 줄기처럼 보이지 않게
+        const lag = Math.min(1, Math.max(0, k * 1.15 - ((i * 37) % 100) / 100 * 0.15));
+        const rgb = COLORS[l.colors[i % l.colors.length]];
+        this.pool.spawn(
+          home[0] + (target[0] - home[0]) * lag, home[1] + (target[1] - home[1]) * lag, home[2] + (target[2] - home[2]) * lag,
+          0, 0, 0, STEP * 1.5,
+          rgb[0] * 1.1, rgb[1] * 1.1, rgb[2] * 1.1,
+          4.2, 1, 0, FLAG_LANCE, hash32(l.seed, i, 51), DRONE_BIT,
+        );
+      }
     }
   }
 
@@ -844,8 +908,8 @@ export class Simulation {
       // 아직 피지 않은 별(늦게 피는 층)은 그 자리에서 기다린다.
       if (age < 0 && !(f & FLAG_LANCE)) continue;
       if (f & FLAG_LANCE) {
-        // 심지는 움직이지 않고, 가끔 작은 불티를 튀긴다.
-        if (age > 0) {
+        // 심지는 움직이지 않고, 가끔 작은 불티를 튀긴다 (드론 불빛은 튀기지 않는다).
+        if (age > 0 && !(p.aux[i] & DRONE_BIT)) {
           const s = hash32(p.seed[i], this.step, 8);
           if (rand01(s) < 0.03 * this.density) {
             p.spawn(
@@ -977,7 +1041,10 @@ export class Simulation {
       let b = p.b[i];
       let a: number;
 
-      if (f & FLAG_LANCE) {
+      if (f & FLAG_LANCE && p.aux[i] & DRONE_BIT) {
+        // 드론 불빛: 흔들림 없이 늘 밝다
+        a = 0.95;
+      } else if (f & FLAG_LANCE) {
         // 아직 불이 안 붙었으면 보이지 않고, 타는 동안은 촛불처럼 흔들린다.
         if (age < 0) a = 0;
         else {
