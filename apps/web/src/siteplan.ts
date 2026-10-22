@@ -14,6 +14,8 @@ import {
   fixFaults,
   wirePlan,
   FALL_ZONE,
+  BARGE_RENT,
+  allowedSizeAt,
   applyLive,
   isLive,
   liveWarnings,
@@ -322,12 +324,15 @@ export class SitePlanner {
       return;
     }
     const { blocked } = applyLive(show, expandShow(show).launches);
+    const venue = venueOf(show);
+    const barges = show.launchers.filter((l) => l.kind === 'barge').length;
+    const head = `<li class="ok">바지선 ${barges}척 / 허가 ${venue?.permit.maxBarges ?? '-'}척 · 임대·예인 비용 ${barges * BARGE_RENT}</li>`;
     const list = liveWarnings(blocked);
-    box.innerHTML = list.length
+    box.innerHTML = head + (list.length
       ? `<li class="error">불꽃 ${list.length}개(${blocked.length}발)가 쏘아지지 않습니다. 붉은 원은 큰 알이 떨어질 수 있는 구역입니다.</li>` +
         list.slice(0, 8).map((w) => `<li class="error">${w.cueIndex + 1}번 불꽃: ${w.message.replace('실전 모드: ', '')}</li>`).join('') +
         (list.length > 8 ? `<li class="error">그 밖에 ${list.length - 8}개</li>` : '')
-      : '<li class="ok">모든 불꽃이 장비에 맞게 쏘아집니다. 붉은 원은 큰 알이 떨어질 수 있는 구역입니다.</li>';
+      : '<li class="ok">모든 불꽃이 허가와 장비에 맞게 쏘아집니다. 붉은 원은 큰 알이 떨어질 수 있는 구역입니다.</li>');
   }
   /** 회로 점검 결과를 보여 주는 중인지 */
   private checking = false;
@@ -451,7 +456,9 @@ export class SitePlanner {
     const near = venue ? venue.nearShoreZ : -640;
     const far = Math.max(venue?.bridge.kind === 'none' ? 300 : (venue?.bridge.z ?? 300), Math.min(venue?.farShoreZ ?? 1200, 1300)) + 200;
     // 지도 무대처럼 발사 위치·관람석이 멀리 있으면 그만큼 넓힌다.
-    const pts = [...this.editor.show.launchers.map((l) => l.pos), ...Object.values(venue?.seats ?? {}).filter((s) => !s.plan).map((s) => s.eye)];
+    // 정해 둔 무대는 무대 범위가 알맞게 잡혀 있고, 지도 무대만 찍은 자리에 맞춰 넓힌다.
+    const seats = venue?.id === 'map' ? Object.values(venue.seats).filter((s) => !s.plan).map((s) => s.eye) : [];
+    const pts = [...this.editor.show.launchers.map((l) => l.pos), ...seats];
     const xs = pts.map((p) => p[0]);
     const zs = pts.map((p) => p[2]);
     return {
@@ -541,6 +548,18 @@ export class SitePlanner {
     }
     const warnings = siteCheck(show);
     const warned = new Set(warnings.map((x) => x.launcher));
+    // 허가 구역 (바지선을 묶어 둘 수 있는 곳)
+    if (venue) {
+      g.fillStyle = 'rgba(52, 211, 153, 0.07)';
+      g.strokeStyle = 'rgba(52, 211, 153, 0.55)';
+      g.setLineDash([4, 4]);
+      g.lineWidth = 1;
+      for (const [x0, z0, x1, z1] of venue.permit.zones) {
+        g.fillRect(sx(x0), sy(z1), sx(x1) - sx(x0), sy(z0) - sy(z1));
+        g.strokeRect(sx(x0), sy(z1), sx(x1) - sx(x0), sy(z0) - sy(z1));
+      }
+      g.setLineDash([]);
+    }
     // 안전거리 원
     for (const l of show.launchers) {
       if (l.kind !== 'barge') continue;
@@ -612,5 +631,12 @@ export class SitePlanner {
     g.font = font(12);
     g.textAlign = 'center';
     g.fillText(name, x, y + 24);
+    if (l.kind === 'barge') {
+      // 이 자리에서 쏠 수 있는 가장 큰 알
+      const allowed = allowedSizeAt(this.editor.show, l);
+      g.fillStyle = allowed ? '#a6a3bd' : '#f87171';
+      g.font = font(10);
+      g.fillText(allowed ? `${allowed}호까지` : '쏠 수 없음', x, y + 37);
+    }
   }
 }

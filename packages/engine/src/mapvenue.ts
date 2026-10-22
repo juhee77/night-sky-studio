@@ -159,6 +159,8 @@ export function mapToVenue(mv: MapVenue): Venue {
     bridge: { kind: 'none', z: 0, deckY: 0, x0: 0, x1: 0 },
     seats,
     launchers: [],
+    // 지도 무대는 물길을 모르므로, 관람석 앞 물가에서 조금 떨어진 넓은 띠를 허가 구역으로 본다.
+    permit: { zones: [[-1500, mv.nearShoreZ + 80, 1500, mv.nearShoreZ + 3000]], maxBarges: 4 },
   };
   venueCache.set(mv, venue);
   return venue;
