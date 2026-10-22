@@ -31,6 +31,8 @@ import { Drawer } from './drawer.ts';
 import { Office } from './office.ts';
 import { Workshop } from './workshop.ts';
 import { SitePlanner } from './siteplan.ts';
+import { AccountPanel } from './account.ts';
+import { remoteEnabled, shortLink } from './remote.ts';
 import { Panel } from './panel.ts';
 import { runCountdown } from './countdown.ts';
 import { CAMERA_SEATS, Stage } from './stage.ts';
@@ -96,6 +98,8 @@ const el = {
   officeBtn: $<HTMLButtonElement>('office-btn'),
   workshopBtn: $<HTMLButtonElement>('workshop-btn'),
   siteBtn: $<HTMLButtonElement>('site-btn'),
+  accountBtn: $<HTMLButtonElement>('account-btn'),
+  shareShort: $<HTMLButtonElement>('share-short'),
   siteDialog: $<HTMLDialogElement>('site-dialog'),
   workshopDialog: $<HTMLDialogElement>('workshop-dialog'),
   autoBtn: $<HTMLButtonElement>('auto-btn'),
@@ -228,6 +232,16 @@ el.workshopBtn.addEventListener('click', () => {
   if (transport.playing) togglePlay();
   workshop.open(editor.template.type === 'custom' ? editor.template.custom : undefined);
 });
+
+// ── 서버판: 계정과 클라우드 (서버가 있을 때만) ──
+if (remoteEnabled()) {
+  const account = new AccountPanel($<HTMLDialogElement>('account-dialog'), editor, drawer, { openShow: (id, show) => openShow(id, show), say });
+  el.accountBtn.hidden = false;
+  el.accountBtn.addEventListener('click', () => {
+    if (transport.playing) togglePlay();
+    account.open();
+  });
+}
 
 // ── 발사장 설계 ──
 const site = new SitePlanner(el.siteDialog, editor);
@@ -830,6 +844,9 @@ el.shareBtn.addEventListener('click', async () => {
   }
   el.shareInfo.textContent = notes.join(' ');
   el.shareNative.hidden = !navigator.share;
+  el.shareShort.hidden = !remoteEnabled();
+  el.shareShort.disabled = false;
+  el.shareShort.dataset.code = code;
   el.shareDialog.showModal();
   el.shareLink.select();
 });
@@ -842,6 +859,19 @@ el.shareCopy.addEventListener('click', async () => {
     el.shareCopy.textContent = '선택했습니다. ⌘C로 복사하세요';
   }
   setTimeout(() => (el.shareCopy.textContent = '링크 복사'), 2500);
+});
+el.shareShort.addEventListener('click', async () => {
+  el.shareShort.disabled = true;
+  try {
+    const short = await shortLink(el.shareShort.dataset.code ?? '');
+    const base = new URL(`${import.meta.env.BASE_URL}v/`, location.origin);
+    el.shareLink.value = `${base.href}#l=${short}`;
+    el.shareInfo.textContent = '짧은 링크를 만들었습니다. 쇼는 서버에 저장되고, 링크에는 짧은 글자만 들어갑니다.';
+    el.shareLink.select();
+  } catch (err) {
+    el.shareInfo.textContent = (err as Error).message;
+    el.shareShort.disabled = false;
+  }
 });
 el.shareNative.addEventListener('click', () => {
   void navigator.share?.({ title: editor.show.title ?? '밤하늘 연출실', url: el.shareLink.value }).catch(() => {});
