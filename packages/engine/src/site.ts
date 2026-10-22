@@ -88,6 +88,7 @@ export function removeBarge(show: Show, id: string): boolean {
   const nearest = others.reduce((a, b) => (Math.hypot(a.pos[0] - l.pos[0], a.pos[2] - l.pos[2]) <= Math.hypot(b.pos[0] - l.pos[0], b.pos[2] - l.pos[2]) ? a : b));
   for (const c of show.cues) if (c.at === id) c.at = nearest.id;
   show.launchers = show.launchers.filter((x) => x !== l);
+  if (show.rig) delete show.rig.decks[id];
   return true;
 }
 
@@ -128,4 +129,5 @@ export function resetSite(show: Show): void {
   const ids = new Set(show.launchers.map((l) => l.id));
   const first = show.launchers.find((l) => l.kind === 'barge')!;
   for (const c of show.cues) if (!ids.has(c.at)) c.at = first.id;
+  if (show.rig) for (const id of Object.keys(show.rig.decks)) if (!ids.has(id)) delete show.rig.decks[id];
 }
