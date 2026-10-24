@@ -3,6 +3,8 @@
 
 import { pastePad, pourPad, rollPad } from './handwork.ts';
 import {
+  TAIL_LABEL,
+  type TailLength,
   RISE_EFFECTS,
   RISE_LABEL,
   type RiseEffect,
@@ -517,6 +519,9 @@ export function forgeControls(b: ShellBuild): string {
       <div class="field"><span class="label">별 종류</span><div class="chips">
         ${(Object.keys(STAR_LABEL) as StarKind[]).map((k) => `<button type="button" data-bkind="${k}" aria-pressed="${b.starKind === k}">${STAR_LABEL[k]}</button>`).join('')}
       </div></div>
+      ${['tail', 'willow', 'brocade', 'kamuro'].includes(b.starKind) ? `<div class="field"><span class="label">꼬리 길이</span><div class="chips">
+        ${(Object.keys(TAIL_LABEL) as TailLength[]).map((k) => `<button type="button" data-btail="${k}" aria-pressed="${(b.tail ?? 'normal') === k}">${TAIL_LABEL[k]}</button>`).join('')}
+      </div></div>` : ''}
       ${sequenceFields(b.sequence)}
     </fieldset>
 
@@ -617,6 +622,15 @@ export function wireForge(box: Element, b: ShellBuild, apply: (fn: (b: ShellBuil
   );
   slider('forge-breaks', (v) => `${v}단`, (x, v) => (v > 1 ? (x.breaks = v) : delete x.breaks));
   slider('forge-count', (v) => `${v}알`, (x, v) => (x.stars = evenStars(v)));
+  all('[data-btail]').forEach((el) =>
+    el.addEventListener('click', () =>
+      apply((x) => {
+        const t = el.dataset.btail as TailLength;
+        if (t === 'normal') delete x.tail;
+        else x.tail = t;
+      }, true),
+    ),
+  );
   all('[data-bkind]').forEach((el) => el.addEventListener('click', () => apply((x) => (x.starKind = el.dataset.bkind as StarKind), true)));
   all('[data-bcolor]').forEach((el) => el.addEventListener('click', () => apply((x) => (x.starColor = el.dataset.bcolor as ColorName), true)));
   // 배합

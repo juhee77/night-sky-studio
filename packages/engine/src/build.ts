@@ -7,7 +7,7 @@
 
 import { RISE_EFFECTS, SIZE_SPECS, type RiseEffect, type Size } from './catalog.ts';
 import type { ColorName } from './colors.ts';
-import { normalizeSequence, type CustomShell, type Sequence, type StarKind } from './custom.ts';
+import { normalizeSequence, type CustomShell, type Sequence, type StarKind, type TailLength } from './custom.ts';
 import { evaluateMix, normalizeComposition, type Composition } from './chem.ts';
 
 export type ShellForm = 'round' | 'cylinder';
@@ -43,6 +43,8 @@ export interface ShellBuild {
   assembly?: Assembly;
   /** 원통 알의 칸 수: 2 이상이면 칸마다 차례로 터진다 */
   breaks?: number;
+  /** 바깥 별 꼬리 길이 */
+  tail?: TailLength;
   /** 손으로 한 작업 기록 (굴리기·종이 바르기·할약 붓기). 보여 주기용 */
   hand?: { roll?: number; paste?: number; pour?: number };
   /** 바깥 별이 켜지는 순서 (별마다 넣은 지연 도화선) */
@@ -245,6 +247,7 @@ export function buildToShell(b: ShellBuild, base: CustomShell): CustomShell {
       ...(mix ? { tint: [...mix.rgb] as [number, number, number] } : {}),
       ...(then ? { then: { ...then } } : {}),
       ...(b.sequence ? { sequence: { ...b.sequence } } : {}),
+      ...(b.tail && b.tail !== 'normal' ? { tail: b.tail } : {}),
       scale: 1,
       delay: 0,
     },
@@ -257,7 +260,7 @@ export function buildToShell(b: ShellBuild, base: CustomShell): CustomShell {
     ...base,
     layers,
     // 빨리 타는 배합일수록 별이 짧게 산다.
-    motion: { ...base.motion, life: mix ? Math.max(0.8, Math.min(5, life * (1.35 - 0.7 * mix.burnRate))) : life },
+    motion: { ...base.motion, life: mix ? Math.max(0.8, Math.min(8, life * (1.35 - 0.7 * mix.burnRate))) : life },
     // 원통 알은 터지는 압력이 고르지 않아 할약을 더 넣은 것처럼 찌그러진다.
     craft: {
       starSize: star?.starSize ?? base.craft?.starSize ?? 'medium',
@@ -316,7 +319,7 @@ export function normalizeBuild(raw: ShellBuild): ShellBuild {
     fuse: clamp(raw.fuse, 0.6, 1.5),
     lift: clamp(raw.lift, 0.5, 1.4),
     ...(raw.comp ? { comp: normalizeComposition(raw.comp) } : {}),
-    ...(raw.life !== undefined ? { life: clamp(raw.life, 0.8, 5) } : {}),
+    ...(raw.life !== undefined ? { life: clamp(raw.life, 0.8, 8) } : {}),
     ...(raw.star
       ? {
           star: {
@@ -329,6 +332,7 @@ export function normalizeBuild(raw: ShellBuild): ShellBuild {
         }
       : {}),
     ...(raw.rise && RISE_EFFECTS.includes(raw.rise) ? { rise: raw.rise } : {}),
+    ...(raw.tail === 'short' || raw.tail === 'long' ? { tail: raw.tail } : {}),
     ...(raw.hand
       ? { hand: Object.fromEntries(Object.entries(raw.hand).filter(([k]) => ['roll', 'paste', 'pour'].includes(k)).map(([k, v]) => [k, clamp(v as number, 0, 1)])) }
       : {}),
@@ -393,7 +397,7 @@ export function starEffect(s: StarMaking): StarEffect {
   const hand = s.handCare === undefined ? 1 : 0.55 + 0.6 * s.handCare;
   return {
     care: Math.min(1, method.care * (0.6 + 0.4 * dry) * hand),
-    life: Math.max(0.8, Math.min(5, 2.2 * (s.sizeMm / 12) ** 0.8)),
+    life: Math.max(0.8, Math.min(8, 2.2 * (s.sizeMm / 12) ** 0.8)),
     misfire: Math.max(0, (1 - dry) * 0.45),
     starSize: s.sizeMm < 9 ? 'small' : s.sizeMm > 16 ? 'large' : 'medium',
     cost: method.cost * (0.8 + s.sizeMm / 60),
