@@ -265,8 +265,9 @@ export function sequenceFields(seq: Sequence | undefined): string {
       <div class="field"><span class="label">켜지는 모습</span><div class="chips">
         <button type="button" data-seqmode="sparkle" aria-pressed="${seq.mode === 'sparkle'}">반짝 터지고 꺼짐</button>
         <button type="button" data-seqmode="light" aria-pressed="${seq.mode === 'light'}">켜져서 계속 탐</button>
+        <button type="button" data-seqmode="pop" aria-pressed="${seq.mode === 'pop'}">작게 터지며 켜짐</button>
       </div></div>
-      <p class="note">실제로는 별마다 속에 넣은 도화선 길이나 배합을 달리해서, 어둡게 날아가다 제때 불이 붙게 합니다.</p>` : ''}`;
+      <p class="note">실제로는 별마다 속에 넣은 도화선 길이나 배합을 달리해서, 어둡게 날아가다 제때 불이 붙게 합니다.${seq.mode === 'pop' ? ' 「작게 터지며 켜짐」은 별 대신 도화선이 달린 아주 작은 알을 넣어, 차례가 온 알이 그 자리에서 터지게 한 것입니다.' : ''}</p>` : ''}`;
 }
 
 export function wireSequence(box: Element, set: (fn: (seq: Sequence | undefined) => Sequence | undefined) => void): void {
