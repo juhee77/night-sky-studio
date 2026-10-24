@@ -47,6 +47,8 @@ export interface Venue {
   launchers: Launcher[];
   /** 실전 모드의 허가: 바지선을 묶어 둘 수 있는 물 위 구역 [x0, z0, x1, z1]과 띄울 수 있는 척수 */
   permit: { zones: [number, number, number, number][]; maxBarges: number };
+  /** 멀리 둘러싼 산 능선: z 거리와 [x, 높이] 점들 */
+  mountains?: { z: number; ridge: [number, number][] }[];
 }
 
 interface Row {
@@ -174,10 +176,130 @@ export const BEACH: Venue = {
   permit: { zones: [[-900, -250, 900, 750]], maxBarges: 4 },
 };
 
+export const NARROW_RIVER: Venue = {
+  id: 'narrow-river',
+  label: '좁은 강과 빽빽한 동네',
+  place: '도쿄 스미다강',
+  // 강폭이 400m뿐이라 관람석이 아주 가깝다. 큰 알은 쏠 수 없다.
+  farShoreZ: 160,
+  nearShoreZ: -240,
+  nearGround: '#05060c',
+  buildings: buildSkyline(61, [
+    { z: 190, min: 12, max: 40, gap: 3 },
+    { z: 320, min: 25, max: 70, gap: 8 },
+    { z: 520, min: 40, max: 120, gap: 20, tallChance: 0.12 },
+  ]),
+  bridge: { kind: 'girder', z: 120, deckY: 12, x0: -900, x1: 900, piers: Array.from({ length: 13 }, (_, i) => -720 + i * 120) },
+  seats: {
+    'front-near': { label: '강둑 바로 앞', eye: [0, 6, -250], target: [0, 110, -10], fovY: 55 },
+    'front-far': { label: '동네 골목 끝', eye: [120, 8, -520], target: [0, 100, -10], fovY: 50 },
+    bridge: { label: '다리 위', eye: [-500, 18, 118], target: [0, 100, -20], fovY: 55 },
+    top: plan(-200, -20),
+  },
+  launchers: [
+    ...barges([[-160, 0, -40], [160, 0, -40]]),
+    { id: 'bridge', kind: 'bridge', pos: [0, 12, 118], from: [-300, 12, 118], to: [300, 12, 118] },
+    { id: 'ground', kind: 'frame', pos: [0, 0, -180] },
+  ],
+  permit: { zones: [[-500, -140, 500, 60]], maxBarges: 2 },
+};
+
+export const GRAND_RIVER: Venue = {
+  id: 'grand-river',
+  label: '넓은 강변 초대형 축제',
+  place: '일본 나가오카 시나노강',
+  // 강폭이 2km를 넘는다. 바지선을 길게 한 줄로 늘어세우고 아주 큰 알을 쏜다.
+  farShoreZ: 1400,
+  nearShoreZ: -900,
+  nearGround: '#05060c',
+  buildings: buildSkyline(73, [
+    { z: 1450, min: 10, max: 35, gap: 25 },
+    { z: 1800, min: 20, max: 60, gap: 60 },
+  ]),
+  bridge: { kind: 'girder', z: 900, deckY: 20, x0: -3000, x1: 3000, piers: Array.from({ length: 41 }, (_, i) => -2400 + i * 120) },
+  seats: {
+    'front-near': { label: '강변 둔치', eye: [0, 8, -910], target: [0, 220, 0], fovY: 55 },
+    'front-far': { label: '둑 위 멀리', eye: [0, 18, -1700], target: [0, 200, 0], fovY: 50 },
+    bridge: { label: '다리 위', eye: [-1400, 28, 898], target: [0, 220, 0], fovY: 50 },
+    tower: { label: '언덕 전망대', eye: [-900, 160, -1900], target: [0, 200, 0], fovY: 50 },
+    top: plan(-700, 0),
+  },
+  launchers: [
+    ...barges([[-1000, 0, 0], [-600, 0, 0], [-200, 0, 0], [200, 0, 0], [600, 0, 0], [1000, 0, 0]]),
+    { id: 'bridge', kind: 'bridge', pos: [0, 20, 898], from: [-800, 20, 898], to: [800, 20, 898] },
+    { id: 'ground', kind: 'frame', pos: [0, 0, -500] },
+  ],
+  permit: { zones: [[-1600, -350, 1600, 350]], maxBarges: 8 },
+};
+
+export const SKYSCRAPER: Venue = {
+  id: 'skyscraper-bay',
+  label: '초고층 빌딩',
+  place: '두바이·타이베이',
+  // 가운데 뒤로 아주 높은 탑과 빽빽한 고층 건물. 불꽃이 건물 높이와 겨룬다.
+  farShoreZ: 700,
+  nearShoreZ: -520,
+  nearGround: '#05060c',
+  buildings: [
+    ...buildSkyline(89, [
+      { z: 760, min: 40, max: 140, gap: 14, tallChance: 0.25 },
+      { z: 980, min: 90, max: 260, gap: 30, from: -1400, to: 1400, tallChance: 0.3 },
+    ]),
+    // 하늘을 찌르는 탑 (단순한 기둥 세 단)
+    { x0: -30, x1: 30, z: 900, height: 520, windows: Array.from({ length: 40 }, (_, k): [number, number] => [-26 + (k % 8) * 7, 20 + Math.floor(k / 8) * 95]) },
+    { x0: -14, x1: 14, z: 899, height: 720, windows: [] },
+    { x0: -4, x1: 4, z: 898, height: 830, windows: [] },
+  ],
+  bridge: { kind: 'girder', z: 450, deckY: 16, x0: -1400, x1: 1400, piers: Array.from({ length: 21 }, (_, i) => -1200 + i * 120) },
+  seats: {
+    'front-near': { label: '수변 산책로', eye: [0, 6, -530], target: [0, 230, 300], fovY: 55 },
+    'front-far': { label: '공원 언덕', eye: [0, 30, -1300], target: [0, 230, 300], fovY: 50 },
+    tower: { label: '호텔 꼭대기', eye: [-700, 260, -800], target: [0, 200, 200], fovY: 50 },
+    top: plan(-350, 150),
+  },
+  launchers: [
+    ...barges([[-260, 0, 100], [0, 0, 60], [260, 0, 100]]),
+    { id: 'bridge', kind: 'bridge', pos: [0, 16, 448], from: [-300, 16, 448], to: [300, 16, 448] },
+    { id: 'ground', kind: 'frame', pos: [0, 0, -300] },
+  ],
+  permit: { zones: [[-800, -260, 800, 380]], maxBarges: 4 },
+};
+
+export const MOUNTAIN_LAKE: Venue = {
+  id: 'mountain-lake',
+  label: '산으로 둘러싼 호수',
+  place: '여러 호수 축제',
+  // 다리 대신 산 능선. 물결 없는 호수에 불꽃이 또렷하게 비친다.
+  farShoreZ: 1600,
+  nearShoreZ: -500,
+  nearGround: '#06070a',
+  buildings: buildSkyline(97, [{ z: 1650, min: 6, max: 18, gap: 120, from: -1500, to: 1500 }]),
+  bridge: { kind: 'none', z: 0, deckY: 0, x0: 0, x1: 0 },
+  mountains: [
+    { z: 2600, ridge: [[-6000, 120], [-3600, 420], [-2400, 260], [-1200, 640], [-200, 380], [900, 720], [2100, 330], [3300, 560], [6000, 160]] },
+    { z: 4200, ridge: [[-8000, 300], [-4200, 900], [-1800, 620], [600, 1100], [2600, 700], [5200, 980], [8000, 280]] },
+  ],
+  seats: {
+    'front-near': { label: '호숫가 잔디밭', eye: [0, 5, -510], target: [0, 170, 100], fovY: 55 },
+    'front-far': { label: '호숫가 마을', eye: [200, 12, -1100], target: [0, 160, 100], fovY: 50 },
+    tower: { label: '산 중턱 쉼터', eye: [-900, 220, -1300], target: [0, 150, 100], fovY: 50 },
+    top: plan(-350, 150),
+  },
+  launchers: [
+    ...barges([[-220, 0, 120], [220, 0, 120]]),
+    { id: 'ground', kind: 'frame', pos: [0, 0, -260] },
+  ],
+  permit: { zones: [[-900, -200, 900, 800]], maxBarges: 3 },
+};
+
 export const VENUES: Record<string, Venue> = {
   [RIVER_CITY.id]: RIVER_CITY,
   [HARBOUR.id]: HARBOUR,
   [BEACH.id]: BEACH,
+  [NARROW_RIVER.id]: NARROW_RIVER,
+  [GRAND_RIVER.id]: GRAND_RIVER,
+  [SKYSCRAPER.id]: SKYSCRAPER,
+  [MOUNTAIN_LAKE.id]: MOUNTAIN_LAKE,
 };
 
 /** 물이 있는 북쪽 범위 [가까운 물가, 먼 물가] (바다면 아주 멀리까지) */
