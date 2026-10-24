@@ -20,7 +20,11 @@ export type Rule =
   /** 맞춤 의뢰: 지상 틀에 그림(로고)을 세우기 */
   | { kind: 'frameArt'; subject: string }
   /** 맞춤 의뢰: 제작 공방에서 만든 우리만의 불꽃 쓰기 */
-  | { kind: 'workshopShell' };
+  | { kind: 'workshopShell' }
+  /** 마지막 몇 초를 긴 버들(카무로)로 마무리 */
+  | { kind: 'kamuroFinish'; seconds: number }
+  /** 바깥 층이 차례로 작게 터지는 내 불꽃 넣기 */
+  | { kind: 'outerPop' };
 
 export type Style = 'grand' | 'calm';
 
@@ -95,7 +99,7 @@ export const UNLOCK_PRICES: Partial<Record<FireworkType, number>> = {
   salute: 90,
 };
 
-const TRACKS = { march: 'basic-1', calm: 'basic-2', drive: 'basic-3' } as const;
+const TRACKS = { march: 'basic-1', calm: 'basic-2', drive: 'basic-3', waltz: 'basic-4', epic: 'basic-5' } as const;
 
 interface Template {
   tier: number;
@@ -161,6 +165,24 @@ const TEMPLATES: Template[] = [
     quote: '심사위원은 다리 위에서 봅니다. 나이아가라를 꼭 넣고, 박자와 피날레를 중요하게 봐요.',
     music: 'march', seat: 'bridge', style: 'grand', colors: [['gold', 'white'], ['cyan', 'purple']],
     rules: () => [{ kind: 'include', type: 'niagara' }, { kind: 'finale', seconds: 15 }, { kind: 'live' }],
+  },
+  {
+    tier: 0, title: '호숫가 별빛 결혼식', client: '하은·지호 부부',
+    quote: '왈츠에 맞춰 차분하게 해 주세요. 마지막은 금빛 버들이 하늘에 오래 늘어지게요. 하객이 가까이 앉아서 큰 불꽃은 안 돼요.',
+    music: 'waltz', seat: 'front-near', style: 'calm', colors: [['pink', 'white', 'gold'], ['white', 'gold']],
+    rules: () => [{ kind: 'kamuroFinish', seconds: 12 }, { kind: 'maxSize', size: 5 }],
+  },
+  {
+    tier: 1, title: '불꽃 장인 경연', client: '연화 협회',
+    quote: '심사위원은 장인의 솜씨를 봅니다. 직접 만든 불꽃으로, 바깥 층이 위에서 아래로 차례로 터지는 것을 꼭 보여 주세요.',
+    music: 'march', seat: 'front-far', style: 'grand', colors: [['gold', 'white'], ['cyan', 'gold']],
+    rules: () => [{ kind: 'workshopShell' }, { kind: 'outerPop' }],
+  },
+  {
+    tier: 2, title: '여름밤 대축제', client: '시 축제 조직위원회',
+    quote: '2분이 넘는 긴 곡이에요. 후렴마다 크게, 브릿지는 잔잔하게, 마지막 20초는 꽉 채워 주세요. 실제 장비와 허가까지 맞춘 계획이 필요해요.',
+    music: 'epic', seat: 'front-far', style: 'grand', colors: [['gold', 'red'], ['blue', 'white', 'gold']],
+    rules: () => [{ kind: 'finale', seconds: 20 }, { kind: 'include', type: 'niagara' }, { kind: 'live' }],
   },
   // 맞춤 의뢰: 공방과 틀 그림으로 직접 만들어야 받을 수 있다.
   {
