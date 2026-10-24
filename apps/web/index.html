@@ -16,6 +16,7 @@
     <header class="topbar">
       <div class="group show-name">
         <button type="button" id="shows-btn">내 쇼</button>
+        <button type="button" id="help-btn" title="시작 안내와 용어 사전">도움말</button>
         <button type="button" id="office-btn">의뢰소</button>
         <button type="button" id="workshop-btn">공작소</button>
         <button type="button" id="gallery-btn" hidden>상영관</button>
@@ -163,6 +164,41 @@
         <p class="note">올린 쇼는 누구나 보고 담을 수 있습니다. 제목과 틀불꽃 글자에 쓸 수 없는 말이 있으면 올라가지 않고, 신고가 쌓이면 숨겨집니다.</p>
       </section>
       <p id="gallery-msg" class="note" aria-live="polite"></p>
+    </dialog>
+
+    <dialog id="guide-dialog" class="guide-dialog" aria-labelledby="guide-title">
+      <form method="dialog" class="dialog-head">
+        <h2 id="guide-title">밤하늘 연출실 시작하기 <span id="guide-count" class="note"></span></h2>
+        <button value="close" aria-label="닫기">건너뛰기</button>
+      </form>
+      <h3 id="guide-step-title"></h3>
+      <p id="guide-text"></p>
+      <div class="dialog-actions">
+        <button type="button" id="guide-prev">이전</button>
+        <button type="button" id="guide-try" hidden></button>
+        <button type="button" id="guide-next" class="primary">다음</button>
+      </div>
+      <p class="note">「도움말」에서 언제든 다시 보거나 용어 사전을 열 수 있습니다.</p>
+    </dialog>
+
+    <dialog id="help-dialog" aria-labelledby="help-title">
+      <form method="dialog" class="dialog-head">
+        <h2 id="help-title">도움말</h2>
+        <button value="close" aria-label="닫기">닫기</button>
+      </form>
+      <div class="dialog-actions">
+        <button type="button" id="help-guide" class="primary">시작 안내 다시 보기</button>
+        <button type="button" id="help-glossary">용어 사전</button>
+      </div>
+    </dialog>
+
+    <dialog id="glossary-dialog" class="wide-dialog" aria-labelledby="glossary-title">
+      <form method="dialog" class="dialog-head">
+        <h2 id="glossary-title">불꽃 만드는 사람의 용어 사전</h2>
+        <button value="close" aria-label="닫기">닫기</button>
+      </form>
+      <input id="glossary-search" placeholder="찾을 말 (예: 바지선)" aria-label="용어 찾기" />
+      <ul id="glossary-list" class="glossary"></ul>
     </dialog>
 
     <dialog id="share-dialog" aria-labelledby="share-title">
