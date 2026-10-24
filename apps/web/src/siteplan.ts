@@ -451,21 +451,27 @@ export class SitePlanner {
   }
 
   /** 평면도 범위: 동서 ±1400m, 남북은 관람석 물가 앞부터 다리 너머까지 */
+  /**
+   * 평면도 범위: 허가 구역과 발사 위치, 정면 관람석, 다리까지 꼭 맞게 (작은 화면에서도 크게 보이게).
+   * 지도 무대는 찍은 관람석까지 모두 넣는다.
+   */
   private bounds() {
     const venue = venueOf(this.editor.show);
     const near = venue ? venue.nearShoreZ : -640;
-    const far = Math.max(venue?.bridge.kind === 'none' ? 300 : (venue?.bridge.z ?? 300), Math.min(venue?.farShoreZ ?? 1200, 1300)) + 200;
-    // 지도 무대처럼 발사 위치·관람석이 멀리 있으면 그만큼 넓힌다.
-    // 정해 둔 무대는 무대 범위가 알맞게 잡혀 있고, 지도 무대만 찍은 자리에 맞춰 넓힌다.
-    const seats = venue?.id === 'map' ? Object.values(venue.seats).filter((s) => !s.plan).map((s) => s.eye) : [];
-    const pts = [...this.editor.show.launchers.map((l) => l.pos), ...seats];
+    const pts: [number, number][] = this.editor.show.launchers.map((l) => [l.pos[0], l.pos[2]]);
+    if (venue) {
+      for (const [x0, z0, x1, z1] of venue.id === 'map' ? [] : venue.permit.zones) pts.push([x0, z0], [x1, z1]);
+      const seats = Object.entries(venue.seats).filter(([id, s]) => !s.plan && (venue.id === 'map' || id === 'front-near'));
+      for (const [, s] of seats) pts.push([s.eye[0], s.eye[2]]);
+      if (venue.bridge.kind !== 'none') pts.push([0, venue.bridge.z]);
+    }
     const xs = pts.map((p) => p[0]);
-    const zs = pts.map((p) => p[2]);
+    const zs = pts.map((p) => p[1]);
     return {
-      x0: Math.min(-1400, ...xs.map((x) => x - 300)),
-      x1: Math.max(1400, ...xs.map((x) => x + 300)),
-      z0: Math.min(near - 260, ...zs.map((z) => z - 200)),
-      z1: Math.max(far, ...zs.map((z) => z + 300)),
+      x0: Math.min(...xs) - 200,
+      x1: Math.max(...xs) + 200,
+      z0: Math.min(near - 60, ...zs) - 80,
+      z1: Math.max(...zs) + 150,
     };
   }
 
@@ -627,16 +633,18 @@ export class SitePlanner {
       g.lineWidth = 2;
       g.strokeRect(x - 14, y - 14, 28, 28);
     }
+    // 작은 화면에서는 이름을 줄여 겹치지 않게 (바지선 1 → 1, 쏠 수 있는 크기는 고른 것만)
+    const compact = this.canvas.clientWidth < 500;
     g.fillStyle = '#eceaf6';
-    g.font = font(12);
+    g.font = font(compact ? 11 : 12);
     g.textAlign = 'center';
-    g.fillText(name, x, y + 24);
-    if (l.kind === 'barge') {
+    g.fillText(compact && l.kind === 'barge' ? name.replace('바지선 ', '') : name, x, y + (compact ? 20 : 24));
+    if (l.kind === 'barge' && (!compact || on)) {
       // 이 자리에서 쏠 수 있는 가장 큰 알
       const allowed = allowedSizeAt(this.editor.show, l);
       g.fillStyle = allowed ? '#a6a3bd' : '#f87171';
       g.font = font(10);
-      g.fillText(allowed ? `${allowed}호까지` : '쏠 수 없음', x, y + 37);
+      g.fillText(allowed ? `${allowed}호까지` : '쏠 수 없음', x, y + (compact ? 32 : 37));
     }
   }
 }
