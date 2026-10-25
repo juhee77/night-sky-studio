@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>밤하늘 연출실 화면 설계</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans+KR:wght@400;600;700&display=swap">
+<style>
+/* 화면 설계: 왼쪽은 상자로 그린 와이어프레임, 오른쪽은 실제 앱을 띄워 찍은 화면. 기획서(plan.html)와 같은 색과 글꼴을 쓴다. */
+:root {
+  --bg: #f6f5f9;
+  --surface: #ffffff;
+  --ink: #17152a;
+  --ink-2: #4a4760;
+  --muted: #5d5a72;
+  --line: #e3e1eb;
+  --accent: #b9400b;
+  --accent-soft: #fdeee4;
+  --wire: #8d8aa3;
+  --wire-fill: #eeedf3;
+  --night: #0b0c1d;
+  --night-ink: #eceaf6;
+  --font-display: 'Black Han Sans', 'IBM Plex Sans KR', sans-serif;
+  --font-body: 'IBM Plex Sans KR', 'Pretendard', -apple-system, 'Apple SD Gothic Neo', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f0e1a; --surface: #18172a; --ink: #f1eff8; --ink-2: #c3bfd6; --muted: #a29fb8;
+    --line: #2d2b43; --accent: #fb923c; --accent-soft: #3a2116; --wire: #6f6c88; --wire-fill: #222138;
+    --night: #07081a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f0e1a; --surface: #18172a; --ink: #f1eff8; --ink-2: #c3bfd6; --muted: #a29fb8;
+  --line: #2d2b43; --accent: #fb923c; --accent-soft: #3a2116; --wire: #6f6c88; --wire-fill: #222138;
+  --night: #07081a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 400 16px/1.7 var(--font-body); margin: 0; padding: 0 16px 64px; }
+.doc { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 56px; }
+header.hero { padding-top: 48px; display: flex; flex-direction: column; gap: 10px; }
+h1 { font: 400 clamp(2rem, 5vw, 3rem)/1.15 var(--font-display); margin: 0; }
+h2 { font-size: 1.4rem; margin: 0; }
+h3 { font-size: 1.02rem; margin: 0; }
+p { margin: 0; }
+.lede { color: var(--ink-2); max-width: 68ch; }
+.eyebrow { font-size: .78rem; font-weight: 700; letter-spacing: .08em; color: var(--accent); }
+.links { display: flex; flex-wrap: wrap; gap: 8px; }
+.links a { color: var(--accent); font-weight: 600; }
+section { display: flex; flex-direction: column; gap: 16px; }
+.note { color: var(--muted); font-size: .9rem; }
+.pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.pair.phone { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+figure { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+figcaption { font-size: .85rem; color: var(--muted); }
+figure img { width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--line); display: block; background: var(--night); }
+ul.points { margin: 0; padding-left: 1.2em; color: var(--ink-2); }
+ul.points li + li { margin-top: 4px; }
+
+/* 와이어프레임: 회색 상자와 이름표 */
+.wf { border: 1.5px solid var(--wire); border-radius: 10px; background: var(--surface); padding: 8px; display: grid; gap: 6px; font-size: .74rem; color: var(--ink-2); aspect-ratio: 16 / 10; }
+.wf.tall { aspect-ratio: 9 / 16; }
+.wf .bx { border: 1.5px dashed var(--wire); border-radius: 6px; background: var(--wire-fill); padding: 4px 6px; display: flex; align-items: center; justify-content: center; text-align: center; min-height: 0; min-width: 0; }
+.wf .bx.sky { background: var(--night); color: var(--night-ink); border-style: solid; border-color: var(--night); }
+.wf .bx.hot { border-style: solid; border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.wf .row { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.wf .chip { border: 1.5px solid var(--wire); border-radius: 5px; padding: 0 5px; background: var(--surface); white-space: nowrap; }
+.wf .chip.hot { border-color: var(--accent); color: var(--accent); font-weight: 700; }
+.wf .chip.pri { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* 단계별 열기 흐름 */
+.flow { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; counter-reset: s; }
+.flow li { counter-increment: s; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 6px; position: relative; }
+.flow li::before { content: counter(s); font: 700 .8rem var(--font-mono); color: var(--accent); }
+.flow b { font-size: .92rem; }
+.flow span { font-size: .82rem; color: var(--muted); }
+.flow .opens { color: var(--accent); font-weight: 600; font-size: .82rem; }
+
+.steps9 { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 6px; }
+.steps9 div { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 6px; font-size: .78rem; text-align: center; }
+.steps9 div b { display: block; font: 700 .72rem var(--font-mono); color: var(--accent); }
+.steps9 div i { display: block; font-style: normal; color: var(--muted); font-size: .72rem; margin-top: 2px; }
+
+@media (max-width: 760px) {
+  .pair, .pair.phone { grid-template-columns: 1fr; }
+  .flow { grid-template-columns: 1fr; }
+  .steps9 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+</style>
+</head>
+<body>
+<main class="doc">
+
+<header class="hero">
+  <p class="eyebrow">밤하늘 연출실 · 화면 설계</p>
+  <h1>화면 설계와 실제 화면</h1>
+  <p class="lede">주요 화면마다 왼쪽에 상자로 그린 와이어프레임을, 오른쪽에 실제 앱을 띄워 찍은 화면을 둡니다. 처음 쓰는 사람에게는 꼭 필요한 것만 보이고, 할 일을 하나씩 해낼 때마다 기능이 열리는 흐름이 중심입니다.</p>
+  <div class="links">
+    <a href="../">앱 열기</a> · <a href="plan.html">기획서</a> · <a href="https://github.com/juhee77/night-sky-studio">GitHub</a>
+  </div>
+</header>
+
+<section>
+  <p class="eyebrow">흐름</p>
+  <h2>단계별로 열기</h2>
+  <p class="lede">처음에는 자동 연출 · 감상 · 공유만 보입니다. 위 막대의 「다음: …」 버튼이 지금 할 일을 알려 주고, 누르면 그 버튼을 대신 열어 줍니다. 이미 쓰던 사람은 모두 열린 채로 시작하고, 도움말에서 「모두 열기」나 「단계별로 처음부터」를 고를 수 있습니다.</p>
+  <ol class="flow">
+    <li><b>자동 연출로 첫 쇼 만들기</b><span>곡에 맞춰 불꽃을 놓아 준다</span><span class="opens">→ 사진 · 영상 · 나란히</span></li>
+    <li><b>감상으로 내 쇼 보기</b><span>무대만 화면 가득</span><span class="opens">→ 공작소 (빠른 설계)</span></li>
+    <li><b>내 불꽃을 서랍에 저장</b><span>색 · 모양 · 크기 고르기</span><span class="opens">→ 의뢰소</span></li>
+    <li><b>의뢰 하나 납품</b><span>예산과 조건을 맞춰 채점</span><span class="opens">→ 발사장 · 제작 공방</span></li>
+    <li><b>제작 공방에서 알 저장</b><span>반구에 별을 붙여 만들기</span><span class="opens">→ 작업대 · 실전 모드</span></li>
+  </ol>
+</section>
+
+<section>
+  <p class="eyebrow">처음 화면</p>
+  <h2>간단 화면</h2>
+  <div class="pair">
+    <div class="wf" style="grid-template-rows: auto 1fr;">
+      <div class="row">
+        <span class="chip">내 쇼</span><span class="chip">도움말</span><span class="chip hot">다음: 자동 연출로 첫 쇼 만들기</span>
+        <span class="chip">쇼 제목</span><span class="chip">자동 연출</span><span class="chip">감상</span><span class="chip pri">공유</span>
+        <span class="chip pri">▶</span><span class="chip">0:00.00</span><span class="chip hot">편집하기</span><span class="chip">음악 ▾</span>
+      </div>
+      <div class="bx sky">무대 (화면 대부분) · 누르면 가까운 바지선에 지금 시각으로 불꽃을 놓는다</div>
+    </div>
+    <figure><img src="screenshots/02-simple.png" alt="간단 화면: 위 막대와 무대만 보이고 국화 불꽃이 터지는 모습" loading="lazy" width="1280" height="760"><figcaption>자동 연출을 한 뒤. 사진 · 영상 · 나란히가 열렸다는 안내가 뜬다.</figcaption></figure>
+  </div>
+  <ul class="points">
+    <li>시간표, 설정 칸, 박자, 관람석·무대 설정은 숨긴다. 「편집하기」를 누르면 펼쳐지고, 고른 화면을 기억한다.</li>
+    <li>의뢰를 받으면 예산·조건 막대가 시간표 위에 있어서 편집 화면을 자동으로 편다.</li>
+  </ul>
+</section>
+
+<section>
+  <p class="eyebrow">편집</p>
+  <h2>편집 화면</h2>
+  <div class="pair">
+    <div class="wf" style="grid-template-rows: auto auto 1fr auto;">
+      <div class="row"><span class="chip">내 쇼</span><span class="chip">도움말</span><span class="chip">의뢰소</span><span class="chip">공작소</span><span class="chip">발사장</span><span class="chip">자동 연출</span><span class="chip">감상</span><span class="chip">사진</span><span class="chip">영상</span><span class="chip pri">공유</span><span class="chip pri">▶</span><span class="chip">간단히</span></div>
+      <div class="row"><span class="chip">BPM · 첫 박 · 박자 두드리기</span><span class="chip">무대 설정</span><span class="chip">관람석 ▾</span><span class="chip">효과음</span></div>
+      <div style="display: grid; grid-template-columns: 1fr 30%; gap: 6px; min-height: 0;">
+        <div class="bx sky">무대</div>
+        <div class="bx">새로 놓을 불꽃<br>종류 · 내 불꽃 · 크기 · 색</div>
+      </div>
+      <div class="bx" style="min-height: 28%;">시간표: 음악 파형 · 바지선 1~3 · 다리 · 지상 틀 · 드론 (박자 눈금에 붙이기)</div>
+    </div>
+    <figure><img src="screenshots/03-edit.png" alt="편집 화면: 무대 오른쪽에 불꽃 종류 칸, 아래에 시간표" loading="lazy" width="1280" height="760"><figcaption>모든 기능을 연 상태. 시간표 위 막대 하나하나가 불꽃 한 발.</figcaption></figure>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">불꽃 만들기</p>
+  <h2>공작소: 빠른 설계 · 제작 공방 · 작업대</h2>
+  <div class="pair">
+    <div class="wf" style="grid-template-columns: 1.1fr 1fr; grid-template-rows: 1fr auto;">
+      <div class="bx sky">시험 발사 무대<br>정면 · 옆 · 위 · 바람</div>
+      <div style="display: grid; gap: 6px; grid-template-rows: auto 1fr;">
+        <div class="row"><span class="chip">빠른 설계</span><span class="chip hot">제작 공방</span><span class="chip">작업대</span></div>
+        <div class="bx">알 단면: 반구에 별 붙이기<br>할약 · 종이 · 도화선 · 발사약</div>
+      </div>
+      <div class="row" style="grid-column: 1 / -1;"><span class="chip">시험장에서 재 보기</span><span class="chip pri">서랍에 저장</span><span class="chip">내 불꽃 서랍</span></div>
+    </div>
+    <figure><img src="screenshots/05-workshop-build.png" alt="공작소 제작 공방: 왼쪽 시험 발사, 오른쪽 알 단면" loading="lazy" width="1280" height="760"><figcaption>제작 공방. 별을 붙인 자리가 곧 하늘에서 날아가는 방향.</figcaption></figure>
+  </div>
+  <div class="pair">
+    <figure><img src="screenshots/04-workshop-quick.png" alt="공작소 빠른 설계" loading="lazy" width="1280" height="760"><figcaption>빠른 설계: 슬라이더와 효과 묶음으로 바로 만든다.</figcaption></figure>
+    <figure><img src="screenshots/06-workbench.png" alt="공작소 작업대: 공정 칩과 배합 그릇" loading="lazy" width="1280" height="760"><figcaption>작업대: 슬라이더 없이 손으로 한 결과만 알에 들어간다.</figcaption></figure>
+  </div>
+  <h3>작업대 공정</h3>
+  <div class="steps9">
+    <div><b>1</b>배합<i>떠 넣고 젓기</i></div>
+    <div><b>2</b>별 만들기<i>굴리기 · 찍기 · 자르기</i></div>
+    <div><b>3</b>말리기<i>48시간</i></div>
+    <div><b>4</b>별 붙이기<i>만든 만큼만</i></div>
+    <div><b>5</b>할약 붓기<i>길게 눌러 붓기</i></div>
+    <div><b>6</b>반구 맞붙이기<i>돌려서 표시 맞추기</i></div>
+    <div><b>7</b>종이 바르기<i>고르게 문지르기</i></div>
+    <div><b>8</b>도화선·발사약<i>자르기 · 저울</i></div>
+    <div><b>9</b>시험장<i>결함 → 고치러 가기</i></div>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">현장</p>
+  <h2>발사장 · 의뢰소 · 상영관</h2>
+  <div class="pair">
+    <div class="wf" style="grid-template-rows: auto 1fr auto;">
+      <div class="row"><span class="chip">바지선 더하기</span><span class="chip">다리</span><span class="chip">지상 틀</span><span class="chip">드론</span><span class="chip">실전 모드 □</span></div>
+      <div class="bx">평면도 (북쪽이 위)<br>허가 구역 · 관람석 · 안전거리 점선 원 · 바지선 끌어 옮기기</div>
+      <div class="bx">갑판 랙 배치 · 장전 계획 · 배선과 회로 점검</div>
+    </div>
+    <figure><img src="screenshots/07-site.png" alt="발사장 평면도" loading="lazy" width="1280" height="760"><figcaption>발사장. 기본 무대는 게임 속 지형, 「지도에서 고르기」 무대는 실제 지도의 위치를 기준으로 한다.</figcaption></figure>
+  </div>
+  <div class="pair">
+    <figure><img src="screenshots/08-office.png" alt="의뢰소 게시판" loading="lazy" width="1280" height="760"><figcaption>의뢰소: 의뢰를 받아 납품하고 돈과 평판을 모아 불꽃을 해금한다.</figcaption></figure>
+    <figure><img src="screenshots/09-viewer.png" alt="공유 링크로 연 상영관" loading="lazy" width="1280" height="760"><figcaption>상영관: 공유 링크를 받은 사람이 설치 없이 바로 본다.</figcaption></figure>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">휴대폰</p>
+  <h2>휴대폰 세로 화면</h2>
+  <div class="pair phone">
+    <figure><img src="screenshots/10-mobile-simple.png" alt="휴대폰 간단 화면" loading="lazy" width="780" height="1688"><figcaption>간단 화면: 무대를 넓게.</figcaption></figure>
+    <figure><img src="screenshots/11-mobile-edit.png" alt="휴대폰 편집 화면" loading="lazy" width="780" height="1688"><figcaption>편집 화면: 설정 칸과 시간표가 무대 아래로.</figcaption></figure>
+    <figure><img src="screenshots/12-mobile-workbench.png" alt="휴대폰 공작소 작업대" loading="lazy" width="780" height="1688"><figcaption>공작소: 아래를 고치는 동안 시험 발사 무대가 위에 붙어 있다.</figcaption></figure>
+  </div>
+  <ul class="points">
+    <li>박자 맞추기는 「박자」 버튼으로 접어 둔다 (세밀한 편집은 가로 화면·PC).</li>
+    <li>손으로 끄는 판(굴림판, 반구, 종이 바르기)은 끄는 동안 화면이 스크롤되지 않는다.</li>
+  </ul>
+</section>
+
+<p class="note">화면은 Playwright로 실제 앱(개발 서버)을 띄워 1280×760, 휴대폰 390×844에서 찍었습니다. 소프트웨어 렌더러로 찍어 불꽃 밀도가 실제 기기보다 낮을 수 있습니다.</p>
+
+</main>
+</body>
+</html>

@@ -29,6 +29,8 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build:pages
+      # 기획서와 화면 설계도 같이 올린다 (…/night-sky-studio/docs/)
+      - run: cp -r docs apps/web/dist/docs
       - uses: actions/upload-pages-artifact@v5
         with:
           path: apps/web/dist
