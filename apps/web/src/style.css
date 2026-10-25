@@ -354,6 +354,10 @@ dialog.guide-dialog { width: min(480px, calc(100% - 24px)); }
 .glossary { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 60vh; overflow: auto; }
 .glossary li { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); }
 #glossary-search { width: 100%; }
+dialog.compare-dialog { width: min(1200px, calc(100% - 24px)); max-height: min(94vh, 1000px); }
+.compare-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; }
+.compare-grid figure { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.compare-stage { width: 100%; aspect-ratio: 16 / 10; display: block; border-radius: 10px; background: #0b0c1d; }
 dialog.workshop-dialog { width: min(1080px, calc(100% - 24px)); max-height: min(94vh, 1000px); }
 .ws-layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px; margin: 12px 0; }
 .ws-preview { display: flex; flex-direction: column; gap: 8px; min-width: 0; }

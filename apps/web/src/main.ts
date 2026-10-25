@@ -36,6 +36,7 @@ import { AccountPanel } from './account.ts';
 import { Gallery } from './gallery.ts';
 import { ArtEditor } from './artedit.ts';
 import { Guide } from './guide.ts';
+import { Compare } from './compare.ts';
 import { remoteEnabled, shortLink } from './remote.ts';
 import { Panel } from './panel.ts';
 import { runCountdown } from './countdown.ts';
@@ -257,6 +258,16 @@ if (remoteEnabled()) {
     gallery.open();
   });
 }
+
+// ── 여러 관람석에서 나란히 보기 ──
+const compare = new Compare($<HTMLDialogElement>('compare-dialog'), {
+  show: () => editor.show,
+  time: () => transport.time,
+  playing: () => transport.playing,
+  togglePlay: () => togglePlay(),
+  seek: (t) => transport.seek(t),
+});
+$<HTMLButtonElement>('compare-btn').addEventListener('click', () => compare.show());
 
 // ── 처음 쓰는 사람 안내와 용어 사전 ──
 const guide = new Guide($<HTMLDialogElement>('guide-dialog'), $<HTMLDialogElement>('glossary-dialog'));
@@ -1133,7 +1144,8 @@ function frame(now: number): void {
     transport.seek(end);
     t = end;
   }
-  stage.render(t, transport.playing);
+  // 나란히 보기 창이 열려 있으면 편집 무대는 쉬고, 그 창이 무대를 그린다.
+  if (!compare.open) stage.render(t, transport.playing);
   transport.schedule(stage.sim.launches, fanCount);
   if (transport.playing) timeline.follow(t);
   timeline.draw();
