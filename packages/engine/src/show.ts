@@ -81,6 +81,10 @@ export interface MusicRef {
 export interface Show {
   version: 1;
   title?: string;
+  /** 만든 사람 이름 (공유할 때 넣는다. 받은 사람 화면에 「OO님이 만든 쇼」) */
+  author?: string;
+  /** 받은 쇼를 고쳐 만든 쇼면 원작 */
+  remixOf?: { title: string; author?: string };
   seed: number;
   music?: MusicRef;
   venue: {

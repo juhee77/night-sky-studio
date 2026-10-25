@@ -19,6 +19,7 @@
     <section class="card" id="card" aria-live="polite">
       <p class="eyebrow">불꽃쇼가 도착했습니다</p>
       <h1 id="show-title">불러오는 중…</h1>
+      <p id="show-by" class="by" hidden></p>
       <p id="show-meta" class="meta"></p>
       <div id="music-ask" class="music-ask" hidden>
         <p id="music-ask-text"></p>
@@ -35,12 +36,16 @@
 
     <section class="card end" id="end-card" hidden>
       <h2>쇼가 끝났습니다</h2>
+      <p id="end-by" class="by" hidden></p>
+      <p class="note">마음에 들었다면 이 쇼를 고쳐 내 쇼로 만들거나, 같은 곡으로 새로 만들어 친구에게 보내 보세요. 설치 없이 바로 됩니다.</p>
+      <button type="button" id="import-end" class="primary big">이 쇼를 고쳐서 내 쇼 만들기</button>
       <div class="row">
-        <button type="button" id="again" class="primary">다시 보기</button>
-        <button type="button" id="import-end">내 쇼로 가져와 고치기</button>
+        <button type="button" id="same-song">같은 곡으로 새로 만들기</button>
+        <button type="button" id="again">다시 보기</button>
       </div>
-      <a id="make-own" class="link">나도 불꽃쇼 만들어 보기</a>
     </section>
+
+    <a id="corner-make" class="corner-make" hidden>밤하늘 연출실에서 나도 만들기 →</a>
 
     <form class="bar" id="bar" hidden>
       <button type="button" id="play" aria-label="일시정지">❚❚</button>

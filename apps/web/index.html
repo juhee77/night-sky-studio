@@ -75,6 +75,12 @@
           <button type="button" id="intro-play" class="primary big">▶ 불꽃쇼 보기</button>
           <button type="button" id="intro-skip" class="quiet">건너뛰고 바로 만들기</button>
         </section>
+        <section id="arrive" class="intro-card" aria-labelledby="arrive-title" hidden>
+          <h2 id="arrive-title"></h2>
+          <p id="arrive-text" class="note"></p>
+          <button type="button" id="arrive-go" class="primary big"></button>
+          <button type="button" id="arrive-close" class="quiet">닫기</button>
+        </section>
         <section id="intro-end" class="intro-card" aria-labelledby="intro-end-title" hidden>
           <h2 id="intro-end-title">이런 쇼를 직접 만들어 볼까요?</h2>
           <p class="note">곡을 고르고 「자동 연출」을 누르면 박자에 맞춰 불꽃을 놓아 줍니다. 마음에 들 때까지 다시 누르고, 링크로 보내면 끝.</p>
@@ -258,6 +264,11 @@
         <button value="close" aria-label="닫기">닫기</button>
       </form>
       <p class="note">링크를 받은 사람은 설치 없이 브라우저에서 바로 이 쇼를 봅니다. 링크 안에 쇼가 통째로 들어 있어서, 이 쇼를 나중에 고쳐도 이미 보낸 링크는 바뀌지 않습니다.</p>
+      <div class="field share-author">
+        <label for="share-author">만든 사람 (선택 · 받는 사람에게 「OO님이 만든 쇼」로 보입니다)</label>
+        <input id="share-author" maxlength="24" placeholder="이름이나 별명" autocomplete="nickname" />
+      </div>
+      <p id="share-remix" class="note" hidden></p>
       <label for="share-link" class="sr-label">공유 링크</label>
       <input id="share-link" readonly class="share-link" />
       <div class="dialog-actions">

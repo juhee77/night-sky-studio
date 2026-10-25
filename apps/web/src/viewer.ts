@@ -15,6 +15,10 @@ const el = {
   stage: $<HTMLCanvasElement>('stage'),
   card: $<HTMLElement>('card'),
   title: $<HTMLHeadingElement>('show-title'),
+  by: $<HTMLParagraphElement>('show-by'),
+  endBy: $<HTMLParagraphElement>('end-by'),
+  sameSong: $<HTMLButtonElement>('same-song'),
+  corner: $<HTMLAnchorElement>('corner-make'),
   meta: $<HTMLParagraphElement>('show-meta'),
   musicAsk: $<HTMLDivElement>('music-ask'),
   musicAskText: $<HTMLParagraphElement>('music-ask-text'),
@@ -26,7 +30,6 @@ const el = {
   endCard: $<HTMLElement>('end-card'),
   again: $<HTMLButtonElement>('again'),
   importEnd: $<HTMLButtonElement>('import-end'),
-  makeOwn: $<HTMLAnchorElement>('make-own'),
   bar: $<HTMLFormElement>('bar'),
   play: $<HTMLButtonElement>('play'),
   scrub: $<HTMLInputElement>('scrub'),
@@ -39,7 +42,9 @@ const el = {
 };
 
 const editorUrl = import.meta.env.BASE_URL;
-el.makeOwn.href = editorUrl;
+el.corner.href = editorUrl;
+/** 편집기에 「받은 쇼를 가져왔다」고 알린다 (편집기가 맞는 안내를 띄운다) */
+const ARRIVED = 'nss:arrived';
 
 let toastTimer = 0;
 function say(message: string, ms = 5000): void {
@@ -80,6 +85,11 @@ async function boot(): Promise<void> {
   }
   document.title = `${show.title || '불꽃쇼'} · 밤하늘 연출실`;
   el.title.textContent = show.title || '제목 없는 불꽃쇼';
+  const by = byline(show);
+  for (const p of [el.by, el.endBy]) {
+    p.hidden = !by;
+    p.textContent = by;
+  }
 
   try {
     stage = new Stage(el.stage, show);
@@ -111,6 +121,14 @@ async function boot(): Promise<void> {
   // 받는 사람 기기에 없는 음악 파일: 같은 파일을 골라 달라고 한다.
   el.musicAsk.hidden = false;
   el.musicAskText.textContent = `이 쇼는 「${m.title}」(${fmtTime(m.duration).replace(/\.\d+$/, '')})에 맞춰 만들었습니다. 같은 음악 파일이 있으면 골라 주세요.`;
+}
+
+/** 「OO님이 만든 쇼 · 원작 「…」(OO님)」 */
+function byline(s: Show): string {
+  const parts: string[] = [];
+  if (s.author) parts.push(`${s.author}님이 만든 쇼`);
+  if (s.remixOf) parts.push(`원작 「${s.remixOf.title}」${s.remixOf.author ? `(${s.remixOf.author}님)` : ''}`);
+  return parts.join(' · ');
 }
 
 function ready(): void {
@@ -163,6 +181,7 @@ el.start.addEventListener('click', () => {
   started = true;
   el.card.hidden = true;
   el.bar.hidden = false;
+  el.corner.hidden = false;
   el.scrub.max = duration.toFixed(2);
   transport.delayFor = stage.soundDelay;
   transport.crowd = audienceCues(stage.sim.launches);
@@ -190,23 +209,50 @@ el.again.addEventListener('click', () => {
   setPlaying(true);
 });
 
-async function importShow(): Promise<void> {
+/** 받은 쇼를 내 쇼로: 고쳐 만들기(원작을 기록한다) 또는 같은 곡·같은 무대로 빈 쇼 */
+async function importShow(mode: 'remix' | 'fresh'): Promise<void> {
   if (!show) return;
   const id = newId();
-  await putShow({ id, updatedAt: Date.now(), show: { ...show, title: show.title ? `${show.title} (받은 쇼)` : '받은 쇼' } });
+  let mine: Show;
+  if (mode === 'remix') {
+    mine = { ...show, title: show.title ? `${show.title} (받은 쇼)` : '받은 쇼', remixOf: { title: show.title || '제목 없는 쇼', ...(show.author ? { author: show.author } : {}) } };
+    // 고친 쇼를 다시 보낼 때는 보내는 사람이 만든 사람이 된다.
+    delete mine.author;
+  } else {
+    mine = {
+      version: 1,
+      title: show.music ? `「${show.music.title}」으로 만든 쇼` : '새 불꽃쇼',
+      seed: Math.floor(Math.random() * 1e9),
+      ...(show.music ? { music: show.music } : {}),
+      venue: show.venue,
+      ...(show.seat ? { seat: show.seat } : {}),
+      launchers: show.launchers,
+      cues: [],
+    };
+  }
+  await putShow({ id, updatedAt: Date.now(), show: mine });
   rememberLastShow(id);
+  try {
+    localStorage.setItem(ARRIVED, mode);
+  } catch {
+    // 안내 없이 편집기로 간다.
+  }
   location.href = editorUrl;
 }
-el.importBtn.addEventListener('click', importShow);
-el.importEnd.addEventListener('click', importShow);
+el.importBtn.addEventListener('click', () => void importShow('remix'));
+el.importEnd.addEventListener('click', () => void importShow('remix'));
+el.sameSong.addEventListener('click', () => void importShow('fresh'));
 
 // 조작 막대는 재생 중 3초 동안 손대지 않으면 숨긴다.
 let idleTimer = 0;
 function poke(): void {
   el.bar.classList.remove('idle');
+  el.corner.classList.remove('idle');
   clearTimeout(idleTimer);
   idleTimer = window.setTimeout(() => {
-    if (transport.playing) el.bar.classList.add('idle');
+    if (!transport.playing) return;
+    el.bar.classList.add('idle');
+    el.corner.classList.add('idle');
   }, 3000);
 }
 for (const ev of ['pointermove', 'pointerdown', 'keydown'] as const) document.addEventListener(ev, poke);
@@ -231,6 +277,7 @@ function frame(): void {
       t = duration;
       el.endCard.hidden = false;
       el.bar.classList.remove('idle');
+      el.corner.classList.remove('idle');
     }
     stage.render(t, transport.playing);
     transport.schedule(stage.sim.launches, fanCount);
