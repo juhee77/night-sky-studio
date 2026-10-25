@@ -60,13 +60,6 @@ export class Guide {
       this.dialog.close();
       if (target) document.getElementById(target)?.click();
     });
-    dialog.addEventListener('close', () => {
-      try {
-        localStorage.setItem(SEEN, '1');
-      } catch {
-        // 저장하지 못하면 다음에 또 나온다.
-      }
-    });
     const search = glossary.querySelector<HTMLInputElement>('#glossary-search')!;
     search.addEventListener('input', () => this.renderGlossary(search.value.trim()));
   }
@@ -85,6 +78,12 @@ export class Guide {
   open(): void {
     this.go(0);
     this.dialog.showModal();
+    // 한 번 보여 주면 본 것으로 친다 (다음부터는 「도움말」에서)
+    try {
+      localStorage.setItem(SEEN, '1');
+    } catch {
+      // 저장하지 못하면 다음에 또 나온다.
+    }
   }
 
   openGlossary(): void {
