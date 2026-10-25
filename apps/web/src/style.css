@@ -478,3 +478,17 @@ body.watching #stage { cursor: default; }
 .goal-btn { border-color: #f5c451; color: #f5c451; animation: goal-glow 2.4s ease-in-out infinite; }
 @keyframes goal-glow { 50% { box-shadow: 0 0 10px rgba(245, 196, 81, 0.55); } }
 @media (prefers-reduced-motion: reduce) { .goal-btn { animation: none; } }
+
+/* 간단 화면: 무대를 크게 두고 시간표·설정 칸·박자·보기 설정은 「편집하기」를 눌러야 보인다 */
+body.simple .panel, body.simple .timeline-wrap, body.simple .tempo, body.simple #tempo-toggle, body.simple .view { display: none !important; }
+body.simple .workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+#edit-btn[aria-pressed='false'] { border-color: var(--accent); color: var(--accent); }
+
+/* 좁은 화면 공작소: 아래 설계를 고치는 동안에도 시험 발사 무대가 위에 붙어 보이게 */
+@media (max-width: 820px) {
+  .ws-layout { display: block; }
+  .ws-layout > * + * { margin-top: 12px; }
+  .ws-preview { display: contents; }
+  .ws-preview > * + * { margin-top: 8px; }
+  #ws-stage { position: sticky; top: -1px; z-index: 3; aspect-ratio: auto; height: min(32vh, 240px); box-shadow: 0 6px 12px rgba(0, 0, 0, 0.45); }
+}

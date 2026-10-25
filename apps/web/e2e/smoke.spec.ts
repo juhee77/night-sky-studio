@@ -12,11 +12,17 @@ async function open(page: Page): Promise<void> {
 test('편집기가 열리고 무대와 시간표가 보이며, 시작 안내는 한 번만 뜬다', async ({ page }) => {
   await open(page);
   await expect(page.locator('#stage')).toBeVisible();
+  // 처음에는 간단 화면: 시간표는 「편집하기」를 눌러야 펼쳐진다
+  await expect(page.locator('#timeline')).toBeHidden();
+  await page.locator('#edit-btn').click();
   await expect(page.locator('#timeline')).toBeVisible();
+  await expect(page.locator('#edit-btn')).toHaveText('간단히');
   expect(await page.evaluate(() => localStorage.getItem('nss:guided'))).toBe('1');
   await page.reload();
   await page.waitForTimeout(1500);
   await expect(page.locator('#guide-dialog')).toBeHidden();
+  // 고른 화면을 기억한다
+  await expect(page.locator('#timeline')).toBeVisible();
 });
 
 test('자동 연출로 불꽃을 놓고 재생하면 시계가 간다', async ({ page }) => {
