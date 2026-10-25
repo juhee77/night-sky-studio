@@ -5,10 +5,13 @@ import {
   FIREWORK_TYPES,
   UNLOCK_PRICES,
   VENUES,
+  encodeShow,
+  isoWeekKey,
   ruleLabel,
   scoreShow,
   showCost,
   typeLabel,
+  weeklyChallenge,
   type Commission,
   type CustomShell,
   type FireworkType,
@@ -19,6 +22,7 @@ import type { Career } from './career.ts';
 import { newShow, round3, type Editor } from './editor.ts';
 import { fmtDate } from './format.ts';
 import { progress } from './progress.ts';
+import { currentAuth, galleryUpload, remoteEnabled } from './remote.ts';
 import { BASIC_TRACKS, trackDuration } from './tracks.ts';
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -70,7 +74,7 @@ export class Office {
 
   /** 지금 쇼에서 쓸 수 없는 불꽃인가 (의뢰 쇼에서는 해금·개발한 것만 쓴다) */
   isLocked = (t: FireworkType, custom?: string): boolean =>
-    !!this.editor.show.commission && !this.career.isUnlocked(t, custom);
+    !!this.editor.show.commission && !this.editor.show.commission.challenge && !this.career.isUnlocked(t, custom);
 
   openBoard(): void {
     this.renderBoard();
@@ -83,6 +87,9 @@ export class Office {
     const cards = this.career.board();
     const body = this.board.querySelector('.board-body')!;
     const locked = FIREWORK_TYPES.filter((t) => UNLOCK_PRICES[t] !== undefined && !this.career.isUnlocked(t));
+    const week = isoWeekKey(new Date());
+    const challenge = weeklyChallenge(week);
+    const pastChallenges = Object.entries(st.challenges).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 6);
 
     body.innerHTML = `
       <section class="ledger">
@@ -90,6 +97,10 @@ export class Office {
         <div><span class="label">평판</span><b class="num">${st.reputation}</b></div>
         <div><span class="label">등급</span><b>${this.career.tierLabel}</b>${next !== null ? `<span class="note">다음 등급까지 ${next - st.reputation}</span>` : ''}</div>
       </section>
+
+      <h3>이번 주 도전 <span class="note">${week}</span></h3>
+      <p class="note">이번 주에는 모두가 같은 곡과 조건으로 겨룹니다. 해금하지 않은 불꽃도 쓸 수 있고, 몇 번이든 다시 내서 최고 점수를 남깁니다.${remoteEnabled() ? ' 채점한 쇼를 상영관 「이번 주 도전」에 올리면 좋아요 순으로 순위가 매겨집니다.' : ''}</p>
+      <div class="cards">${this.card(challenge, -1)}</div>
 
       <h3>게시판</h3>
       <div class="cards">
@@ -122,6 +133,10 @@ export class Office {
           : '<li class="note">서랍이 비었습니다. 「공작소」에서 불꽃을 만들어 서랍에 넣으세요.</li>'}
       </ul>
 
+      ${pastChallenges.length ? `<h3>내 도전 기록</h3><ul class="history">${pastChallenges
+        .map(([w, b]) => `<li><span>${esc(w)}${w === week ? ' (이번 주)' : ''}</span><span class="stars">${stars(b.stars)}</span><span class="num">최고 ${b.total}점</span><span class="note">${fmtDate(b.at)}</span></li>`)
+        .join('')}</ul>` : ''}
+
       ${st.history.length ? `<h3>지난 의뢰</h3><ul class="history">${st.history
         .slice(0, 8)
         .map((h) => `<li><span>${esc(h.title)}</span><span class="stars">${stars(h.stars)}</span><span class="num">${h.total}점 · +${h.reward}</span><span class="note">${fmtDate(h.at)}</span></li>`)
@@ -130,6 +145,7 @@ export class Office {
     body.querySelectorAll<HTMLButtonElement>('[data-take]').forEach((b) =>
       b.addEventListener('click', () => void this.take(cards[Number(b.dataset.take)])),
     );
+    body.querySelector('[data-challenge]')?.addEventListener('click', () => void this.take(challenge));
     body.querySelector('[data-act="refresh"]')?.addEventListener('click', () => this.career.refreshBoard());
     body.querySelectorAll<HTMLButtonElement>('[data-develop]').forEach((b) =>
       b.addEventListener('click', () => {
@@ -162,13 +178,19 @@ export class Office {
         <ul class="rules">${c.rules.map((r) => `<li>${esc(ruleLabel(r))}</li>`).join('')}</ul>
         <dl class="facts">
           <div><dt>예산</dt><dd class="num">${c.budget}</dd></div>
-          <div><dt>보상</dt><dd class="num">최대 ${Math.round(c.reward * 1.2)}</dd></div>
+          <div><dt>보상</dt><dd class="num">${c.challenge ? '점수 기록' : `최대 ${Math.round(c.reward * 1.2)}`}</dd></div>
           <div><dt>곡</dt><dd>${esc(track?.title ?? c.music)}</dd></div>
           <div><dt>관람석</dt><dd>${esc(seat)}</dd></div>
           <div class="wide"><dt>날씨</dt><dd>${esc(weatherText(c))}</dd></div>
         </dl>
-        <button type="button" class="primary" data-take="${i}">의뢰 받기</button>
+        ${c.challenge ? this.challengeAction(c.challenge) : `<button type="button" class="primary" data-take="${i}">의뢰 받기</button>`}
       </article>`;
+  }
+
+  private challengeAction(week: string): string {
+    const best = this.career.state.challenges[week];
+    return `<p class="note">${best ? `내 최고 ${best.total}점 ${stars(best.stars)}` : '아직 도전하지 않았습니다.'}</p>
+      <button type="button" class="primary" data-challenge>도전하기</button>`;
   }
 
   private async take(c: Commission): Promise<void> {
@@ -178,12 +200,17 @@ export class Office {
     show.venue = { preset: 'river-bridge-city', wind: c.wind, ...(c.cloud ? { cloud: c.cloud } : {}) };
     show.seat = { id: c.seat };
     show.commission = c;
-    this.career.take(c);
+    // 이번 주 도전은 게시판의 의뢰가 아니라서 받아도 게시판이 그대로다.
+    if (!c.challenge) this.career.take(c);
     const id = await this.host.saveNewShow(show);
     this.board.close();
     await this.host.openShow(id, show);
     if (!this.career.isUnlocked(this.editor.template.type)) this.editor.setTemplate({ type: 'chrysanthemum' });
-    this.host.say(`「${c.title}」 의뢰를 받았습니다. 아래 막대에서 예산과 조건을 확인하세요.`);
+    this.host.say(
+      c.challenge
+        ? '이번 주 도전을 시작했습니다. 아래 막대에서 예산과 조건을 확인하고, 다 만들면 「점수 기록」을 누르세요.'
+        : `「${c.title}」 의뢰를 받았습니다. 아래 막대에서 예산과 조건을 확인하세요.`,
+    );
   }
 
   renderBar(): void {
@@ -209,7 +236,7 @@ export class Office {
       <span class="actions">
         ${done
           ? `<span class="delivered">납품 완료 ${stars(done.stars)} ${done.total}점</span><button type="button" data-act="preview">결과 보기</button>`
-          : `<button type="button" data-act="preview">미리 채점</button><button type="button" class="primary" data-act="deliver">납품하기</button>`}
+          : `<button type="button" data-act="preview">미리 채점</button><button type="button" class="primary" data-act="deliver">${c.challenge ? '점수 기록' : '납품하기'}</button>`}
       </span>`;
     this.bar.querySelector('[data-act="preview"]')?.addEventListener('click', () => this.showResult(false));
     this.bar.querySelector('[data-act="deliver"]')?.addEventListener('click', () => this.showResult(true));
@@ -226,7 +253,10 @@ export class Office {
     const head = r.failed
       ? `<p class="verdict fail">의뢰 실패: ${esc(r.failReason ?? '')}</p>`
       : `<p class="verdict"><span class="stars big">${stars(r.stars)}</span><b class="num">${r.total}점</b></p>`;
-    const money = r.failed ? '보상 없음, 평판 −5' : `보상 ${r.reward} · 평판 ${r.reputation >= 0 ? '+' : ''}${r.reputation}`;
+    const best = c.challenge ? this.career.state.challenges[c.challenge] : undefined;
+    const money = c.challenge
+      ? best ? `지금까지 내 최고 ${best.total}점` : '이번 주 첫 기록'
+      : r.failed ? '보상 없음, 평판 −5' : `보상 ${r.reward} · 평판 ${r.reputation >= 0 ? '+' : ''}${r.reputation}`;
     body.innerHTML = `
       <h2 id="result-title">${esc(c.title)} ${done ? '· 납품한 결과' : deliver ? '· 납품 전 확인' : '· 미리 채점'}</h2>
       ${head}
@@ -241,25 +271,58 @@ export class Office {
         )
         .join('')}</ul>
       <ul class="rule-results">${r.rules.map((x) => `<li class="${x.ok ? 'ok' : 'no'}">${x.ok ? '✓' : '✗'} ${esc(x.label)}${x.detail ? ` <span class="note">${esc(x.detail)}</span>` : ''}</li>`).join('')}</ul>
-      <p class="money">${done ? `받은 보상 ${done.reward}` : deliver ? `납품하면: ${money}` : `지금 납품하면: ${money}`}</p>
+      <p class="money">${c.challenge ? money : done ? `받은 보상 ${done.reward}` : deliver ? `납품하면: ${money}` : `지금 납품하면: ${money}`}</p>
       <div class="dialog-actions">
-        ${deliver && !done ? '<button type="button" class="primary" data-act="confirm">이대로 납품하기</button><button type="button" data-act="close">더 고치기</button>' : '<button type="button" data-act="close">닫기</button>'}
+        ${deliver && !done ? `<button type="button" class="primary" data-act="confirm">${c.challenge ? '이 점수 기록하기' : '이대로 납품하기'}</button><button type="button" data-act="close">더 고치기</button>` : '<button type="button" data-act="close">닫기</button>'}
         <button type="button" data-act="watch">관객과 함께 감상하기</button>
+        ${c.challenge && remoteEnabled() && !r.failed ? '<button type="button" data-act="upload">상영관 「이번 주 도전」에 올리기</button>' : ''}
       </div>
-      ${deliver && !done ? '<p class="note">납품은 한 번만 할 수 있습니다. 납품한 뒤에도 쇼는 계속 고치고 공유할 수 있습니다.</p>' : ''}`;
+      ${c.challenge ? '<p class="note">도전은 몇 번이든 다시 낼 수 있고, 최고 점수만 남습니다.</p>' : deliver && !done ? '<p class="note">납품은 한 번만 할 수 있습니다. 납품한 뒤에도 쇼는 계속 고치고 공유할 수 있습니다.</p>' : ''}`;
     body.querySelector('[data-act="close"]')?.addEventListener('click', () => this.result.close());
     body.querySelector('[data-act="watch"]')?.addEventListener('click', () => {
       this.result.close();
       this.host.watch();
     });
     body.querySelector('[data-act="confirm"]')?.addEventListener('click', () => this.deliver());
+    body.querySelector('[data-act="upload"]')?.addEventListener('click', () => void this.uploadChallenge());
     this.result.showModal();
+  }
+
+  /** 서버판: 도전 쇼를 상영관 「이번 주 도전」에 올린다 (좋아요 순으로 순위) */
+  private async uploadChallenge(): Promise<void> {
+    const c = this.editor.show.commission;
+    if (!c?.challenge) return;
+    if (!currentAuth()) {
+      this.host.say('「계정」에서 로그인하면 상영관에 올릴 수 있습니다.');
+      return;
+    }
+    try {
+      const title = this.editor.show.title || c.title;
+      await galleryUpload('show', title, await encodeShow(this.editor.show), c.challenge);
+      this.host.say(`「${title}」을 상영관 「이번 주 도전」에 올렸습니다. 좋아요를 많이 받으면 순위가 올라갑니다.`);
+    } catch (err) {
+      this.host.say((err as Error).message);
+    }
   }
 
   private deliver(): void {
     const c = this.editor.show.commission;
     const r = this.lastResult;
     if (!c || !r || c.delivered) return;
+    if (c.challenge) {
+      // 도전은 돈·평판 없이 점수만 남기고, 몇 번이든 다시 낸다.
+      const rec = this.career.recordChallenge(c.challenge, r.failed ? 0 : r.total, r.failed ? 0 : r.stars);
+      this.result.close();
+      this.host.say(
+        r.failed
+          ? `조건을 지키지 못해 기록되지 않았습니다: ${r.failReason ?? ''}`
+          : rec.improved
+            ? `${r.total}점을 기록했습니다. 이번 주 내 최고 점수입니다!`
+            : `${r.total}점. 이번 주 내 최고는 ${rec.best}점입니다.`,
+      );
+      if (!r.failed) progress.did('delivered');
+      return;
+    }
     this.career.settle({
       commissionId: c.id,
       title: c.title,

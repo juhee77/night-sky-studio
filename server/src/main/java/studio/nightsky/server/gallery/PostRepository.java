@@ -9,5 +9,8 @@ public interface PostRepository extends JpaRepository<Post, Long> {
 
     List<Post> findByKindAndHiddenFalseOrderByLikesDescCreatedAtDesc(String kind, Pageable page);
 
+    /** 이번 주 도전 순위: 좋아요 많은 순 */
+    List<Post> findByKindAndChallengeAndHiddenFalseOrderByLikesDescCreatedAtDesc(String kind, String challenge, Pageable page);
+
     List<Post> findByAuthorId(Long authorId);
 }

@@ -31,6 +31,10 @@ public class Post {
     @Column(nullable = false)
     private String data;
 
+    /** 이번 주 도전에 낸 쇼면 주차 (예: 2026-W44) */
+    @Column(length = 8)
+    private String challenge;
+
     private int likes;
     private int reports;
     /** 신고가 쌓이면 숨긴다 */
@@ -40,11 +44,16 @@ public class Post {
     protected Post() {}
 
     public Post(String kind, String title, Long authorId, String authorName, String data) {
+        this(kind, title, authorId, authorName, data, null);
+    }
+
+    public Post(String kind, String title, Long authorId, String authorName, String data, String challenge) {
         this.kind = kind;
         this.title = title;
         this.authorId = authorId;
         this.authorName = authorName;
         this.data = data;
+        this.challenge = challenge;
         this.createdAt = Instant.now();
     }
 
@@ -54,6 +63,7 @@ public class Post {
     public Long getAuthorId() { return authorId; }
     public String getAuthorName() { return authorName; }
     public String getData() { return data; }
+    public String getChallenge() { return challenge; }
     public int getLikes() { return likes; }
     public boolean isHidden() { return hidden; }
     public Instant getCreatedAt() { return createdAt; }

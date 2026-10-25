@@ -48,6 +48,8 @@ export interface Commission {
   rules: Rule[];
   /** 맞춤 의뢰 */
   custom?: true;
+  /** 이번 주 도전이면 주차 (예: 2026-W44). 모든 불꽃을 쓸 수 있고, 몇 번이든 다시 낸다. */
+  challenge?: string;
   /** 납품한 결과 (납품 전에는 없음) */
   delivered?: { total: number; stars: number; reward: number; at: number };
 }
@@ -246,6 +248,56 @@ export function generateCommissions(seed: number, reputation: number, count = 3)
     out.push(c);
   }
   return out;
+}
+
+/** ISO 주차 이름 (월요일 시작, 1월 4일이 든 주가 1주): 2026-W44 */
+export function isoWeekKey(date: Date): string {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dow = d.getUTCDay() || 7;
+  // 그 주의 목요일이 든 해가 주차의 해다.
+  d.setUTCDate(d.getUTCDate() + 4 - dow);
+  const year = d.getUTCFullYear();
+  const week = Math.ceil(((d.getTime() - Date.UTC(year, 0, 1)) / 86_400_000 + 1) / 7);
+  return `${year}-W${String(week).padStart(2, '0')}`;
+}
+
+/** 도전에서 뺄 조건: 장비·공방(내 불꽃)·틀 그림까지 갖춘 사람만 할 수 있는 것 */
+const HARD_RULES: Rule['kind'][] = ['live', 'workshopShell', 'frameArt', 'outerPop', 'kamuroFinish'];
+
+/** 이번 주 도전: 같은 주차면 누가 열어도 같은 곡·예산·조건이 나온다. */
+export function weeklyChallenge(week: string): Commission {
+  let h = 2166136261;
+  for (const ch of week) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  const rnd = mulberry32(h >>> 0);
+  const pick = <T>(xs: T[]): T => xs[Math.floor(rnd() * xs.length)];
+  const t = pick(TEMPLATES.filter((x) => !x.custom));
+  const rules = t.rules(pick).filter((r) => !HARD_RULES.includes(r.kind));
+  // 한 가지 더: 주마다 다른 숙제 (같은 종류 조건은 겹치지 않게)
+  const twists: Rule[] = [
+    { kind: 'finale', seconds: 12 },
+    { kind: 'endColors', seconds: 10, colors: [pick<ColorName>(['gold', 'white', 'pink', 'cyan'])] },
+    { kind: 'include', type: pick<FireworkType>(['willow', 'palm', 'crossette', 'ring', 'heart', 'star', 'crackle', 'brocade']) },
+    { kind: 'maxSize', size: 5 },
+  ].filter((x) => !rules.some((r) => r.kind === x.kind)) as Rule[];
+  if (twists.length) rules.push(pick(twists));
+  const calm = rnd() < 0.4;
+  const c: Commission = {
+    id: `wk-${week}`,
+    tier: 1,
+    title: `이번 주 도전 · ${t.title}`,
+    client: t.client,
+    quote: t.quote,
+    music: TRACKS[t.music],
+    budget: 160 + Math.round(rnd() * 8) * 10,
+    reward: 0,
+    wind: { dir: Math.round(rnd() * 360), speed: Math.round((calm ? 0.3 + rnd() * 0.7 : 1.5 + rnd() * 3) * 10) / 10 },
+    seat: t.seat,
+    taste: { colors: pick(t.colors), style: t.style },
+    rules,
+    challenge: week,
+  };
+  if (rnd() < 0.2) c.cloud = Math.round(220 + rnd() * 70);
+  return c;
 }
 
 export const COLOR_LABEL: Record<ColorName, string> = {

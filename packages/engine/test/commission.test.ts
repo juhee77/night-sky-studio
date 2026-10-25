@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cueCost, generateCommissions, showCost, tierFor, type Commission } from '../src/commission.ts';
+import { cueCost, generateCommissions, isoWeekKey, showCost, tierFor, weeklyChallenge, type Commission } from '../src/commission.ts';
 import { scoreShow } from '../src/score.ts';
 import { expandShow, type Cue, type Show } from '../src/show.ts';
 import { analyzeSmoke } from '../src/smoke.ts';
@@ -130,4 +130,21 @@ test('불꽃 몇 발만 놓고 곡 대부분을 비우면 별을 받지 못한�
   assert.equal(r.failed, false);
   assert.ok(r.coverage < 0.3, `coverage ${r.coverage}`);
   assert.equal(r.stars, 0, `총점 ${r.total}`);
+});
+
+test('이번 주 도전: 주차 이름과, 같은 주는 같은 도전', () => {
+  assert.equal(isoWeekKey(new Date(2026, 9, 26)), '2026-W44');
+  assert.equal(isoWeekKey(new Date(2026, 10, 1)), '2026-W44'); // 일요일까지 같은 주
+  assert.equal(isoWeekKey(new Date(2027, 0, 1)), '2026-W53'); // 금요일: 지난해 마지막 주
+  assert.equal(isoWeekKey(new Date(2026, 0, 1)), '2026-W01'); // 목요일
+  const a = weeklyChallenge('2026-W44');
+  assert.deepEqual(weeklyChallenge('2026-W44'), a);
+  assert.equal(a.challenge, '2026-W44');
+  // 여러 주를 돌려 봐도 장비·공방이 필요한 조건은 없고, 주마다 바뀐다
+  const weeks = Array.from({ length: 20 }, (_, i) => weeklyChallenge(`2026-W${String(i + 1).padStart(2, '0')}`));
+  for (const c of weeks) {
+    assert.ok(c.rules.length >= 1);
+    assert.ok(!c.rules.some((r) => ['live', 'workshopShell', 'frameArt', 'outerPop', 'kamuroFinish'].includes(r.kind)), c.title);
+  }
+  assert.ok(new Set(weeks.map((c) => `${c.title}|${c.budget}|${JSON.stringify(c.rules)}`)).size > 10);
 });

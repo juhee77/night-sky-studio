@@ -49,9 +49,14 @@ public class GalleryController {
     public record Upload(
             @Pattern(regexp = "show|shell", message = "올릴 수 있는 것은 쇼와 내 불꽃뿐입니다.") String kind,
             @NotBlank(message = "제목을 적어 주세요.") @Size(max = 60, message = "제목은 60자까지입니다.") String title,
-            @NotBlank(message = "내용이 비어 있습니다.") @Size(max = 400_000, message = "너무 커서 올릴 수 없습니다.") String data) {}
+            @NotBlank(message = "내용이 비어 있습니다.") @Size(max = 400_000, message = "너무 커서 올릴 수 없습니다.") String data,
+            /** 이번 주 도전에 내는 쇼면 주차 (없어도 된다) */
+            @Pattern(regexp = WEEK, message = "도전 주차가 올바르지 않습니다.") String challenge) {}
 
-    public record Item(Long id, String kind, String title, String author, int likes, boolean liked, boolean mine, Instant createdAt) {}
+    /** 도전 주차: 2026-W44 */
+    static final String WEEK = "\\d{4}-W\\d{2}";
+
+    public record Item(Long id, String kind, String title, String author, int likes, boolean liked, boolean mine, Instant createdAt, String challenge) {}
 
     @PostMapping
     Map<String, Object> upload(CurrentAccount me, @Valid @RequestBody Upload req) {
@@ -59,13 +64,20 @@ public class GalleryController {
         var word = banned.find(req.title());
         if (word == null) word = banned.find(readable(req.kind(), req.data()));
         if (word != null) throw ApiException.bad("쓸 수 없는 말이 들어 있습니다. 제목이나 틀불꽃 글자를 고쳐 주세요.");
-        var post = posts.save(new Post(req.kind(), req.title().strip(), me.id(), me.name(), req.data()));
+        if (req.challenge() != null && !"show".equals(req.kind())) throw ApiException.bad("도전에는 쇼만 낼 수 있습니다.");
+        var post = posts.save(new Post(req.kind(), req.title().strip(), me.id(), me.name(), req.data(), req.challenge()));
         return Map.of("id", post.getId());
     }
 
     @GetMapping
-    List<Item> list(CurrentAccount me, @RequestParam(defaultValue = "show") String kind, @RequestParam(defaultValue = "new") String sort) {
+    List<Item> list(CurrentAccount me, @RequestParam(defaultValue = "show") String kind, @RequestParam(defaultValue = "new") String sort,
+            @RequestParam(required = false) String challenge) {
         var page = PageRequest.of(0, 60);
+        // 이번 주 도전: 그 주에 낸 쇼만, 좋아요 많은 순 (순위)
+        if (challenge != null) {
+            if (!challenge.matches(WEEK)) throw ApiException.bad("도전 주차가 올바르지 않습니다.");
+            return posts.findByKindAndChallengeAndHiddenFalseOrderByLikesDescCreatedAtDesc("show", challenge, page).stream().map(p -> item(p, me)).toList();
+        }
         var list = "top".equals(sort)
                 ? posts.findByKindAndHiddenFalseOrderByLikesDescCreatedAtDesc(kind, page)
                 : posts.findByKindAndHiddenFalseOrderByCreatedAtDesc(kind, page);
@@ -123,7 +135,8 @@ public class GalleryController {
 
     private Item item(Post p, CurrentAccount me) {
         return new Item(p.getId(), p.getKind(), p.getTitle(), p.getAuthorName(), p.getLikes(),
-                marks.existsByPostIdAndAccountIdAndKind(p.getId(), me.id(), "like"), p.getAuthorId().equals(me.id()), p.getCreatedAt());
+                marks.existsByPostIdAndAccountIdAndKind(p.getId(), me.id(), "like"), p.getAuthorId().equals(me.id()), p.getCreatedAt(),
+                p.getChallenge());
     }
 
     /** 금칙어를 찾을 수 있는 글자: 쇼는 공유 링크 글자를 풀어 JSON으로, 내 불꽃은 JSON 그대로 */

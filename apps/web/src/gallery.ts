@@ -1,6 +1,6 @@
 // 상영관 갤러리 (서버판에서만): 다른 사람이 올린 쇼와 내 불꽃을 구경하고, 좋아요를 누르고, 내 쇼·서랍에 담는다.
 
-import { decodeShow, encodeShow, normalizeShell, type CustomShell, type Show } from '@nss/engine';
+import { decodeShow, encodeShow, isoWeekKey, normalizeShell, type CustomShell, type Show } from '@nss/engine';
 import type { Drawer } from './drawer.ts';
 import type { Editor } from './editor.ts';
 import {
@@ -26,7 +26,8 @@ const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 
 export class Gallery {
   private dialog: HTMLDialogElement;
-  private kind: GalleryKind = 'show';
+  /** 이번 주 도전: 그 주에 낸 쇼를 좋아요 순으로 (순위) */
+  private kind: GalleryKind | 'challenge' = 'show';
   private sort: 'new' | 'top' = 'new';
 
   constructor(dialog: HTMLDialogElement, editor: Editor, drawer: Drawer, host: GalleryHost) {
@@ -34,7 +35,7 @@ export class Gallery {
     const q = <T extends HTMLElement>(id: string) => dialog.querySelector<T>(`#${id}`)!;
     dialog.querySelectorAll<HTMLButtonElement>('[data-gkind]').forEach((b) =>
       b.addEventListener('click', () => {
-        this.kind = b.dataset.gkind as GalleryKind;
+        this.kind = b.dataset.gkind as GalleryKind | 'challenge';
         void this.render();
       }),
     );
@@ -133,9 +134,11 @@ export class Gallery {
     this.dialog.querySelector('#gallery-shell')!.innerHTML = shells.map((s) => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
     (this.dialog.querySelector('#gallery-up-shell') as HTMLButtonElement).disabled = !shells.length;
     const ul = this.dialog.querySelector('#gallery-list')!;
+    const ranked = this.kind === 'challenge';
+    this.dialog.querySelectorAll<HTMLElement>('[data-gsort]').forEach((b) => (b.hidden = ranked));
     let items;
     try {
-      items = await galleryList(this.kind, this.sort);
+      items = ranked ? await galleryList('show', 'top', isoWeekKey(new Date())) : await galleryList(this.kind as GalleryKind, this.sort);
     } catch (err) {
       ul.innerHTML = `<li>${esc((err as Error).message)}</li>`;
       return;
@@ -143,8 +146,8 @@ export class Gallery {
     ul.innerHTML = items.length
       ? items
           .map(
-            (it) => `<li>
-              <span><b>${esc(it.title)}</b> <span class="note">${esc(it.author)} · ${new Date(it.createdAt).toLocaleDateString('ko-KR')}</span></span>
+            (it, i) => `<li>
+              <span>${ranked ? `<b class="rank">${i + 1}위</b> ` : ''}<b>${esc(it.title)}</b> <span class="note">${esc(it.author)} · ${new Date(it.createdAt).toLocaleDateString('ko-KR')}</span></span>
               ${it.kind === 'show' ? `<button type="button" data-g="${it.id}" data-act="view">보기</button>` : ''}
               <button type="button" data-g="${it.id}" data-act="take">${it.kind === 'show' ? '내 쇼로 담기' : '서랍에 담기'}</button>
               <button type="button" data-g="${it.id}" data-act="like" aria-pressed="${it.liked}">♥ ${it.likes}</button>
@@ -152,7 +155,9 @@ export class Gallery {
             </li>`,
           )
           .join('')
-      : '<li class="note">아직 올라온 것이 없습니다. 첫 번째로 올려 보세요.</li>';
+      : ranked
+        ? '<li class="note">이번 주 도전에 올라온 쇼가 아직 없습니다. 「의뢰소」의 이번 주 도전을 채점한 뒤 올려 보세요.</li>'
+        : '<li class="note">아직 올라온 것이 없습니다. 첫 번째로 올려 보세요.</li>';
     ul.querySelectorAll<HTMLButtonElement>('[data-g]').forEach((b) =>
       b.addEventListener('click', () => this.run(() => this.onPick(Number(b.dataset.g), b.dataset.act!))),
     );
