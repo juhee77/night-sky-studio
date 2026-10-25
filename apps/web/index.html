@@ -68,6 +68,22 @@
     <main class="workspace">
       <section class="stage-wrap" id="stage-wrap">
         <button type="button" id="watch-exit" class="watch-exit" aria-label="감상 끝내기">✕ 닫기</button>
+        <section id="intro" class="intro-card" aria-labelledby="intro-title" hidden>
+          <p class="eyebrow">밤하늘 연출실</p>
+          <h2 id="intro-title">음악에 맞춰 나만의 불꽃축제를 연출해 보세요</h2>
+          <p class="note">먼저 예시 쇼를 보여 드릴게요. 소리를 켜 주세요.</p>
+          <button type="button" id="intro-play" class="primary big">▶ 불꽃쇼 보기</button>
+          <button type="button" id="intro-skip" class="quiet">건너뛰고 바로 만들기</button>
+        </section>
+        <section id="intro-end" class="intro-card" aria-labelledby="intro-end-title" hidden>
+          <h2 id="intro-end-title">이런 쇼를 직접 만들어 볼까요?</h2>
+          <p class="note">곡을 고르고 「자동 연출」을 누르면 박자에 맞춰 불꽃을 놓아 줍니다. 마음에 들 때까지 다시 누르고, 링크로 보내면 끝.</p>
+          <button type="button" id="intro-auto" class="primary big">자동 연출로 내 쇼 만들기</button>
+          <div class="row">
+            <button type="button" id="intro-look" class="quiet">둘러보기</button>
+            <button type="button" id="intro-guide" class="quiet">시작 안내 보기</button>
+          </div>
+        </section>
         <canvas id="stage" aria-label="불꽃이 터지는 밤하늘 무대. 누르면 가까운 발사 위치에 지금 시각으로 불꽃을 놓습니다."></canvas>
         <dl class="hud" aria-hidden="true">
           <div><dt>fps</dt><dd id="fps">–</dd></div>

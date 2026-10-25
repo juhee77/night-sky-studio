@@ -30,6 +30,7 @@ import { AccountPanel } from './account.ts';
 import { Gallery } from './gallery.ts';
 import { ArtEditor } from './artedit.ts';
 import { Guide } from './guide.ts';
+import { Intro } from './intro.ts';
 import { Compare } from './compare.ts';
 import { remoteEnabled } from './remote.ts';
 import { Panel } from './panel.ts';
@@ -251,8 +252,12 @@ $<HTMLButtonElement>('help-restart').addEventListener('click', () => {
   progress.restart();
   say(`처음 단계로 돌아갔습니다. 다음 할 일: ${progress.next?.todo}`);
 });
-// 공유 링크로 들어온 사람이나 의뢰 중인 사람에게는 띄우지 않고, 처음 연 브라우저에만
-setTimeout(() => !document.querySelector('dialog[open]') && guide.openIfNew(), 600);
+// 첫 방문: 예시 쇼부터 보여 주고 자동 연출로 잇는다 (boot에서 연다).
+const intro = new Intro($('intro'), $('intro-end'), {
+  watch: () => startWatching(false),
+  auto: () => el.autoBtn.click(),
+  guide: () => guide.open(),
+});
 
 // ── 발사장 설계 ──
 const site = new SitePlanner(el.siteDialog, editor);
@@ -600,9 +605,9 @@ el.seat.addEventListener('change', () => {
 });
 
 // ── 감상: 무대만 화면 가득, 처음부터, 관람석 거리만큼 소리가 늦게 ──
-function startWatching(): void {
+function startWatching(countGoal = true): void {
   document.body.classList.add('watching');
-  progress.did('watch');
+  if (countGoal) progress.did('watch');
   editor.select([]);
   void el.stageWrap.requestFullscreen?.().catch(() => {
     // 휴대폰처럼 전체 화면이 안 되면 화면 안에서만 가득 채운다.
@@ -625,9 +630,10 @@ function stopWatching(): void {
   transport.delayFor = null;
   transport.crowd = null;
   if (transport.playing) togglePlay();
+  intro.watched();
 }
 
-el.watch.addEventListener('click', startWatching);
+el.watch.addEventListener('click', () => startWatching());
 el.watchExit.addEventListener('click', stopWatching);
 document.addEventListener('fullscreenchange', () => {
   if (!document.fullscreenElement) stopWatching();
@@ -840,6 +846,8 @@ function frame(now: number): void {
     togglePlay();
     transport.seek(end);
     t = end;
+    // 감상으로 끝까지 봤으면 감상 화면을 닫는다 (첫 방문이면 끝 화면이 뜬다).
+    stopWatching();
   }
   // 나란히 보기 창이 열려 있으면 편집 무대는 쉬고, 그 창이 무대를 그린다.
   if (!compare.open) stage.render(t, transport.playing);
@@ -873,6 +881,11 @@ async function boot(): Promise<void> {
   }
   editor.emit('show');
   el.saveState.textContent = '저장됨';
+  // 처음 연 브라우저: 예시 쇼밖에 없으면 그 쇼부터 보여 주고, 받은 쇼가 있으면 시작 안내를 띄운다.
+  if (Intro.isNew() && !document.querySelector('dialog[open]')) {
+    if (!rec) intro.open();
+    else guide.openIfNew();
+  }
 }
 
 requestAnimationFrame(frame);

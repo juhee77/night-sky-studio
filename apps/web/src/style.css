@@ -492,3 +492,29 @@ body.simple .workspace { grid-template-columns: minmax(0, 1fr); grid-template-ro
   .ws-preview > * + * { margin-top: 8px; }
   #ws-stage { position: sticky; top: -1px; z-index: 3; aspect-ratio: auto; height: min(32vh, 240px); box-shadow: 0 6px 12px rgba(0, 0, 0, 0.45); }
 }
+
+/* 첫 방문: 무대 위 한 장짜리 카드 */
+.intro-card {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  width: min(440px, calc(100% - 32px));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 22px 24px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: rgba(21, 23, 51, 0.88);
+  backdrop-filter: blur(6px);
+}
+.intro-card h2 { margin: 0; font-size: 20px; line-height: 1.35; }
+.intro-card .eyebrow { margin: 0; color: var(--accent); font-size: 12px; font-weight: 700; letter-spacing: 0.06em; }
+.intro-card .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.intro-card button.big { font-size: 17px; padding: 10px 24px; min-height: 48px; }
+.intro-card button.quiet { background: transparent; border-color: transparent; color: var(--muted); padding-inline: 4px; }
+.intro-card button.quiet:hover { color: var(--ink); }
+body.watching .intro-card { display: none; }

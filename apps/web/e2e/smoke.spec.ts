@@ -1,15 +1,29 @@
 import { expect, test, type Page } from '@playwright/test';
 
-/** 편집기를 열고, 처음 뜨는 시작 안내를 건너뛴다 */
+/** 편집기를 열고, 처음 뜨는 예시 쇼 카드를 건너뛴다 */
 async function open(page: Page): Promise<void> {
   await page.goto('/');
-  const guide = page.locator('#guide-dialog');
-  await expect(guide).toBeVisible({ timeout: 15_000 });
-  await guide.getByRole('button', { name: /건너뛰기/ }).click();
-  await expect(guide).toBeHidden();
+  const intro = page.locator('#intro');
+  await expect(intro).toBeVisible({ timeout: 15_000 });
+  await intro.getByRole('button', { name: /건너뛰고/ }).click();
+  await expect(intro).toBeHidden();
 }
 
-test('편집기가 열리고 무대와 시간표가 보이며, 시작 안내는 한 번만 뜬다', async ({ page }) => {
+test('첫 방문: 예시 쇼를 보고 나면 자동 연출로 이어 준다', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#intro-play').click({ timeout: 15_000 });
+  await expect(page.locator('body')).toHaveClass(/watching/);
+  await page.waitForTimeout(1500);
+  expect(await page.locator('#clock').textContent()).not.toMatch(/^0:00\.00/);
+  await page.locator('#watch-exit').click();
+  await expect(page.locator('#intro-end')).toBeVisible();
+  await page.locator('#intro-auto').click();
+  await expect(page.locator('#auto-dialog')).toBeVisible();
+  // 예시 쇼를 본 것은 단계별 열기의 「감상」으로 치지 않는다
+  await expect(page.locator('#workshop-btn')).toBeHidden();
+});
+
+test('편집기가 열리고 무대와 시간표가 보이며, 첫 방문 카드는 한 번만 뜬다', async ({ page }) => {
   await open(page);
   await expect(page.locator('#stage')).toBeVisible();
   // 처음에는 간단 화면: 시간표는 「편집하기」를 눌러야 펼쳐진다
@@ -20,6 +34,7 @@ test('편집기가 열리고 무대와 시간표가 보이며, 시작 안내는 
   expect(await page.evaluate(() => localStorage.getItem('nss:guided'))).toBe('1');
   await page.reload();
   await page.waitForTimeout(1500);
+  await expect(page.locator('#intro')).toBeHidden();
   await expect(page.locator('#guide-dialog')).toBeHidden();
   // 고른 화면을 기억한다
   await expect(page.locator('#timeline')).toBeVisible();
