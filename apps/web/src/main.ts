@@ -33,6 +33,7 @@ import { Guide } from './guide.ts';
 import { Compare } from './compare.ts';
 import { remoteEnabled } from './remote.ts';
 import { Panel } from './panel.ts';
+import { STEPS, progress, type Goal } from './progress.ts';
 import { runCountdown } from './countdown.ts';
 import { CAMERA_SEATS, Stage } from './stage.ts';
 import {
@@ -178,6 +179,44 @@ $<HTMLButtonElement>('help-guide').addEventListener('click', () => {
 $<HTMLButtonElement>('help-glossary').addEventListener('click', () => {
   helpDialog.close();
   guide.openGlossary();
+});
+
+// ── 하나씩 열기: 지금 할 일과 열린 기능 ──
+const goalBtn = $<HTMLButtonElement>('goal-btn');
+/** 「다음:」 버튼을 누르면 그 할 일을 하는 버튼을 대신 누른다 */
+const GOAL_TARGET: Record<Goal, () => void> = {
+  auto: () => el.autoBtn.click(),
+  watch: () => el.watch.click(),
+  'shell-saved': () => el.workshopBtn.click(),
+  delivered: () => el.officeBtn.click(),
+  'build-saved': () => {
+    el.workshopBtn.click();
+    el.workshopDialog.querySelector<HTMLButtonElement>('[data-mode="build"]')?.click();
+  },
+};
+function renderProgress(): void {
+  progress.apply();
+  const next = progress.next;
+  goalBtn.hidden = !next;
+  goalBtn.textContent = next ? `다음: ${next.todo}` : '';
+  $('help-progress').textContent = next
+    ? `${progress.level} / ${STEPS.length}걸음. 할 일을 해낼 때마다 기능이 하나씩 열립니다. 지금 할 일: ${next.todo}`
+    : '모든 기능이 열려 있습니다.';
+}
+goalBtn.addEventListener('click', () => {
+  const next = progress.next;
+  if (next) GOAL_TARGET[next.goal]();
+});
+progress.onOpen = (message) => say(message, 9000);
+progress.on(renderProgress);
+renderProgress();
+$<HTMLButtonElement>('help-open-all').addEventListener('click', () => {
+  progress.openAll();
+  say('모든 기능을 열었습니다.');
+});
+$<HTMLButtonElement>('help-restart').addEventListener('click', () => {
+  progress.restart();
+  say(`처음 단계로 돌아갔습니다. 다음 할 일: ${progress.next?.todo}`);
 });
 // 공유 링크로 들어온 사람이나 의뢰 중인 사람에게는 띄우지 않고, 처음 연 브라우저에만
 setTimeout(() => !document.querySelector('dialog[open]') && guide.openIfNew(), 600);
@@ -530,6 +569,7 @@ el.seat.addEventListener('change', () => {
 // ── 감상: 무대만 화면 가득, 처음부터, 관람석 거리만큼 소리가 늦게 ──
 function startWatching(): void {
   document.body.classList.add('watching');
+  progress.did('watch');
   editor.select([]);
   void el.stageWrap.requestFullscreen?.().catch(() => {
     // 휴대폰처럼 전체 화면이 안 되면 화면 안에서만 가득 채운다.

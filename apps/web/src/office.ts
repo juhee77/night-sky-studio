@@ -18,6 +18,7 @@ import {
 import type { Career } from './career.ts';
 import { newShow, round3, type Editor } from './editor.ts';
 import { fmtDate } from './format.ts';
+import { progress } from './progress.ts';
 import { BASIC_TRACKS, trackDuration } from './tracks.ts';
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -277,5 +278,6 @@ export class Office {
         ? '의뢰에 실패했습니다. 평판이 조금 내려갔습니다. 게시판에 새 의뢰가 올라왔습니다.'
         : `납품했습니다. ${stars(r.stars)} · 보상 ${r.reward} · 평판 +${r.reputation}. 게시판에 새 의뢰가 올라왔습니다.`,
     );
+    progress.did('delivered');
   }
 }

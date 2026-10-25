@@ -470,3 +470,9 @@ body.watching #stage { cursor: default; }
 @media (prefers-reduced-motion: reduce) {
   * { scroll-behavior: auto; }
 }
+
+/* 하나씩 열기: 아직 열리지 않은 버튼과 「다음:」 버튼 */
+.locked { display: none !important; }
+.goal-btn { border-color: #f5c451; color: #f5c451; animation: goal-glow 2.4s ease-in-out infinite; }
+@keyframes goal-glow { 50% { box-shadow: 0 0 10px rgba(245, 196, 81, 0.55); } }
+@media (prefers-reduced-motion: reduce) { .goal-btn { animation: none; } }

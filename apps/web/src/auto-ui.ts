@@ -6,6 +6,7 @@ import type { Drawer } from './drawer.ts';
 import type { Editor } from './editor.ts';
 import { fmtTime } from './format.ts';
 import type { Office } from './office.ts';
+import { progress } from './progress.ts';
 import type { Timeline } from './timeline.ts';
 import type { Transport } from './transport.ts';
 import { $, el, say } from './ui.ts';
@@ -112,5 +113,7 @@ export function wireAuto(ctx: AutoCtx): void {
         ? `${fmtTime(range.from)}~${fmtTime(range.to)} 구간에 불꽃 ${cues.length}개를 다시 놓았습니다.`
         : `불꽃 ${cues.length}개를 놓았습니다. ▶ 재생해 보고, 마음에 안 들면 「자동 연출」을 다시 누르면 다른 쇼가 나옵니다.`,
     );
+    // 새 기능이 열리면 그 안내가 위 안내를 덮는다.
+    if (!range) progress.did('auto');
   });
 }

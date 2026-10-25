@@ -42,6 +42,7 @@ import {
 } from '@nss/engine';
 import { launcherLabel, type Editor } from './editor.ts';
 import { fmtTime } from './format.ts';
+import { progress } from './progress.ts';
 
 export class SitePlanner {
   private dialog: HTMLDialogElement;
@@ -325,6 +326,8 @@ export class SitePlanner {
 
   private renderLive(): void {
     const show = this.editor.show;
+    // 실전 모드는 제작 공방까지 해 본 뒤에 열린다 (이미 실전 쇼면 끌 수 있게 보인다).
+    (this.dialog.querySelector('#site-live-box') as HTMLElement).hidden = !progress.can('live') && !isLive(show);
     (this.dialog.querySelector('#site-live') as HTMLInputElement).checked = isLive(show);
     const box = this.dialog.querySelector('#site-live-issues')!;
     if (!isLive(show)) {

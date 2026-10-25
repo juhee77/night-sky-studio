@@ -24,7 +24,7 @@ test('자동 연출로 불꽃을 놓고 재생하면 시계가 간다', async ({
   await page.locator('#auto-btn').click();
   await page.locator('[data-mood="romantic"]').click();
   await page.locator('#auto-run').click();
-  await expect(page.locator('#toast')).toContainText('불꽃');
+  await expect(page.locator('#toast')).toContainText(/불꽃|새로 열렸습니다/);
   await page.locator('#play').click();
   await page.waitForTimeout(2000);
   await page.locator('#play').click();
@@ -43,8 +43,30 @@ test('공유 링크를 만들면 상영관에서 같은 쇼가 열린다', async
   await expect(page.getByRole('button', { name: /쇼 보기/ })).toBeVisible();
 });
 
+test('처음에는 꼭 필요한 버튼만 보이고, 할 일을 해내면 다음 기능이 열린다', async ({ page }) => {
+  await open(page);
+  await expect(page.locator('#workshop-btn')).toBeHidden();
+  await expect(page.locator('#office-btn')).toBeHidden();
+  const goal = page.locator('#goal-btn');
+  await expect(goal).toContainText('자동 연출');
+  await goal.click();
+  await page.locator('[data-mood="romantic"]').click();
+  await page.locator('#auto-run').click();
+  await expect(page.locator('#toast')).toContainText('새로 열렸습니다');
+  await expect(page.locator('#photo-btn')).toBeVisible();
+  await expect(goal).toContainText('감상');
+  await page.reload();
+  await expect(page.locator('#photo-btn')).toBeVisible();
+  await expect(page.locator('#workshop-btn')).toBeHidden();
+});
+
 test('공작소·발사장·도움말 창이 열리고 닫힌다', async ({ page }) => {
   await open(page);
+  // 도움말에서 모든 기능을 연다
+  await page.locator('#help-btn').click();
+  await page.locator('#help-open-all').click();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#goal-btn')).toBeHidden();
   for (const [btn, dialog] of [['#workshop-btn', '#workshop-dialog'], ['#site-btn', '#site-dialog'], ['#help-btn', '#help-dialog']]) {
     await page.locator(btn).click();
     await expect(page.locator(dialog)).toBeVisible();
