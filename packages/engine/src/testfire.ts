@@ -187,7 +187,14 @@ export function diagnose(shell: CustomShell, rec: TestRecord): Defect[] {
       fix: '반구 그림의 붉은 곳에 별을 붙이거나 「고르게 다시 붙이기」를 누르세요.',
     });
   }
-  if (rec.flatness > 60) {
+  if (rec.flatness > 60 && b && starBias(b.stars) > 0.3) {
+    // 둥근 알인데 납작하면, 별을 한쪽 반구에만 붙인 것이다.
+    out.push({
+      title: '한쪽으로 쏠려 핌',
+      cause: '별이 한쪽 반구에 몰려 붙어 있어 반쪽만 핍니다',
+      fix: '두 반구에 별을 고르게 나눠 붙이세요.',
+    });
+  } else if (rec.flatness > 60) {
     out.push({
       title: '옆에서 보면 선으로 보임',
       cause: '형상 불꽃은 별이 한 평면에 있어, 보는 방향에 따라 납작해집니다',

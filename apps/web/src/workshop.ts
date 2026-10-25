@@ -21,6 +21,8 @@ import {
   type TestRecord,
   encodeShellCode,
   newCustomShell,
+  newBench,
+  type Bench,
   type ColorName,
   type CustomShell,
   type ShellLayer,
@@ -28,6 +30,7 @@ import {
   type StarKind,
 } from '@nss/engine';
 import { shortId, type Drawer } from './drawer.ts';
+import { BenchUI } from './bench-ui.ts';
 import { forgeControls, sequenceFields, wireForge, wireSequence } from './forge.ts';
 import { Stage } from './stage.ts';
 
@@ -160,8 +163,11 @@ export class Workshop {
   private shell: CustomShell = newCustomShell(shortId(), '내 불꽃');
   private layer = 0;
   private view: View = 'front';
-  /** 빠른 설계(슬라이더) 또는 제작 공방(알 구조) */
-  private mode: 'quick' | 'build' = 'quick';
+  /** 빠른 설계(슬라이더), 제작 공방(알 구조), 작업대(처음부터 손으로) */
+  private mode: 'quick' | 'build' | 'bench' = 'quick';
+  /** 작업대 위의 알 (공작소를 닫아도 남는다) */
+  private bench: Bench | null = null;
+  private benchStep: BenchUI['step'] = 'mix';
   private stage: Stage | null = null;
   private seed = 3;
   private started = 0;
@@ -318,7 +324,35 @@ export class Workshop {
       <div class="ws-tabs ws-mode" role="tablist" aria-label="만드는 방식">
         <button type="button" role="tab" data-mode="quick" aria-selected="${this.mode === 'quick'}">빠른 설계</button>
         <button type="button" role="tab" data-mode="build" aria-selected="${this.mode === 'build'}">제작 공방</button>
+        <button type="button" role="tab" data-mode="bench" aria-selected="${this.mode === 'bench'}">작업대</button>
       </div>`;
+    if (this.mode === 'bench') {
+      const bench = (this.bench ??= newBench());
+      box.innerHTML = `${tabs}
+        <div class="field"><label for="ws-name">이름</label><input id="ws-name" maxlength="16" value="${esc(this.shell.name)}" /></div>
+        <p class="note">배합부터 시험장까지 손으로 만듭니다. 슬라이더가 없고, 손으로 한 결과만 알에 들어갑니다.</p>
+        <div class="bench"></div>
+        <p id="ws-count" class="note"></p>`;
+      this.wireMode(box);
+      box.querySelector<HTMLInputElement>('#ws-name')!.addEventListener('input', (e) => {
+        this.shell.name = (e.target as HTMLInputElement).value.slice(0, 16);
+        this.dirty = true;
+      });
+      const ui = new BenchUI(box.querySelector('.bench')!, bench, {
+        changed: () => {
+          this.benchStep = ui.step;
+          this.shell = BenchUI.shellOf(bench, this.shell);
+          this.dirty = true;
+          this.updateCount();
+          this.refreshPreview();
+        },
+        shell: () => this.shell,
+        save: () => this.save(),
+      }, this.benchStep);
+      ui.render();
+      this.updateCount();
+      return;
+    }
     if (this.mode === 'build') {
       const b = (this.shell.build ??= defaultBuild());
       box.innerHTML = `${tabs}
@@ -347,10 +381,12 @@ export class Workshop {
   private wireMode(box: Element): void {
     box.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((b) =>
       b.addEventListener('click', () => {
-        const mode = b.dataset.mode as 'quick' | 'build';
+        const mode = b.dataset.mode as 'quick' | 'build' | 'bench';
         if (mode === this.mode) return;
         this.mode = mode;
-        if (mode === 'build') {
+        if (mode === 'bench') {
+          this.shell = BenchUI.shellOf((this.bench ??= newBench()), this.shell);
+        } else if (mode === 'build') {
           // 지금 설계의 색과 별 종류로 알을 하나 만든다.
           const outer = this.shell.layers[0];
           const b0 = this.shell.build ?? { ...defaultBuild(), starColor: outer.color, starKind: outer.star };
