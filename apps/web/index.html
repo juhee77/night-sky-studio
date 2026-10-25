@@ -304,6 +304,16 @@
         <span id="art-presets" class="chips"></span>
         <button type="button" id="art-clear">모두 지우기</button>
       </div>
+      <details class="art-photo">
+        <summary>사진에서 윤곽 따기</summary>
+        <div class="deck-rack">
+          <label class="file-btn">사진 고르기<input type="file" id="art-photo" accept="image/*" hidden /></label>
+          <div class="field"><label for="art-threshold">밝기 기준 <output>50%</output></label><input id="art-threshold" type="range" min="0.1" max="0.9" step="0.05" value="0.5" /></div>
+          <div class="chips"><button type="button" data-art-photo="fill" aria-pressed="true">채우기</button><button type="button" data-art-photo="outline" aria-pressed="false">윤곽만</button></div>
+          <label class="check-label"><input type="checkbox" id="art-invert" /> 밝은 곳을 켜기 (어두운 바탕 로고)</label>
+        </div>
+        <p class="note">사진은 이 기기 안에서만 칸 수에 맞게 줄여 쓰고, 어디에도 올리지 않습니다. 고른 뒤 칸을 눌러 다듬으세요.</p>
+      </details>
       <canvas id="art-canvas" class="art-canvas" aria-label="틀 그림 칸"></canvas>
       <div class="dialog-actions">
         <input id="art-text" maxlength="12" placeholder="글자에서 시작 (예: 은하)" aria-label="시작할 글자" />

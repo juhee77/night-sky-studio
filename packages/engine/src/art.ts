@@ -103,3 +103,20 @@ function fromRows(rows: string[]): FrameArt {
   const w = rows[0].length;
   return encodeArt(w, rows.length, rows.join('').split('').map((c) => c === 'X'));
 }
+
+/**
+ * 사진에서 틀 그림 만들기: 칸마다 밝기(0~1)를 받아 켤 칸을 고른다.
+ * 어두운 칸을 켜거나(흰 바탕의 로고), invert면 밝은 칸을 켠다. outline이면 칠한 덩어리의 가장자리만.
+ */
+export function artFromLuminance(lum: number[], w: number, h: number, threshold: number, mode: 'fill' | 'outline', invert = false): FrameArt {
+  const fill = lum.map((v) => (invert ? v > threshold : v < threshold));
+  if (mode === 'fill') return encodeArt(w, h, fill);
+  const at = (c: number, r: number) => c >= 0 && r >= 0 && c < w && r < h && fill[r * w + c];
+  const edge = fill.map((on, i) => {
+    if (!on) return false;
+    const c = i % w;
+    const r = Math.floor(i / w);
+    return !at(c - 1, r) || !at(c + 1, r) || !at(c, r - 1) || !at(c, r + 1);
+  });
+  return encodeArt(w, h, edge);
+}
