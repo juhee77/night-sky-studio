@@ -50,7 +50,7 @@ import {
   storageAvailable,
 } from './storage.ts';
 import { Timeline } from './timeline.ts';
-import { BASIC_TRACKS, loadBasicTrack } from './tracks.ts';
+import { BASIC_TRACKS, loadBasicTrack, trackRef } from './tracks.ts';
 import { Transport, waveformPeaks } from './transport.ts';
 import { $, el, say } from './ui.ts';
 import { wireAuto } from './auto-ui.ts';
@@ -325,10 +325,19 @@ async function save(): Promise<void> {
 el.title.addEventListener('input', () => editor.setTitle(el.title.value));
 
 // ── 음악 ──
+const meterSel = $<HTMLSelectElement>('meter');
+meterSel.addEventListener('change', () => {
+  editor.change((d) => {
+    if (!d.music) return;
+    if (meterSel.value === '3') d.music.beatsPerBar = 3;
+    else delete d.music.beatsPerBar;
+  });
+});
 function syncTempoInputs(): void {
   const m = editor.show.music;
   if (document.activeElement !== el.bpm) el.bpm.value = m ? String(m.bpm) : '120';
   if (document.activeElement !== el.offset) el.offset.value = m ? m.offset.toFixed(2) : '0.00';
+  meterSel.value = String(m?.beatsPerBar ?? 4);
 }
 
 async function refreshMusicOptions(): Promise<void> {
@@ -377,11 +386,11 @@ el.music.addEventListener('change', async () => {
   const basic = BASIC_TRACKS.find((t) => t.id === v);
   if (basic) {
     const buf = await loadBasicTrack(basic.id)!;
-    editor.change((d) => (d.music = { id: basic.id, title: basic.title, bpm: basic.bpm, offset: 0, duration: round3(buf.duration) }));
+    editor.change((d) => (d.music = trackRef(basic, buf.duration)));
   } else {
     const rec = await getMusic(v);
     if (!rec) return;
-    editor.change((d) => (d.music = { id: rec.id, title: rec.name, bpm: rec.bpm, offset: rec.offset, duration: rec.duration }));
+    editor.change((d) => (d.music = { id: rec.id, title: rec.name, bpm: rec.bpm, offset: rec.offset, duration: rec.duration, ...(rec.beatsPerBar === 3 ? { beatsPerBar: 3 as const } : {}) }));
   }
   await loadMusicFor(editor.show);
 });
@@ -421,10 +430,18 @@ el.offset.addEventListener('change', () => {
 
 el.detect.addEventListener('click', async () => {
   if (!musicBuffer) return say('음악을 먼저 골라 주세요.');
+  // 기본 곡은 빠르기·첫 박·박자표를 알고 있다.
+  const basic = BASIC_TRACKS.find((t) => t.id === editor.show.music?.id);
+  const found = basic ? trackRef(basic) : null;
   const { samples, rate } = monoForTempo(musicBuffer);
-  const tempo = detectTempo(samples, rate);
-  editor.change((d) => d.music && Object.assign(d.music, { bpm: tempo.bpm, offset: round3(tempo.offset) }));
-  say(`${tempo.bpm} BPM, 첫 박 ${tempo.offset.toFixed(2)}초로 맞췄습니다.`);
+  const tempo = found ? { bpm: found.bpm, offset: found.offset, beatsPerBar: found.beatsPerBar ?? 4 } : detectTempo(samples, rate);
+  editor.change((d) => {
+    if (!d.music) return;
+    Object.assign(d.music, { bpm: tempo.bpm, offset: round3(tempo.offset) });
+    if (tempo.beatsPerBar === 3) d.music.beatsPerBar = 3;
+    else delete d.music.beatsPerBar;
+  });
+  say(`${tempo.bpm} BPM, ${tempo.beatsPerBar}/4 박자, 첫 박 ${tempo.offset.toFixed(2)}초로 맞췄습니다.${basic ? ' (기본 곡이라 정확한 값)' : ' 틀리면 BPM·박자표를 직접 고치거나 「박자 두드리기」를 써 보세요.'}`, 7000);
 });
 
 // 박자 두드리기: 재생 중에 박마다 누른다. 두드리는 동안은 버튼에 예상 BPM만 보이고,
@@ -661,14 +678,15 @@ function currentMusicMap(): MusicMap {
   const m = editor.show.music;
   const bpm = m?.bpm ?? 120;
   const offset = m?.offset ?? 0;
-  const key = `${m?.id}|${bpm}|${offset}|${musicBuffer ? 'buf' : 'none'}`;
+  const per = m?.beatsPerBar ?? 4;
+  const key = `${m?.id}|${bpm}|${offset}|${per}|${musicBuffer ? 'buf' : 'none'}`;
   if (musicMapCache?.key === key) return musicMapCache.map;
   let map: MusicMap;
   if (musicBuffer) {
     const { samples, rate } = monoForTempo(musicBuffer);
-    map = analyzeMusic(samples, rate, bpm, offset);
+    map = analyzeMusic(samples, rate, bpm, offset, per);
   } else {
-    map = flatMusicMap(Math.max(30, m?.duration ?? 60), bpm, offset);
+    map = flatMusicMap(Math.max(30, m?.duration ?? 60), bpm, offset, per);
   }
   musicMapCache = { key, map };
   return map;
@@ -873,16 +891,16 @@ function frame(now: number): void {
   if (transport.playing) timeline.follow(t);
   timeline.draw();
 
-  const { offset, length } = editor.beat;
+  const { offset, length, perBar } = editor.beat;
   const beatNo = Math.floor((t - offset) / length + 1e-6);
-  const clock = `${fmtTime(t)} · ${beatNo >= 0 ? `${Math.floor(beatNo / 4) + 1}마디 ${(beatNo % 4) + 1}박` : '시작 전'}`;
+  const clock = `${fmtTime(t)} · ${beatNo >= 0 ? `${Math.floor(beatNo / perBar) + 1}마디 ${(beatNo % perBar) + 1}박` : '시작 전'}`;
   if (clock !== lastClock) el.clock.value = lastClock = clock;
   // 박마다 「박자 두드리기」를 깜빡여 박자가 음악과 맞는지 눈으로 본다 (마디 첫 박은 더 밝게).
   if (transport.playing && beatNo >= 0 && beatNo !== lastBeatNo) {
     el.tap.classList.remove('beat', 'bar');
     void el.tap.offsetWidth;
     el.tap.classList.add('beat');
-    if (beatNo % 4 === 0) el.tap.classList.add('bar');
+    if (beatNo % perBar === 0) el.tap.classList.add('bar');
   }
   lastBeatNo = beatNo;
 

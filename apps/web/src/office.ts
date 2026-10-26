@@ -19,11 +19,11 @@ import {
   type Show,
 } from '@nss/engine';
 import type { Career } from './career.ts';
-import { newShow, round3, type Editor } from './editor.ts';
+import { newShow, type Editor } from './editor.ts';
 import { fmtDate } from './format.ts';
 import { progress } from './progress.ts';
 import { currentAuth, galleryUpload, remoteEnabled } from './remote.ts';
-import { BASIC_TRACKS, trackDuration } from './tracks.ts';
+import { BASIC_TRACKS, trackRef } from './tracks.ts';
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 const COMPASS = ['북', '북동', '동', '남동', '남', '남서', '서', '북서'];
@@ -196,7 +196,7 @@ export class Office {
   private async take(c: Commission): Promise<void> {
     const track = BASIC_TRACKS.find((t) => t.id === c.music) ?? BASIC_TRACKS[0];
     const show = newShow(c.title);
-    show.music = { id: track.id, title: track.title, bpm: track.bpm, offset: 0, duration: round3(trackDuration(track)) };
+    show.music = trackRef(track);
     show.venue = { preset: 'river-bridge-city', wind: c.wind, ...(c.cloud ? { cloud: c.cloud } : {}) };
     show.seat = { id: c.seat };
     show.commission = c;

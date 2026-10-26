@@ -25,7 +25,8 @@ interface Packed {
   /** 만든 사람, 원작 [제목, 만든 사람] */
   au?: string;
   rx?: [string, string?];
-  mu?: [string, string, number, number, number];
+  /** 곡 [id, 제목, BPM, 첫 박, 길이, 3/4면 3] */
+  mu?: [string, string, number, number, number, 3?];
   ve: [string, number?, number?, number?, number?];
   cd?: 1;
   se?: string;
@@ -73,6 +74,7 @@ export function packShow(show: Show): Packed {
   if (show.music) {
     const m = show.music;
     p.mu = [m.id, m.title, round(m.bpm, 2), round(m.offset), round(m.duration, 2)];
+    if (m.beatsPerBar === 3) p.mu.push(3);
   }
   p.ve.push(round(show.venue.wind?.dir ?? 0, 1), round(show.venue.wind?.speed ?? 0, 2));
   p.ve.push(Math.round(show.venue.cloud ?? 0), Math.max(0, SKY_IDS.indexOf(show.venue.sky ?? 'night')));
@@ -166,8 +168,9 @@ export function unpackShow(p: Packed): Show {
     if (p.rx[1]) show.remixOf.author = String(p.rx[1]).slice(0, 24);
   }
   if (p.mu) {
-    const [id, title, bpm, offset, duration] = p.mu;
+    const [id, title, bpm, offset, duration, per] = p.mu;
     show.music = { id, title, bpm, offset, duration };
+    if (per === 3) show.music.beatsPerBar = 3;
   }
   if (p.ve[1] !== undefined && p.ve[2] !== undefined && (p.ve[1] || p.ve[2])) show.venue.wind = { dir: p.ve[1], speed: p.ve[2] };
   if (p.ve[3]) show.venue.cloud = p.ve[3];

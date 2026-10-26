@@ -140,19 +140,19 @@ export class Timeline {
     });
 
     // 박자 눈금
-    const { offset, length } = ed.beat;
+    const { offset, length, perBar } = ed.beat;
     const drawBeats = length * this.pps >= 6;
     const firstBeat = Math.ceil((t0 - offset) / length);
     for (let b = firstBeat; offset + b * length <= t1; b++) {
-      const isBar = b % 4 === 0;
+      const isBar = ((b % perBar) + perBar) % perBar === 0;
       if (!isBar && !drawBeats) continue;
       const x = this.x(offset + b * length);
       g.fillStyle = isBar ? C.bar : C.beat;
       g.fillRect(Math.round(x), RULER_H, 1, h - RULER_H);
-      if (isBar && length * 4 * this.pps > 28) {
+      if (isBar && length * perBar * this.pps > 28) {
         g.fillStyle = C.label;
         g.font = '10px "IBM Plex Mono", ui-monospace, monospace';
-        g.fillText(String(b / 4 + 1), x + 3, RULER_H + 11);
+        g.fillText(String(b / perBar + 1), x + 3, RULER_H + 11);
       }
     }
 

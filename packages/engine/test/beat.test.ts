@@ -36,6 +36,35 @@ for (const [bpm, offset] of [[112, 0.3], [84, 0.1], [132, 0.42]] as const) {
   });
 }
 
+/** 박마다 낮은 북, 박 사이마다 같은 세기의 8분음표 반주 (두 배 빠르기로 잘못 잡기 쉬움) */
+function eighthsTrack(bpm: number, seconds: number, beatsPerBar: number): Float32Array {
+  const out = new Float32Array(Math.floor(RATE * seconds));
+  const beat = 60 / bpm;
+  const hit = (t: number, freq: number, amp: number, len: number) => {
+    const start = Math.floor(t * RATE);
+    for (let i = 0; i < RATE * len && start + i < out.length; i++) out[start + i] += Math.sin((2 * Math.PI * freq * i) / RATE) * Math.exp(-i / (RATE * len * 0.3)) * amp;
+  };
+  for (let k = 0; k * beat < seconds; k++) {
+    // 마디 첫 박은 더 세게 (왈츠의 「쿵-짝-짝」)
+    hit(k * beat, 60, k % beatsPerBar === 0 ? 1 : 0.45, 0.2);
+    hit(k * beat, 880, 0.35, 0.05);
+    hit(k * beat + beat / 2, 880, 0.35, 0.05);
+  }
+  return out;
+}
+
+test('8분음표 반주가 있는 느린 곡을 두 배로 잡지 않는다', () => {
+  const r = detectTempo(eighthsTrack(84, 30, 4), RATE);
+  assert.ok(Math.abs(r.bpm - 84) < 1.5, `bpm ${r.bpm}`);
+  assert.equal(r.beatsPerBar, 4);
+});
+
+test('왈츠(3/4)의 빠르기와 박자표를 찾는다', () => {
+  const r = detectTempo(eighthsTrack(108, 30, 3), RATE);
+  assert.ok(Math.abs(r.bpm - 108) < 1.5, `bpm ${r.bpm}`);
+  assert.equal(r.beatsPerBar, 3);
+});
+
 test('조용한 음원은 믿을 수 없다고 알린다', () => {
   assert.equal(detectTempo(new Float32Array(RATE * 10), RATE).confidence, 0);
 });

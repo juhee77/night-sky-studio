@@ -76,6 +76,8 @@ export interface MusicRef {
   offset: number;
   /** 곡 길이(초). 받은 사람이 같은 파일을 골랐는지 확인하는 데도 쓴다. */
   duration: number;
+  /** 한 마디의 박 수: 3이면 3/4 (왈츠), 없으면 4/4 */
+  beatsPerBar?: 3 | 4;
 }
 
 export interface Show {

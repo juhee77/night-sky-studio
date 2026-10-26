@@ -238,9 +238,9 @@ export class Editor {
   }
 
   /** 박자 눈금 (음악이 없으면 120 BPM으로 본다) */
-  get beat(): { bpm: number; offset: number; length: number } {
+  get beat(): { bpm: number; offset: number; length: number; perBar: number } {
     const bpm = this.show.music?.bpm ?? 120;
-    return { bpm, offset: this.show.music?.offset ?? 0, length: 60 / bpm };
+    return { bpm, offset: this.show.music?.offset ?? 0, length: 60 / bpm, perBar: this.show.music?.beatsPerBar ?? 4 };
   }
 
   /** 설정에 따라 가장 가까운 박에 붙인다. */

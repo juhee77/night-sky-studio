@@ -16,6 +16,8 @@ export interface MusicRecord {
   bpm: number;
   offset: number;
   duration: number;
+  /** 3이면 3/4 */
+  beatsPerBar?: 3 | 4;
 }
 
 const DB_NAME = 'night-sky-studio';

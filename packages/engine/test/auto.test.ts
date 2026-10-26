@@ -118,3 +118,16 @@ test('모든 의뢰와 이번 주 도전: 자동 연출로 만들면 사람이 �
   }
   assert.ok(seen.size > 15);
 });
+
+test('3/4 곡: 구간 경계와 마디 첫 박의 큰 불꽃이 세 박 마디에 맞는다', () => {
+  const beat = 60 / 108;
+  const map = flatMusicMap(80, 108, 0, 3);
+  /** 박 수가 m의 배수에 가까운지 */
+  const onGrid = (t: number, m: number) => Math.abs(t / beat / m - Math.round(t / beat / m)) < 1e-3;
+  for (const s of map.sections!.slice(1)) assert.ok(onGrid(s.start, 3), `${s.kind} ${s.start}`);
+  const cues = autoChoreograph(map, launchers, { seed: 2, style: 'grand', density: 1 });
+  // 양쪽 바지선이 마주 보는 큰 마디 첫 박 (각도 ±10)은 두 마디(여섯 박)마다
+  const mirrored = cues.filter((c) => c.angle === -10 && c.t < map.duration * 0.8);
+  assert.ok(mirrored.length > 0);
+  for (const c of mirrored) assert.ok(onGrid(c.t, 6), `${c.t}`);
+});
