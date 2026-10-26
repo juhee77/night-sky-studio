@@ -27,6 +27,8 @@ export function wireAuto(ctx: AutoCtx): void {
 
   function autoOptions(seed: number): AutoOptions {
     const o: AutoOptions = { seed, style: autoMood === 'calm' ? 'calm' : 'grand', mood: autoMood, density: Number(el.autoDensity.value) };
+    // 바람을 알려 주면 연기에 가리지 않게 자리와 높이를 고른다.
+    if (ctx.editor.show.venue.wind) o.wind = ctx.editor.show.venue.wind;
     if ($<HTMLInputElement>('auto-effects').checked) o.effects = true;
     if ($<HTMLInputElement>('auto-customs').checked) {
       const mine = ctx.drawer.list().filter((x) => !ctx.office.isLocked('custom', x.id));
