@@ -47,3 +47,17 @@ test('두드린 시각으로 박자를 정한다', () => {
   assert.ok(r.offset < 60 / 112);
   assert.equal(tapTempo([1, 1.5]), null);
 });
+
+test('두드리다 한 번 튀거나, 한 박을 건너뛰거나, 두 번 눌러도 박자가 맞다', () => {
+  const beat = 60 / 120;
+  const clean = Array.from({ length: 10 }, (_, k) => 2.25 + k * beat);
+  // 한 번 크게 튀고(0.2초 늦게), 한 박 건너뛰고, 한 번은 거의 같은 때 두 번
+  const messy = [...clean.slice(0, 3), clean[3] + 0.2, clean[4], clean[6], clean[7], clean[7] + 0.03, clean[8], clean[9]];
+  for (const taps of [clean, messy]) {
+    const r = tapTempo(taps)!;
+    assert.ok(Math.abs(r.bpm - 120) < 1, `bpm ${r.bpm}`);
+    // 첫 박: 2.25초의 박들은 0.25초에서 시작하는 눈금 위에 있다
+    assert.ok(Math.abs(r.offset - 0.25) < 0.03, `offset ${r.offset}`);
+  }
+  assert.ok(tapTempo(messy)!.used < messy.length);
+});

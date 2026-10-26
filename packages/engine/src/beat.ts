@@ -140,25 +140,51 @@ export function detectTempo(samples: Float32Array, sampleRate: number): TempoRes
   return { bpm: Math.round(bpm * 10) / 10, offset, confidence };
 }
 
-/** 손으로 두드린 시각들로 박자를 정한다. 4번 이상 두드려야 한다. */
-export function tapTempo(taps: number[]): { bpm: number; offset: number } | null {
+/**
+ * 손으로 두드린 시각들로 박자를 정한다. 4번 이상 두드려야 한다.
+ * 사람 손은 한 번씩 튀므로: 간격의 가운데 값으로 두드림마다 몇 번째 박인지 정하고(한 박 건너뛴 것도 맞춘다),
+ * 그 박에서 많이 벗어난 두드림과 같은 박을 두 번 누른 것은 빼고 직선을 맞춘다.
+ */
+export function tapTempo(taps: number[]): { bpm: number; offset: number; used: number } | null {
   if (taps.length < 4) return null;
-  const recent = taps.slice(-12);
-  const n = recent.length;
-  // 두드린 시각에 직선을 맞춘다: tap_k ≈ offset + k·period
+  const recent = taps.slice(-16);
+  const gaps = recent.slice(1).map((t, k) => t - recent[k]).sort((a, b) => a - b);
+  const median = gaps[Math.floor(gaps.length / 2)];
+  if (!(median > 60 / 260 && median < 60 / 35)) return null;
+  // 기준 두드림 하나로 박 번호를 매기고 박에서 많이 벗어난 것은 뺀다.
+  // 기준이 튄 두드림이면 안 되므로, 가장 많은 두드림이 맞는 기준을 고른다 (같으면 나중 것).
+  const fit = (anchor: number): [number, number][] => {
+    const points: [number, number][] = [];
+    const seen = new Set<number>();
+    for (let i = recent.length - 1; i >= 0; i--) {
+      const k = Math.round((recent[i] - anchor) / median);
+      if (seen.has(k) || Math.abs(recent[i] - (anchor + k * median)) > median * 0.3) continue;
+      seen.add(k);
+      points.push([k, recent[i]]);
+    }
+    return points;
+  };
+  let points: [number, number][] = [];
+  for (let i = recent.length - 1; i >= 0; i--) {
+    const p = fit(recent[i]);
+    if (p.length > points.length) points = p;
+  }
+  const n = points.length;
+  if (n < 4) return null;
+  // 두드린 시각에 직선을 맞춘다: tap ≈ first + k·period
   let sx = 0;
   let sy = 0;
   let sxx = 0;
   let sxy = 0;
-  for (let k = 0; k < n; k++) {
+  for (const [k, t] of points) {
     sx += k;
-    sy += recent[k];
+    sy += t;
     sxx += k * k;
-    sxy += k * recent[k];
+    sxy += k * t;
   }
   const period = (n * sxy - sx * sy) / (n * sxx - sx * sx);
   if (!(period > 60 / 240 && period < 60 / 40)) return null;
   const first = (sy - period * sx) / n;
   const offset = ((first % period) + period) % period;
-  return { bpm: Math.round((60 / period) * 10) / 10, offset };
+  return { bpm: Math.round((60 / period) * 10) / 10, offset, used: n };
 }
