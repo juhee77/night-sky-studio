@@ -427,27 +427,43 @@ el.detect.addEventListener('click', async () => {
   say(`${tempo.bpm} BPM, 첫 박 ${tempo.offset.toFixed(2)}초로 맞췄습니다.`);
 });
 
-// 박자 두드리기: 재생 중에 박마다 누른다. 2초 넘게 쉬면 새로 센다.
+// 박자 두드리기: 재생 중에 박마다 누른다. 두드리는 동안은 버튼에 예상 BPM만 보이고,
+// 손을 멈추면(1.5초) 한 번에 적용한다 (시간표 눈금이 두드리는 내내 흔들리지 않게).
 let taps: number[] = [];
 let tapIdle = 0;
-function tap(): void {
+let tapLabel = 0;
+function tap(e?: Event): void {
   if (!editor.show.music) return say('음악을 먼저 골라 주세요.');
   if (!transport.playing) return say('재생을 시작한 뒤 박자에 맞춰 눌러 주세요.');
-  const now = transport.time;
+  // 누른 순간의 시각: 이벤트가 처리되기까지 걸린 만큼 앞당긴다.
+  const lag = e ? Math.max(0, Math.min(0.1, (performance.now() - e.timeStamp) / 1000)) : 0;
+  const now = transport.time - lag;
   if (taps.length && now - taps[taps.length - 1] > 2) taps = [];
-  if (!taps.length) editor.beginBatch();
   taps.push(now);
   const r = tapTempo(taps);
-  if (r) editor.change((d) => d.music && Object.assign(d.music, { bpm: r.bpm, offset: round3(r.offset) }));
-  el.tap.textContent = r ? `${r.bpm} BPM` : `${taps.length}번째…`;
+  clearTimeout(tapLabel);
+  el.tap.textContent = r ? `${r.bpm} BPM · ${taps.length}번` : `${taps.length}번째… (4번 이상)`;
   clearTimeout(tapIdle);
-  tapIdle = window.setTimeout(() => {
-    editor.endBatch();
-    taps = [];
-    el.tap.textContent = '박자 두드리기';
-  }, 2000);
+  tapIdle = window.setTimeout(applyTaps, 1500);
 }
-el.tap.addEventListener('click', tap);
+function applyTaps(): void {
+  const r = tapTempo(taps);
+  taps = [];
+  if (!r) {
+    el.tap.textContent = '박자 두드리기';
+    return say('4번 이상 박에 맞춰 두드려 주세요.');
+  }
+  editor.change((d) => d.music && Object.assign(d.music, { bpm: r.bpm, offset: round3(r.offset) }));
+  el.tap.textContent = `✓ ${r.bpm} BPM`;
+  tapLabel = window.setTimeout(() => (el.tap.textContent = '박자 두드리기'), 4000);
+  say(
+    `${r.bpm} BPM, 첫 박 ${r.offset.toFixed(2)}초로 맞췄습니다.${r.used < 8 ? ' 8번 이상 두드리면 더 정확해요.' : ''} 재생하면 「박자 두드리기」가 박마다 깜빡이니 맞는지 보세요. 틀리면 「되돌리기」.`,
+    7000,
+  );
+}
+// 버튼은 누르는 순간에 센다 (떼는 순간은 늦다). 키보드로 누른 것은 click으로.
+el.tap.addEventListener('pointerdown', (e) => tap(e));
+el.tap.addEventListener('click', (e) => e.detail === 0 && tap(e));
 
 // ── 재생 ──
 function togglePlay(): void {
@@ -709,7 +725,7 @@ document.addEventListener('keydown', (e) => {
   } else if (!mod && /^[1-9]$/.test(e.key)) {
     placeNow(Number(e.key) - 1);
   } else if (!mod && key === 't') {
-    tap();
+    tap(e);
   } else if (key === 'arrowleft' || key === 'arrowright') {
     e.preventDefault();
     const dir = key === 'arrowleft' ? -1 : 1;
@@ -839,6 +855,7 @@ el.importFile.addEventListener('change', async () => {
 const fanCount = (l: Launch) => editor.show.cues[l.cueIndex]?.fan?.count ?? 1;
 let lastClock = '';
 let lastHud = 0;
+let lastBeatNo = -1;
 
 function frame(now: number): void {
   let t = transport.time;
@@ -860,6 +877,14 @@ function frame(now: number): void {
   const beatNo = Math.floor((t - offset) / length + 1e-6);
   const clock = `${fmtTime(t)} · ${beatNo >= 0 ? `${Math.floor(beatNo / 4) + 1}마디 ${(beatNo % 4) + 1}박` : '시작 전'}`;
   if (clock !== lastClock) el.clock.value = lastClock = clock;
+  // 박마다 「박자 두드리기」를 깜빡여 박자가 음악과 맞는지 눈으로 본다 (마디 첫 박은 더 밝게).
+  if (transport.playing && beatNo >= 0 && beatNo !== lastBeatNo) {
+    el.tap.classList.remove('beat', 'bar');
+    void el.tap.offsetWidth;
+    el.tap.classList.add('beat');
+    if (beatNo % 4 === 0) el.tap.classList.add('bar');
+  }
+  lastBeatNo = beatNo;
 
   if (now - lastHud >= 500) {
     el.fps.textContent = stage.fps.toFixed(0);

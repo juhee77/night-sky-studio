@@ -51,8 +51,8 @@
       <div class="group tempo" id="tempo">
         <label for="bpm">BPM</label>
         <input id="bpm" type="number" min="40" max="240" step="0.1" />
-        <label for="offset">첫 박</label>
-        <input id="offset" type="number" min="0" step="0.01" />
+        <label for="offset" title="곡이 시작하고 첫 번째 박이 오는 시각(초)입니다. 시간표의 박 눈금이 여기서 시작합니다.">첫 박(초)</label>
+        <input id="offset" type="number" min="0" step="0.01" title="곡이 시작하고 첫 번째 박이 오는 시각(초)입니다. 시간표의 박 눈금이 여기서 시작합니다." />
         <button type="button" id="tap" title="재생하면서 박자에 맞춰 누르세요 (T 키)">박자 두드리기</button>
         <button type="button" id="detect" title="음악에서 박자를 자동으로 찾습니다">자동 찾기</button>
       </div>

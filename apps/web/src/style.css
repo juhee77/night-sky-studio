@@ -518,3 +518,10 @@ body.simple .workspace { grid-template-columns: minmax(0, 1fr); grid-template-ro
 .intro-card button.quiet { background: transparent; border-color: transparent; color: var(--muted); padding-inline: 4px; }
 .intro-card button.quiet:hover { color: var(--ink); }
 body.watching .intro-card { display: none; }
+
+/* 박자 두드리기: 재생 중 박마다 깜빡임 (마디 첫 박은 더 밝게) */
+#tap.beat { animation: tap-beat 0.22s ease-out; }
+#tap.beat.bar { animation-name: tap-bar; }
+@keyframes tap-beat { from { border-color: var(--accent); box-shadow: 0 0 6px rgba(251, 146, 60, 0.5); } }
+@keyframes tap-bar { from { border-color: var(--accent); background: rgba(251, 146, 60, 0.35); box-shadow: 0 0 10px rgba(251, 146, 60, 0.7); } }
+@media (prefers-reduced-motion: reduce) { #tap.beat, #tap.beat.bar { animation-duration: 0.01s; } }
