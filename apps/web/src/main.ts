@@ -208,6 +208,39 @@ goalBtn.addEventListener('click', () => {
   if (next) GOAL_TARGET[next.goal]();
 });
 progress.onOpen = (message) => say(message, 9000);
+
+// ── 간단 화면과 편집 화면: 처음에는 무대만 크게, 「편집하기」로 시간표와 설정 칸을 편다 ──
+const LAYOUT = 'nss:layout';
+const editBtn = $<HTMLButtonElement>('edit-btn');
+function setEditing(on: boolean): void {
+  document.body.classList.toggle('simple', !on);
+  editBtn.textContent = on ? '간단히' : '편집하기';
+  editBtn.setAttribute('aria-pressed', String(on));
+  try {
+    localStorage.setItem(LAYOUT, on ? 'edit' : 'simple');
+  } catch {
+    // 저장하지 못하면 다음에 처음 화면으로 연다.
+  }
+}
+editBtn.addEventListener('click', () => setEditing(document.body.classList.contains('simple')));
+{
+  let saved: string | null = null;
+  try {
+    saved = localStorage.getItem(LAYOUT);
+  } catch {
+    // 아래 기본값을 쓴다.
+  }
+  // 처음 쓰는 사람은 간단 화면, 모든 기능을 연 사람은 편집 화면으로 시작한다.
+  setEditing(saved ? saved === 'edit' : !progress.next);
+}
+// 의뢰를 받으면 예산·조건 막대가 시간표 위에 있으니 편집 화면을 편다.
+let commissionSeen = editor.show.commission?.id;
+editor.on((c) => {
+  if (c !== 'show') return;
+  const id = editor.show.commission?.id;
+  if (id && id !== commissionSeen) setEditing(true);
+  commissionSeen = id;
+});
 progress.on(renderProgress);
 renderProgress();
 $<HTMLButtonElement>('help-open-all').addEventListener('click', () => {
