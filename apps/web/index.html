@@ -17,6 +17,7 @@
       <div class="group show-name">
         <button type="button" id="shows-btn">내 쇼</button>
         <button type="button" id="help-btn" title="시작 안내와 용어 사전">도움말</button>
+        <button type="button" id="goal-btn" class="goal-btn" title="지금 할 일. 누르면 그 버튼을 열어 줍니다" hidden></button>
         <button type="button" id="office-btn">의뢰소</button>
         <button type="button" id="workshop-btn">공작소</button>
         <button type="button" id="gallery-btn" hidden>상영관</button>
@@ -200,6 +201,12 @@
       <div class="dialog-actions">
         <button type="button" id="help-guide" class="primary">시작 안내 다시 보기</button>
         <button type="button" id="help-glossary">용어 사전</button>
+      </div>
+      <h3>기능 열기</h3>
+      <p id="help-progress" class="note"></p>
+      <div class="dialog-actions">
+        <button type="button" id="help-open-all">모두 열기</button>
+        <button type="button" id="help-restart">단계별로 처음부터</button>
       </div>
     </dialog>
 
@@ -420,7 +427,7 @@
         <h2 id="site-title">발사장 설계</h2>
         <button value="close" aria-label="닫기">닫기</button>
       </form>
-      <div class="live-box">
+      <div class="live-box" id="site-live-box">
         <label class="check-label"><input type="checkbox" id="site-live" /> 실전 모드: 허가와 장비까지 맞춰야 쏠 수 있습니다</label>
         <details class="live-more"><summary>자유 모드와 실전 모드 차이</summary>
         <p class="note">끄면 <b>자유 모드</b>: 어디든 몇 척이든 띄우고, 어긴 것은 경고만 합니다. 켜면 실제처럼 허가 구역(초록 칸) 안에 허가 척수만큼만 띄우고, 자리마다 쏠 수 있는 크기(관람석 안전거리)와 바지선 간격을 지켜야 하며, 바지선 한 척마다 임대·예인 비용이 듭니다. 장전되지 않은 불꽃과 선이 끊긴 핀의 불꽃도 쏘아지지 않고, 장전된 불꽃은 갑판 위 실제 통 자리와 각도로 쏩니다.</p></details>

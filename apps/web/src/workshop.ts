@@ -32,6 +32,7 @@ import {
 import { shortId, type Drawer } from './drawer.ts';
 import { BenchUI } from './bench-ui.ts';
 import { forgeControls, sequenceFields, wireForge, wireSequence } from './forge.ts';
+import { progress } from './progress.ts';
 import { Stage } from './stage.ts';
 
 const COLOR_LABEL: Record<ColorName, string> = {
@@ -182,6 +183,8 @@ export class Workshop {
     this.host = host;
     dialog.addEventListener('close', () => cancelAnimationFrame(this.raf));
     drawer.on(() => dialog.open && this.renderDrawer());
+    // 새 작업 방식(제작 공방·작업대)이 열리면 탭을 다시 그린다.
+    progress.on(() => dialog.open && this.renderControls());
     dialog.querySelectorAll<HTMLButtonElement>('[data-view]').forEach((b) =>
       b.addEventListener('click', () => {
         this.view = b.dataset.view as View;
@@ -323,9 +326,10 @@ export class Workshop {
     const tabs = `
       <div class="ws-tabs ws-mode" role="tablist" aria-label="만드는 방식">
         <button type="button" role="tab" data-mode="quick" aria-selected="${this.mode === 'quick'}">빠른 설계</button>
-        <button type="button" role="tab" data-mode="build" aria-selected="${this.mode === 'build'}">제작 공방</button>
-        <button type="button" role="tab" data-mode="bench" aria-selected="${this.mode === 'bench'}">작업대</button>
-      </div>`;
+        ${progress.can('build') || this.mode === 'build' ? `<button type="button" role="tab" data-mode="build" aria-selected="${this.mode === 'build'}">제작 공방</button>` : ''}
+        ${progress.can('bench') || this.mode === 'bench' ? `<button type="button" role="tab" data-mode="bench" aria-selected="${this.mode === 'bench'}">작업대</button>` : ''}
+      </div>
+      ${progress.can('build') ? '' : '<p class="note">의뢰를 하나 납품하면 알 속에 별을 직접 붙이는 「제작 공방」이 열립니다.</p>'}`;
     if (this.mode === 'bench') {
       const bench = (this.bench ??= newBench());
       box.innerHTML = `${tabs}
@@ -718,6 +722,8 @@ export class Workshop {
     this.drawer.put(this.shell);
     this.dirty = false;
     this.host.say(`「${this.shell.name}」을 서랍에 넣었습니다. 「쇼에 쓰기」를 누르면 팔레트에서 바로 쓸 수 있습니다.`);
+    progress.did('shell-saved');
+    if (this.shell.build) progress.did('build-saved');
   }
 
   private async copyCode(): Promise<void> {
