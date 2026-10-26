@@ -55,6 +55,7 @@ export class Stage {
   private backdrop = document.createElement('canvas');
   private backdropKey = '';
   private slowSince = 0;
+  private fastSince = 0;
   private orbit: Orbit = { yaw: 0, pitch: 0.15, dist: 900, target: [0, 140, 60] };
   /** 끌어서 돌리는 중 (배경을 낮은 해상도로 빨리 그린다) */
   dragging = false;
@@ -187,7 +188,9 @@ export class Stage {
   }
 
   layout(): void {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2) * (this.sim.density < 0.5 ? 0.75 : 1);
+    // 터치 기기(휴대폰·태블릿)는 화소를 1.5배까지만: 빛나는 점이라 티가 거의 안 나고 그래픽 부담은 크게 준다.
+    const maxDpr = matchMedia('(pointer: coarse)').matches ? 1.5 : 2;
+    const dpr = Math.min(window.devicePixelRatio || 1, maxDpr) * (this.sim.density < 0.5 ? 0.75 : 1);
     const w = Math.max(1, Math.round(this.canvas.clientWidth * dpr));
     const h = Math.max(1, Math.round(this.canvas.clientHeight * dpr));
     const cam = this.seat;
@@ -239,7 +242,11 @@ export class Stage {
     this.watchSpeed(playing);
   }
 
-  /** 0.5초마다 fps를 재고, 재생 중에 3초 동안 계속 느리면 밀도를 한 단계 낮춘다. */
+  /**
+   * 0.5초마다 fps를 재고, 불꽃이 많이 떠 있는데(입자 2,500개 넘게) 재생 중 3초 동안 계속 느리면 밀도를 한 단계 낮춘다.
+   * 입자가 적은데 느린 것은 불꽃 탓이 아니므로(창이 뒤에 있어 브라우저가 늦추는 등) 낮추지 않고,
+   * 낮춘 뒤 불꽃이 많은 장면에서도 8초 넘게 넉넉히 빠르면 한 단계 되돌린다.
+   */
   private watchSpeed(playing: boolean): void {
     const now = performance.now();
     this.frames++;
@@ -247,15 +254,25 @@ export class Stage {
     this.fps = (this.frames * 1000) / (now - this.windowStart);
     this.frames = 0;
     this.windowStart = now;
-    if (playing && this.fps < 45 && !document.hidden) {
+    const busy = this.count > 2500;
+    if (playing && busy && this.fps < 45 && !document.hidden) {
+      this.fastSince = 0;
       this.slowSince ||= now;
       if (now - this.slowSince > 3000 && this.sim.density > 0.35) {
         this.rebuild(this.sim.density > 0.6 ? 0.6 : 0.35);
         this.onDensityLowered?.();
         this.slowSince = 0;
       }
+    } else if (playing && this.count > 1500 && this.fps >= 57 && this.sim.density < 1) {
+      this.slowSince = 0;
+      this.fastSince ||= now;
+      if (now - this.fastSince > 8000) {
+        this.rebuild(this.sim.density < 0.5 ? 0.6 : 1);
+        this.fastSince = 0;
+      }
     } else {
       this.slowSince = 0;
+      if (!playing) this.fastSince = 0;
     }
   }
 
