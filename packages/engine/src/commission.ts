@@ -272,10 +272,12 @@ export function weeklyChallenge(week: string): Commission {
   const pick = <T>(xs: T[]): T => xs[Math.floor(rnd() * xs.length)];
   const t = pick(TEMPLATES.filter((x) => !x.custom));
   const rules = t.rules(pick).filter((r) => !HARD_RULES.includes(r.kind));
-  // 한 가지 더: 주마다 다른 숙제 (같은 종류 조건은 겹치지 않게)
+  // 한 가지 더: 주마다 다른 숙제 (같은 종류 조건은 겹치지 않고, 색 조건끼리 부딪히지 않게)
+  const only = rules.find((r) => r.kind === 'colorsOnly');
+  const endColor = pick<ColorName>(only?.kind === 'colorsOnly' ? only.colors : ['gold', 'white', 'pink', 'cyan']);
   const twists: Rule[] = [
     { kind: 'finale', seconds: 12 },
-    { kind: 'endColors', seconds: 10, colors: [pick<ColorName>(['gold', 'white', 'pink', 'cyan'])] },
+    { kind: 'endColors', seconds: 10, colors: [endColor] },
     { kind: 'include', type: pick<FireworkType>(['willow', 'palm', 'crossette', 'ring', 'heart', 'star', 'crackle', 'brocade']) },
     { kind: 'maxSize', size: 5 },
   ].filter((x) => !rules.some((r) => r.kind === x.kind)) as Rule[];

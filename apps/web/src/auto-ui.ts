@@ -1,6 +1,6 @@
 // 자동 연출 창: 분위기·밀도·효과·구간을 골라 곡에 맞춰 불꽃을 놓는다.
 
-import { allTubes, autoChoreograph, isLive, type AutoOptions, type MusicMap, type Mood } from '@nss/engine';
+import { allTubes, autoChoreograph, commissionAutoOptions, isLive, scoreShow, type AutoOptions, type CommissionAuto, type MusicMap, type Mood } from '@nss/engine';
 import type { Career } from './career.ts';
 import type { Drawer } from './drawer.ts';
 import type { Editor } from './editor.ts';
@@ -38,20 +38,18 @@ export function wireAuto(ctx: AutoCtx): void {
     if (range && $<HTMLInputElement>('auto-range').checked) o.range = range;
     const text = el.autoText.value.trim();
     if (text) o.text = text;
-    const c = ctx.editor.show.commission;
-    if (c) {
-      // 의뢰 쇼: 해금한 불꽃과 의뢰 조건, 예산을 지킨다.
-      o.allowed = ctx.career.state.unlocked;
-      o.budget = c.budget;
-      for (const r of c.rules) {
-        if (r.kind === 'maxSize') o.maxSize = r.size;
-        else if (r.kind === 'colorsOnly') o.colors = r.colors;
-        else if (r.kind === 'include') (o.include ??= []).push(r.type);
-        else if (r.kind === 'endColors') o.endColors = { seconds: r.seconds, colors: r.colors };
-        else if (r.kind === 'frameText' && !o.text) o.text = c.client.slice(0, 12);
-      }
-    }
+    const rules = commissionRules();
+    // 의뢰 쇼: 해금한 불꽃과 의뢰 조건, 예산을 지킨다 (틀 글자는 적어 둔 것이 있으면 그것을).
+    if (rules) Object.assign(o, { ...rules.options, ...(o.text ? { text: o.text } : {}) });
     return o;
+  }
+
+  /** 의뢰 조건 → 자동 연출 옵션과, 사람이 직접 해야 할 일 (의뢰 쇼가 아니면 null) */
+  function commissionRules(): CommissionAuto | null {
+    const c = ctx.editor.show.commission;
+    if (!c) return null;
+    const shells = ctx.drawer.list().filter((x) => !ctx.office.isLocked('custom', x.id));
+    return commissionAutoOptions(c, ctx.editor.show, ctx.career.state.unlocked, shells);
   }
 
   /** 고른 불꽃이 있는 구간 (그 앞뒤 박자까지). 고른 것이 없으면 null */
@@ -71,8 +69,10 @@ export function wireAuto(ctx: AutoCtx): void {
     const n = ctx.editor.show.cues.length;
     el.autoReplace.textContent = n ? `지금 놓인 불꽃 ${n}개를 지우고 새로 만듭니다. 마음에 들지 않으면 「되돌리기」로 되돌릴 수 있습니다.` : '';
     const c = ctx.editor.show.commission;
+    const manual = commissionRules()?.manual ?? [];
     el.autoLimits.textContent =
-      (c ? `의뢰 쇼라서 해금한 불꽃과 의뢰 조건, 예산(${c.budget}) 안에서 만듭니다. ` : '') +
+      (c ? `의뢰 조건과 예산(${c.budget})을 지켜 만듭니다${c.challenge ? '' : ' (해금한 불꽃만)'}. ` : '') +
+      (manual.length ? `직접 해야 할 일: ${manual.map((m) => m.hint).join(' ')} ` : '') +
       (isLive(ctx.editor.show) ? '실전 모드라서 갑판에 실린 통 안에서만 만듭니다.' : '');
     const hasFrame = ctx.editor.show.launchers.some((l) => l.kind === 'frame') && !ctx.office.isLocked('lancework');
     el.autoTextField.hidden = !hasFrame;
@@ -108,10 +108,19 @@ export function wireAuto(ctx: AutoCtx): void {
     if (ctx.transport.playing) ctx.togglePlay();
     ctx.transport.seek(range ? Math.max(0, range.from - 4) : 0);
     if (!range) ctx.timeline.scroll = 0;
+    // 의뢰 쇼: 아직 못 지킨 조건이 있으면 무엇을 직접 해야 하는지 알려 준다.
+    const c = ctx.editor.show.commission;
+    const left = c ? scoreShow(ctx.editor.show, c).rules.filter((x) => !x.ok) : [];
+    const hints = commissionRules()?.manual ?? [];
+    const todo = left.map((x) => hints.find((m) => m.rule === x.rule)?.hint ?? `「${x.label}」(${x.detail ?? '직접 고쳐 주세요'})`);
     say(
-      range
+      (range
         ? `${fmtTime(range.from)}~${fmtTime(range.to)} 구간에 불꽃 ${cues.length}개를 다시 놓았습니다.`
-        : `불꽃 ${cues.length}개를 놓았습니다. ▶ 재생해 보고, 마음에 안 들면 「자동 연출」을 다시 누르면 다른 쇼가 나옵니다.`,
+        : c
+          ? `불꽃 ${cues.length}개를 놓았습니다.${left.length ? '' : ' 의뢰 조건을 모두 지켰습니다.'}`
+          : `불꽃 ${cues.length}개를 놓았습니다. ▶ 재생해 보고, 마음에 안 들면 「자동 연출」을 다시 누르면 다른 쇼가 나옵니다.`) +
+        (left.length ? ` 아직 못 지킨 조건 ${left.length}개: ${todo.join(' ')}` : ''),
+      left.length ? 12000 : 4500,
     );
     // 새 기능이 열리면 그 안내가 위 안내를 덮는다.
     if (!range) progress.did('auto');
