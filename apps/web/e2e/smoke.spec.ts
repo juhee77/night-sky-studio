@@ -132,9 +132,11 @@ test('이번 주 도전: 받아서 채점하면 점수가 남고, 의뢰처럼 �
   await expect(page.locator('#commission-bar')).toContainText('이번 주 도전');
   await page.locator('#auto-btn').click();
   await page.locator('#auto-run').click();
+  // 자동 연출이 도전 조건을 챙긴다
+  await expect(page.locator('#toast')).toContainText('의뢰 조건을 모두 지켰습니다');
   await page.locator('#commission-bar [data-act="deliver"]').click();
   await page.locator('#result-dialog [data-act="confirm"]').click();
-  await expect(page.locator('#toast')).toContainText(/기록/);
+  await expect(page.locator('#toast')).toContainText(/점을 기록했습니다/);
   // 다시 낼 수 있다 (납품 완료로 잠기지 않는다)
   await expect(page.locator('#commission-bar [data-act="deliver"]')).toBeVisible();
 });

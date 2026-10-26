@@ -6,7 +6,7 @@ import type { ColorName } from './colors.ts';
 import { COLOR_LABEL, colorList, showCost, type Commission, type Rule } from './commission.ts';
 import { cueLength, expandShow, isShellLaunch, windVector, type Launch, type Show } from './show.ts';
 import { analyzeSmoke } from './smoke.ts';
-import { craftReport } from './custom.ts';
+import { craftReport, type CustomShell } from './custom.ts';
 import { applyLive, isLive } from './live.ts';
 import { artCount } from './art.ts';
 
@@ -78,6 +78,22 @@ function endOf(show: Show, launches: Launch[]): number {
   return show.music?.duration ?? Math.max(0, ...launches.map((l) => l.burstAt + 2));
 }
 
+/** 받침이 있으면 「이」, 없으면 「가」 (한글이 아니면 「이(가)」) */
+function iGa(word: string): string {
+  const code = word.charCodeAt(word.length - 1) - 0xac00;
+  if (code < 0 || code > 11171) return '이(가)';
+  return code % 28 ? '이' : '가';
+}
+
+/** 내 불꽃 조건에 맞는 설계인가: 긴 버들 마무리, 제작 공방, 바깥 층이 차례로 터짐 */
+export function shellMeetsRule(kind: 'kamuroFinish' | 'workshopShell' | 'outerPop', s: CustomShell | undefined): boolean {
+  if (!s) return false;
+  if (kind === 'workshopShell') return !!s.build;
+  if (kind === 'outerPop') return s.layers.some((l) => l.sequence?.mode === 'pop');
+  // 카무로 별이나 꼬리를 길게 늘인 버들 별
+  return s.layers.some((l) => l.star === 'kamuro' || ((l.star === 'willow' || l.star === 'brocade') && l.tail === 'long'));
+}
+
 function checkRule(r: Rule, show: Show, launches: Launch[], end: number): RuleResult {
   const label = ruleLabel(r);
   const cues = show.cues;
@@ -85,7 +101,7 @@ function checkRule(r: Rule, show: Show, launches: Launch[], end: number): RuleRe
   switch (r.kind) {
     case 'include': {
       const ok = cues.some((c) => c.type === r.type);
-      return { rule: r, label, ok, detail: ok ? undefined : `${typeLabel(r.type)}이 없습니다.` };
+      return { rule: r, label, ok, detail: ok ? undefined : `${typeLabel(r.type)}${iGa(typeLabel(r.type))} 없습니다.` };
     }
     case 'frameText': {
       const ok = cues.some((c) => c.type === 'lancework' && (c.text ?? '').trim().length > 0);
@@ -116,19 +132,16 @@ function checkRule(r: Rule, show: Show, launches: Launch[], end: number): RuleRe
       return { rule: r, label, ok, detail: ok ? undefined : '지상 틀에 그린 그림이 없습니다 (심지 30개 이상).' };
     }
     case 'workshopShell': {
-      const ok = cues.some((c) => c.type === 'custom' && c.custom && !!show.customShells?.[c.custom]?.build);
+      const ok = cues.some((c) => c.type === 'custom' && shellMeetsRule('workshopShell', show.customShells?.[c.custom ?? '']));
       return { rule: r, label, ok, detail: ok ? undefined : '제작 공방에서 만든 불꽃이 없습니다.' };
     }
     case 'kamuroFinish': {
-      // 내 불꽃 가운데 카무로 별이나 꼬리를 길게 늘인 버들 별
       const from = end - r.seconds;
-      const longWillow = (id?: string) =>
-        !!id && (show.customShells?.[id]?.layers ?? []).some((l) => l.star === 'kamuro' || ((l.star === 'willow' || l.star === 'brocade') && l.tail === 'long'));
-      const ok = cues.some((c) => c.t >= from && c.type === 'custom' && longWillow(c.custom));
+      const ok = cues.some((c) => c.t >= from && c.type === 'custom' && shellMeetsRule('kamuroFinish', show.customShells?.[c.custom ?? '']));
       return { rule: r, label, ok, detail: ok ? undefined : `마지막 ${r.seconds}초에 긴 버들 내 불꽃이 없습니다.` };
     }
     case 'outerPop': {
-      const ok = cues.some((c) => c.type === 'custom' && (show.customShells?.[c.custom ?? '']?.layers ?? []).some((l) => l.sequence?.mode === 'pop'));
+      const ok = cues.some((c) => c.type === 'custom' && shellMeetsRule('outerPop', show.customShells?.[c.custom ?? '']));
       return { rule: r, label, ok, detail: ok ? undefined : '바깥 층이 차례로 터지는 내 불꽃이 없습니다.' };
     }
     case 'live': {

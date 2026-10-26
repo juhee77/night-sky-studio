@@ -5,7 +5,7 @@
 
 import { isShell, shellSize, type FireworkType, type RiseEffect, type ShellType, type Size } from './catalog.ts';
 import { COLOR_NAMES, type ColorName } from './colors.ts';
-import { cueCost } from './commission.ts';
+import { SHELL_COST, cueCost } from './commission.ts';
 import { onsetEnvelope } from './beat.ts';
 import { mulberry32 } from './rng.ts';
 import type { Tube } from './rig.ts';
@@ -274,6 +274,12 @@ export interface AutoOptions {
   budget?: number;
   /** 섞어 쓸 내 불꽃 (서랍의 설계 id와 크기) */
   customs?: { id: string; size: Size }[];
+  /** 꼭 한 번은 넣을 내 불꽃 (의뢰 조건: 공방 불꽃, 차례로 터지는 불꽃) */
+  mustCustoms?: { id: string; size: Size }[];
+  /** 마지막을 덮을 내 불꽃 (의뢰 조건: 긴 버들 마무리) */
+  closeCustom?: { id: string; size: Size };
+  /** 피날레를 적어도 이만큼(초) 꽉 채운다 (의뢰 조건) */
+  finaleSeconds?: number;
   /** 특수 효과(크래클·허머·상승 효과 등)를 섞는다 */
   effects?: boolean;
   /** 실전 모드: 갑판에 실린 통 안에서만 만든다 */
@@ -376,7 +382,8 @@ export function autoChoreograph(music: MusicMap, launchers: Launcher[], o: AutoO
   const pick = <T>(xs: T[]): T => xs[Math.floor(rnd() * xs.length)];
   const mood: Mood = o.mood ?? (o.style === 'calm' ? 'calm' : 'festive');
   const P = MOODS[mood];
-  const can = (t: FireworkType) => (!o.allowed || o.allowed.includes(t)) && (o.effects || !EFFECT_TYPES.includes(t));
+  // 내 불꽃은 쓸 수 있는 것(개발한 것)만 넘겨받으므로 따로 막지 않는다.
+  const can = (t: FireworkType) => t === 'custom' || ((!o.allowed || o.allowed.includes(t)) && (o.effects || !EFFECT_TYPES.includes(t)));
   const sizeCap = (s: Size): Size => (o.maxSize && s > o.maxSize ? o.maxSize : s);
   const barges = launchers.filter((l) => l.kind === 'barge').sort((a, b) => a.pos[0] - b.pos[0]);
   const bridge = launchers.find((l) => l.kind === 'bridge');
@@ -386,12 +393,15 @@ export function autoChoreograph(music: MusicMap, launchers: Launcher[], o: AutoO
   const beat = 60 / music.bpm;
   const n = music.energy.length;
   const end = music.duration - 1.5;
-  const finaleStart = Math.max(end * 0.86, end - 14);
+  // 의뢰가 피날레 길이를 정했으면 그만큼(채점이 보는 여유 2초 포함) 앞당긴다.
+  const finaleStart = Math.min(Math.max(end * 0.86, end - 14), o.finaleSeconds ? music.duration - o.finaleSeconds - 2 : Infinity);
   const center = barges[Math.floor(barges.length / 2)];
   const left = barges[0];
   const right = barges[barges.length - 1];
   const colorsOk = (cs: ColorName[]) => (o.colors ? cs.filter((c) => o.colors!.includes(c)) : cs);
   const pool = o.colors?.length ? o.colors : COLOR_NAMES;
+  // 흰빛 불꽃(나이아가라·살루트)도 색 조건을 따른다.
+  const white: ColorName[] = colorsOk(['white']).length ? ['white'] : [pool[0]];
   const inRange = (t: number) => !o.range || (t >= o.range.from && t < o.range.to);
   const sectionAt = (t: number): SectionKind => music.sections?.find((s) => t >= s.start && t < s.end)?.kind ?? 'verse';
   // 쓸 수 없는 종류는 비슷한 기본 불꽃으로 바꾼다.
@@ -429,12 +439,12 @@ export function autoChoreograph(music: MusicMap, launchers: Launcher[], o: AutoO
   };
 
   const out: Placed[] = [];
-  const lastAt = new Map<string, number>();
+  // 같은 발사 위치에서 0.45초 안에 또 쏘지 않는다 (나중에 앞 시각에 끼워 넣는 꼭 넣을 불꽃도 앞뒤를 본다).
+  const busy = (at: string, t: number) => out.some((x) => x.at === at && Math.abs(x.t - t) < 0.45);
   const place = (c: Omit<Cue, 'colors'> & { colors?: ColorName[] }, importance: number) => {
     if (!can(c.type) || !inRange(c.t)) return false;
     if (c.t < (isShell(c.type) ? shellSize(c.type as ShellType, c.size).prefire + 0.2 : 0)) return false;
-    const prev = lastAt.get(c.at) ?? -Infinity;
-    if (c.t - prev < 0.45 && c.type !== 'niagara' && c.type !== 'lancework') return false;
+    if (busy(c.at, c.t) && c.type !== 'niagara' && c.type !== 'lancework') return false;
     if (freeTubes && barges.some((b) => b.id === c.at)) {
       // 맞는 통이 없으면 다른 바지선, 그래도 없으면 부채꼴을 한 발로 줄여 본다.
       const tryAt = (cue: typeof c) => {
@@ -450,13 +460,12 @@ export function autoChoreograph(music: MusicMap, launchers: Launcher[], o: AutoO
       };
       const options = [c, ...barges.filter((b) => b.id !== c.at).map((b) => ({ ...c, at: b.id, angle: 0 }))];
       if (c.fan) options.push(...options.map((x) => ({ ...x, fan: undefined })));
-      const ok = options.find((x) => (x.t - (lastAt.get(x.at) ?? -Infinity) >= 0.45) && tryAt(x));
+      const ok = options.find((x) => !busy(x.at, x.t) && tryAt(x));
       if (!ok) return false;
       c = ok;
       if (!c.fan) delete c.fan;
       if (!c.angle) delete c.angle;
     }
-    lastAt.set(c.at, c.t);
     out.push({ ...c, t: round3(c.t), colors: c.colors && c.colors.length ? c.colors : [pool[0]], importance });
     return true;
   };
@@ -480,7 +489,7 @@ export function autoChoreograph(music: MusicMap, launchers: Launcher[], o: AutoO
       const type = typeOk(pick(P.hit));
       const size = sizeCap(P.hitSize);
       for (const b of barges) place({ t, at: b.id, type, size, colors: theme, angle: b === left ? -8 : b === right ? 8 : 0 }, 4);
-      if (o.effects && (mood === 'dramatic' || mood === 'festive') && can('salute')) place({ t: t + beat / 2, at: center.id, type: 'salute', size: sizeCap(5), colors: ['white'] }, 3);
+      if (o.effects && (mood === 'dramatic' || mood === 'festive') && can('salute')) place({ t: t + beat / 2, at: center.id, type: 'salute', size: sizeCap(5), colors: white }, 3);
       continue;
     }
     // 조용해진 뒤 한 마디는 비운다 (첫 박에 작게 하나만)
@@ -539,15 +548,34 @@ export function autoChoreograph(music: MusicMap, launchers: Launcher[], o: AutoO
     }
   }
 
-  // 꼭 넣어야 하는 모양 불꽃: 조용한 박 가운데 고른다.
-  for (const want of o.include ?? []) {
-    if (out.some((c) => c.type === want) || !isShell(want) || want === 'cake') continue;
-    const quiet = [...Array(n).keys()]
-      .filter((i) => i % 4 === 0 && music.offset + i * beat < finaleStart && music.offset + i * beat > 6)
-      .sort((a, b) => music.energy[a] - music.energy[b]);
-    for (const i of quiet.slice(0, 2)) {
-      place({ t: music.offset + i * beat, at: center.id, type: want, size: sizeCap(5), colors: [themeFor(i)[0]] }, 4);
+  // 꼭 넣어야 하는 불꽃: 조용한 첫 박부터, 가운데·양쪽 바지선과 반 박 뒤까지 차례로 찾아 놓일 때까지 (두 번).
+  const quiet = [...Array(n).keys()]
+    .filter((i) => i % 4 === 0 && music.offset + i * beat < finaleStart && music.offset + i * beat > 6)
+    .sort((a, b) => music.energy[a] - music.energy[b]);
+  const placeQuietly = (make: (t: number, at: string, i: number) => Omit<Cue, 'colors'> & { colors?: ColorName[] }, times: number) => {
+    let done = 0;
+    for (const i of quiet) {
+      // 한 박에는 하나만
+      beatLoop: for (const at of [center, left, right]) {
+        for (const shift of [0, 0.5]) {
+          if (place(make(music.offset + (i + shift) * beat, at.id, i), 4)) {
+            done++;
+            break beatLoop;
+          }
+        }
+      }
+      if (done >= times) break;
     }
+  };
+  // 이미 흐름 속에 있으면 예산을 줄일 때 빠지지 않게 중요도만 올린다.
+  const keep = (found: Placed | undefined) => (found ? ((found.importance = Math.max(found.importance, 4)), true) : false);
+  for (const want of o.include ?? []) {
+    if (keep(out.find((c) => c.type === want)) || !isShell(want) || want === 'cake' || !can(want)) continue;
+    placeQuietly((t, at, i) => ({ t, at, type: want, size: sizeCap(5), colors: [themeFor(i)[0]] }), 2);
+  }
+  for (const c of o.mustCustoms ?? []) {
+    if (keep(out.find((x) => x.custom === c.id))) continue;
+    placeQuietly((t, at, i) => ({ t, at, type: 'custom', custom: c.id, size: sizeCap(c.size), colors: [themeFor(i)[0]] }), 1);
   }
 
   // 틀불꽃: 곡 가운데쯤 잔잔한 곳에서 글자를 띄운다.
@@ -563,7 +591,9 @@ export function autoChoreograph(music: MusicMap, launchers: Launcher[], o: AutoO
   const fb = Math.ceil((finaleStart - music.offset) / beat);
   const lastBeat = Math.floor((end - music.offset) / beat) - 1;
   if (bridge && can('niagara')) {
-    place({ t: music.offset + fb * beat, at: bridge.id, type: 'niagara', size: 5, colors: ['white'], len: Math.min(14, end - finaleStart) }, 3);
+    // 의뢰가 나이아가라를 요구하면 예산을 줄일 때도 남긴다.
+    const must = o.include?.includes('niagara') ? 4 : 3;
+    place({ t: music.offset + fb * beat, at: bridge.id, type: 'niagara', size: 5, colors: white, len: Math.min(14, end - finaleStart) }, must);
   }
   if (can('cake')) {
     const theme = themeFor(fb);
@@ -572,26 +602,51 @@ export function autoChoreograph(music: MusicMap, launchers: Launcher[], o: AutoO
   }
   for (let h = fb * 2; h < (lastBeat - 1) * 2; h++) {
     const t = music.offset + (h / 2) * beat;
-    if (rnd() > P.finale * Math.max(0.6, o.density)) continue;
+    // 의뢰가 피날레를 요구하면 반 박마다 빠짐없이
+    if (!o.finaleSeconds && rnd() > P.finale * Math.max(0.6, o.density)) continue;
     const at = barges[h % barges.length];
     const theme = themeFor(Math.floor(h / 2));
     const finaleType: ShellType = mood === 'romantic' ? (h % 4 === 0 ? 'heart' : 'peony') : h % 4 === 0 ? 'chrysanthemum' : h % 4 === 2 ? 'crossette' : 'peony';
-    place({ t, at: at.id, type: typeOk(finaleType), size: sizeCap(h % 8 === 0 ? 7 : 5), colors: [theme[h % theme.length]] }, 2);
+    // 의뢰가 피날레를 요구하면 작은 알로 촘촘히 채우고, 예산을 줄일 때 피날레는 나중에 뺀다.
+    const size: Size = o.finaleSeconds ? (h % 8 === 0 ? 5 : 3) : h % 8 === 0 ? 7 : 5;
+    place({ t, at: at.id, type: typeOk(finaleType), size: sizeCap(size), colors: [theme[h % theme.length]] }, o.finaleSeconds ? 3.5 : 2);
   }
   const closeT = music.offset + lastBeat * beat;
   const closeType: ShellType = o.effects && mood === 'dramatic' && can('brocade') ? 'brocade' : can('willow') ? 'willow' : 'chrysanthemum';
-  for (const at of barges) place({ t: closeT, at: at.id, type: closeType, size: sizeCap(10), colors: colorsOk(['gold']).length ? ['gold'] : [pool[0]] }, 5);
+  const closeColors = colorsOk(['gold']).length ? (['gold'] as ColorName[]) : [pool[0]];
+  // 마지막 큰 버들은 예산의 4분의 1을 넘지 않는 크기로 (작은 예산을 마지막 한 방에 다 쓰지 않게)
+  let closeSize = sizeCap(10);
+  while (o.budget !== undefined && closeSize > 3 && barges.length * SHELL_COST[closeSize] > o.budget * 0.25) closeSize = stepSize(closeSize, -1);
+  for (const at of barges) {
+    // 긴 버들 마무리: 마지막을 내 불꽃(카무로)으로 덮는다.
+    const mine = o.closeCustom;
+    if (mine && place({ t: closeT, at: at.id, type: 'custom', custom: mine.id, size: sizeCap(mine.size), colors: closeColors }, 5)) continue;
+    place({ t: closeT, at: at.id, type: closeType, size: closeSize, colors: closeColors }, 5);
+  }
 
   // 마지막 몇 초 색 조건
   if (o.endColors) {
     const from = music.duration - o.endColors.seconds;
-    for (const c of out) if (c.t >= from) c.colors = [o.endColors.colors[0]];
+    // 케이크는 마지막 발이 터지는 때까지 본다 (앞서 시작해도 끝이 그 안에 들면).
+    const lastBurst = (c: Placed) => c.t + (c.type === 'cake' ? ((c.shots ?? 1) - 1) * (c.interval ?? 0) : 0);
+    for (const c of out) if (lastBurst(c) >= from - 0.01) c.colors = [o.endColors.colors[0]];
   }
 
-  // 예산: 넘치면 덜 중요하고 비싼 것부터 뺀다.
+  // 예산: 넘치면 먼저 덜 중요한 알부터 한 단계씩 작게 (하늘은 채운 채로), 그래도 넘치면 덜 중요하고 비싼 것부터 뺀다.
   if (o.budget !== undefined) {
     const limit = o.budget * 0.95;
     let total = out.reduce((s, c) => s + cueCost(c), 0);
+    const shrinkable = out
+      .filter((c) => c.importance < 4 && isShell(c.type) && c.type !== 'cake' && c.type !== 'custom' && c.size > 3)
+      .sort((a, b) => a.importance - b.importance || b.size - a.size);
+    for (const c of shrinkable) {
+      if (total <= limit) break;
+      while (total > limit && c.size > 3) {
+        const before = cueCost(c);
+        c.size = stepSize(c.size, -1);
+        total += cueCost(c) - before;
+      }
+    }
     const order = [...out].sort((a, b) => a.importance - b.importance || cueCost(b) - cueCost(a));
     for (const c of order) {
       if (total <= limit) break;

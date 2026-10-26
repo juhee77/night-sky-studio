@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { analyzeMusic, autoChoreograph, flatMusicMap } from '../src/auto.ts';
-import { showCost } from '../src/commission.ts';
+import { commissionAutoOptions } from '../src/autorules.ts';
+import { defaultBuild, buildToShell } from '../src/build.ts';
+import type { FireworkType } from '../src/catalog.ts';
+import { STARTER_TYPES, UNLOCK_PRICES, generateCommissions, showCost, weeklyChallenge } from '../src/commission.ts';
+import { newCustomShell } from '../src/custom.ts';
+import { scoreShow } from '../src/score.ts';
 import { expandShow, type Launcher, type Show } from '../src/show.ts';
 
 const RATE = 11025;
@@ -76,4 +81,40 @@ test('다리와 지상 틀이 있으면 피날레 나이아가라와 글자를 �
   assert.ok(cues.some((c) => c.type === 'niagara' && c.t > 45));
   assert.ok(cues.some((c) => c.type === 'lancework' && c.text === '축하해'));
   assert.ok(cues.filter((c) => c.t > 50).length > cues.filter((c) => c.t > 20 && c.t < 30).length);
+});
+
+test('모든 의뢰와 이번 주 도전: 자동 연출로 만들면 사람이 할 일을 뺀 조건은 다 지킨다', () => {
+  const kamuro = newCustomShell('kamuro', '긴 버들');
+  kamuro.layers[0].star = 'kamuro';
+  const pop = newCustomShell('pop', '차례로 톡톡');
+  pop.layers[0].sequence = { order: 'down', span: 1.2, mode: 'pop' };
+  const built = buildToShell(defaultBuild(5), newCustomShell('built', '공방 불꽃'));
+  const shells = [kamuro, pop, built];
+  const all = [...STARTER_TYPES, ...(Object.keys(UNLOCK_PRICES) as FireworkType[])];
+  const commissions = [
+    ...Array.from({ length: 30 }, (_, k) => generateCommissions(1000 + k, 100, 3)).flat(),
+    ...Array.from({ length: 20 }, (_, k) => weeklyChallenge(`2026-W${String(k + 1).padStart(2, '0')}`)),
+  ];
+  const seen = new Set<string>();
+  for (const c of commissions) {
+    const key = `${c.title}|${JSON.stringify(c.rules)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const show: Show = {
+      ...showOf([]),
+      music: { id: c.music, title: c.music, bpm: 112, offset: 0, duration: 90 },
+      venue: { preset: 'river-bridge-city', wind: c.wind },
+      seat: { id: c.seat },
+      commission: c,
+      customShells: Object.fromEntries(shells.map((s) => [s.id, s])),
+    };
+    const { options, manual } = commissionAutoOptions(c, show, all, shells);
+    show.cues = autoChoreograph(flatMusicMap(90, 112), launchers, { seed: 3, style: c.taste.style, density: 0.8, ...options });
+    const r = scoreShow(show, c);
+    const skip = new Set(manual.map((m) => m.rule.kind));
+    const broken = r.rules.filter((x) => !x.ok && !skip.has(x.rule.kind));
+    assert.deepEqual(broken.map((x) => `${x.label}: ${x.detail}`), [], c.title);
+    assert.ok(r.cost <= c.budget * 1.1, `${c.title} 값 ${r.cost}/${c.budget}`);
+  }
+  assert.ok(seen.size > 15);
 });
