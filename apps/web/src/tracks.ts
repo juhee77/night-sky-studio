@@ -1,7 +1,7 @@
 // 기본 곡 다섯 개. 음원 파일을 싣지 않고 브라우저 안에서 합성한다.
 // 저작권 걱정이 없고, 박자와 첫 박 위치를 정확히 알고 있어서 박자 찾기가 필요 없다.
 
-import { mulberry32 } from '@nss/engine';
+import { mulberry32, type MusicRef } from '@nss/engine';
 
 type Style = 'march' | 'calm' | 'drive' | 'waltz' | 'epic';
 
@@ -25,6 +25,13 @@ export const BASIC_TRACKS: BasicTrack[] = [
 
 /** 한 마디의 박 수 (왈츠는 3박자) */
 const beatsPerBar = (t: BasicTrack) => (t.style === 'waltz' ? 3 : 4);
+
+/** 기본 곡의 곡 정보: 빠르기·첫 박·박자표를 알고 있으므로 찾지 않고 그대로 쓴다. */
+export function trackRef(t: BasicTrack, duration = trackDuration(t)): MusicRef {
+  const ref: MusicRef = { id: t.id, title: t.title, bpm: t.bpm, offset: 0, duration: Math.round(duration * 1000) / 1000 };
+  if (beatsPerBar(t) === 3) ref.beatsPerBar = 3;
+  return ref;
+}
 
 /** 긴 여름밤의 짜임: 인트로 → 벌스 → 후렴 → 브릿지 → 후렴 → 끝 (자동 연출의 구간 찾기가 알아보기 좋게) */
 function epicPart(bar: number): 'intro' | 'verse' | 'chorus' | 'bridge' | 'outro' {

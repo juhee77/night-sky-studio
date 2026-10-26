@@ -49,7 +49,10 @@ test('만든 사람과 원작이 링크에 함께 간다', async () => {
   const back = await decodeShow(await encodeShow({ ...show, author: '주희', remixOf: { title: '여름밤', author: '지수' } }));
   assert.equal(back.author, '주희');
   assert.deepEqual(back.remixOf, { title: '여름밤', author: '지수' });
+  const waltz = await decodeShow(await encodeShow({ ...show, music: { ...show.music!, beatsPerBar: 3 } }));
+  assert.equal(waltz.music?.beatsPerBar, 3);
   const plain = await decodeShow(await encodeShow(show));
+  assert.equal(plain.music?.beatsPerBar, undefined);
   assert.equal(plain.author, undefined);
   assert.equal(plain.remixOf, undefined);
 });

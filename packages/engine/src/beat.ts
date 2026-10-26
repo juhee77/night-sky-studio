@@ -8,6 +8,8 @@ export interface TempoResult {
   offset: number;
   /** 0~1. 낮으면 사용자에게 직접 맞춰 달라고 안내한다. */
   confidence: number;
+  /** 한 마디의 박 수 (4/4면 4, 3/4면 3) */
+  beatsPerBar: 3 | 4;
 }
 
 const HOP = 512;
@@ -82,33 +84,67 @@ function combScore(env: Float32Array, period: number, phase: number): number {
   return n ? s / n : 0;
 }
 
+/**
+ * 마디: 박마다 온셋 세기를 모아, 센 박(마디 첫 박)이 세 박마다 도는지 네 박마다 도는지 본다.
+ * 박을 3개씩·4개씩 묶어 자리마다 평균을 내면, 맞는 묶음에서만 한 자리가 두드러진다.
+ */
+function meterOf(env: Float32Array, period: number, phase: number): 3 | 4 {
+  const strength: number[] = [];
+  for (let x = phase; x < env.length - 2; x += period) {
+    const i = Math.round(x);
+    strength.push(Math.max(env[i - 1] ?? 0, env[i], env[i + 1] ?? 0, env[i + 2] ?? 0));
+  }
+  if (strength.length < 12) return 4;
+  const contrast = (m: number) => {
+    const sums = new Array(m).fill(0);
+    const counts = new Array(m).fill(0);
+    strength.forEach((v, k) => {
+      sums[k % m] += v;
+      counts[k % m]++;
+    });
+    const means = sums.map((v, k) => v / Math.max(1, counts[k])).sort((a, b) => b - a);
+    const rest = means.slice(1).reduce((a, b) => a + b, 0) / (m - 1);
+    return (means[0] - rest) / Math.max(1e-9, means[0]);
+  };
+  // 4/4가 흔하므로 3/4는 분명할 때만
+  return contrast(3) > contrast(4) * 1.25 ? 3 : 4;
+}
+
 export function detectTempo(samples: Float32Array, sampleRate: number): TempoResult {
   const raw = onsetEnvelope(samples, sampleRate);
   const frameRate = raw.frameRate;
   const env = blur(raw.env);
   const minLag = Math.floor((60 / MAX_BPM) * frameRate);
   const maxLag = Math.ceil((60 / MIN_BPM) * frameRate);
-  if (env.length < maxLag * 4) return { bpm: 120, offset: 0, confidence: 0 };
+  if (env.length < maxLag * 4) return { bpm: 120, offset: 0, confidence: 0, beatsPerBar: 4 };
 
   let energy = 0;
   for (const v of env) energy += v * v;
-  if (energy === 0) return { bpm: 120, offset: 0, confidence: 0 };
+  if (energy === 0) return { bpm: 120, offset: 0, confidence: 0, beatsPerBar: 4 };
 
-  // 주기마다 자기 자신과 겹쳐 본다. 120 BPM 근처를 조금 더 믿는다 (두 배·절반 오류 줄이기).
-  const scores = new Float32Array(maxLag + 2);
+  // 자기 자신과 겹쳐 보기 (마디 길이까지: 한 박의 네 배)
+  const corr = new Float32Array(maxLag * 4 + 2);
+  for (let lag = minLag; lag < corr.length && lag < env.length; lag++) {
+    let s = 0;
+    for (let i = lag; i < env.length; i++) s += env[i] * env[i - lag];
+    corr[lag] = s / energy / (1 - lag / env.length);
+  }
+  const at = (lag: number) => {
+    const i = Math.floor(lag);
+    return (corr[i] ?? 0) + ((corr[i + 1] ?? 0) - (corr[i] ?? 0)) * (lag - i);
+  };
+  // 한 박 주기가 맞으면 두 박(4/4 반 마디)이나 세 박(3/4 한 마디) 주기에서도 맞는다.
+  // 8분음표 반주처럼 빠른 주기만 맞는 것보다, 박과 마디가 함께 맞는 주기를 믿는다.
+  // 120 BPM 근처를 조금 더 믿는다 (두 배·절반 오류 줄이기).
+  const score = (lag: number) => at(lag) + 0.6 * Math.max(at(2 * lag), at(3 * lag)) + 0.3 * at(4 * lag);
   let bestLag = minLag;
   let best = -Infinity;
   for (let lag = minLag; lag <= maxLag; lag++) {
-    let s = 0;
-    for (let i = lag; i < env.length; i++) s += env[i] * env[i - lag];
-    // 두 배 주기에서도 맞으면 더 믿는다.
-    for (let i = 2 * lag; i < env.length; i += 1) s += 0.5 * env[i] * env[i - 2 * lag];
-    s /= energy;
-    scores[lag] = s;
     const bpm = (60 * frameRate) / lag;
-    const prior = Math.exp(-0.5 * Math.pow(Math.log2(bpm / 120) / 0.9, 2));
-    if (s * prior > best) {
-      best = s * prior;
+    const prior = Math.exp(-0.5 * Math.pow(Math.log2(bpm / 110) / 0.9, 2));
+    const s = score(lag) * prior;
+    if (s > best) {
+      best = s;
       bestLag = lag;
     }
   }
@@ -137,7 +173,8 @@ export function detectTempo(samples: Float32Array, sampleRate: number): TempoRes
   const confidence = Math.max(0, Math.min(1, (best2 / meanScore - 1) / 3));
   // 프레임 f의 온셋은 그 프레임 구간 안에서 일어났으므로 구간 가운데를 시각으로 본다.
   const offset = ((phase + 0.5) / frameRate) % (60 / bpm);
-  return { bpm: Math.round(bpm * 10) / 10, offset, confidence };
+  const beatsPerBar = meterOf(raw.env, period, phase);
+  return { bpm: Math.round(bpm * 10) / 10, offset, confidence, beatsPerBar };
 }
 
 /**

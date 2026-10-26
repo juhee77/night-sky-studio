@@ -61,7 +61,8 @@ export async function importMusicFile(file: File): Promise<ImportedMusic> {
   const id = await fileFingerprint(file);
   const name = file.name.replace(/\.[^.]+$/, '');
   const ref: MusicRef = { id, title: name, bpm: tempo.bpm, offset: round3(tempo.offset), duration: round3(buffer.duration) };
-  await putMusic({ id, name, blob: file, bpm: ref.bpm, offset: ref.offset, duration: ref.duration });
+  if (tempo.beatsPerBar === 3) ref.beatsPerBar = 3;
+  await putMusic({ id, name, blob: file, bpm: ref.bpm, offset: ref.offset, duration: ref.duration, ...(ref.beatsPerBar ? { beatsPerBar: ref.beatsPerBar } : {}) });
   return { ref, buffer, confidence: tempo.confidence };
 }
 

@@ -15,6 +15,8 @@ import type { Cue, Launcher } from './show.ts';
 export interface MusicMap {
   bpm: number;
   offset: number;
+  /** 한 마디의 박 수 (없으면 4) */
+  beatsPerBar?: number;
   duration: number;
   /** 박마다 소리 크기 (0~1, 곡 안에서 상대값) */
   energy: Float32Array;
@@ -50,27 +52,27 @@ export interface Section {
 }
 
 /** 소리 파일 없이(음악 없음) 쓸 때: 천천히 커지는 가상의 곡 */
-export function flatMusicMap(duration: number, bpm = 120, offset = 0): MusicMap {
+export function flatMusicMap(duration: number, bpm = 120, offset = 0, beatsPerBar = 4): MusicMap {
   const beat = 60 / bpm;
   const n = Math.max(1, Math.floor((duration - offset) / beat));
   const energy = new Float32Array(n);
   const accent = new Float32Array(n);
   for (let i = 0; i < n; i++) {
     energy[i] = 0.3 + 0.6 * (i / n);
-    accent[i] = i % 4 === 0 ? 1 : 0.3;
+    accent[i] = i % beatsPerBar === 0 ? 1 : 0.3;
   }
   // 곡이 없으면 흔한 짜임으로 가정한다: 인트로 → 벌스 → 후렴 → 끝
-  const at = (r: number) => offset + Math.round((n * r) / 4) * 4 * beat;
+  const at = (r: number) => offset + Math.round((n * r) / beatsPerBar) * beatsPerBar * beat;
   const sections: Section[] = [
     { kind: 'intro', start: offset, end: at(0.12), energy: 0.3 },
     { kind: 'verse', start: at(0.12), end: at(0.5), energy: 0.5 },
     { kind: 'chorus', start: at(0.5), end: at(0.88), energy: 0.75 },
     { kind: 'outro', start: at(0.88), end: duration, energy: 0.6 },
   ];
-  return { bpm, offset, duration, energy, accent, sections, drops: [], hushes: [] };
+  return { bpm, offset, beatsPerBar, duration, energy, accent, sections, drops: [], hushes: [] };
 }
 
-export function analyzeMusic(samples: Float32Array, sampleRate: number, bpm: number, offset: number): MusicMap {
+export function analyzeMusic(samples: Float32Array, sampleRate: number, bpm: number, offset: number, beatsPerBar = 4): MusicMap {
   const duration = samples.length / sampleRate;
   const beat = 60 / bpm;
   const n = Math.max(1, Math.floor((duration - offset) / beat));
@@ -110,8 +112,8 @@ export function analyzeMusic(samples: Float32Array, sampleRate: number, bpm: num
   normalize(smooth);
   const { drops, hushes } = findDrops(raw, accent, beat, offset);
   return {
-    bpm, offset, duration, energy: smooth, accent, high, low,
-    sections: findSections(raw, high, low, beat, offset, duration),
+    bpm, offset, beatsPerBar, duration, energy: smooth, accent, high, low,
+    sections: findSections(raw, high, low, beat, offset, duration, beatsPerBar),
     drops, hushes,
   };
 }
@@ -185,10 +187,10 @@ function findDrops(energy: Float32Array, accent: Float32Array, beat: number, off
  * 구간 찾기: 마디마다 [크기, 높은 소리, 낮은 소리]를 보고, 앞 두 마디와 뒤 두 마디가 크게 달라지는 곳을 경계로 삼는다.
  * 이름은 크기로 붙인다: 처음·끝의 조용한 구간은 인트로·끝, 큰 구간은 후렴, 후렴 뒤의 조용한 구간은 브릿지, 나머지는 벌스.
  */
-function findSections(energy: Float32Array, high: Float32Array, low: Float32Array, beat: number, offset: number, duration: number): Section[] {
-  const bars = Math.floor(energy.length / 4);
+function findSections(energy: Float32Array, high: Float32Array, low: Float32Array, beat: number, offset: number, duration: number, per: number): Section[] {
+  const bars = Math.floor(energy.length / per);
   if (bars < 4) return [{ kind: 'verse', start: offset, end: duration, energy: mean(energy, 0, energy.length) }];
-  const bar = (a: Float32Array) => Array.from({ length: bars }, (_, b) => mean(a, b * 4, b * 4 + 4));
+  const bar = (a: Float32Array) => Array.from({ length: bars }, (_, b) => mean(a, b * per, b * per + per));
   const E = bar(energy);
   const H = bar(high);
   const L = bar(low);
@@ -223,8 +225,8 @@ function findSections(energy: Float32Array, high: Float32Array, low: Float32Arra
     else kind = 'verse';
     if (kind === 'chorus') seenChorus = true;
     if (kind === 'verse' && verseTilt === null) verseTilt = x.tilt;
-    const start = k === 0 ? offset : offset + x.b0 * 4 * beat;
-    const end = k === secs.length - 1 ? duration : offset + x.b1 * 4 * beat;
+    const start = k === 0 ? offset : offset + x.b0 * per * beat;
+    const end = k === secs.length - 1 ? duration : offset + x.b1 * per * beat;
     return { kind, start: Math.round(start * 1000) / 1000, end: Math.round(end * 1000) / 1000, energy: Math.round(x.e * 100) / 100 };
   });
   return out;
@@ -391,6 +393,8 @@ export function autoChoreograph(music: MusicMap, launchers: Launcher[], o: AutoO
   if (!barges.length) return [];
 
   const beat = 60 / music.bpm;
+  /** 한 마디의 박 수 (마디 첫 박에 크게) */
+  const bar = music.beatsPerBar ?? 4;
   const n = music.energy.length;
   const end = music.duration - 1.5;
   // 의뢰가 피날레 길이를 정했으면 그만큼(채점이 보는 여유 2초 포함) 앞당긴다.
@@ -480,7 +484,7 @@ export function autoChoreograph(music: MusicMap, launchers: Launcher[], o: AutoO
     const t = music.offset + i * beat;
     if (t >= finaleStart) break;
     const e = music.energy[i];
-    const downbeat = i % 4 === 0;
+    const downbeat = i % bar === 0;
     const theme = themeFor(i);
     const color = [theme[i % theme.length]];
 
@@ -536,7 +540,7 @@ export function autoChoreograph(music: MusicMap, launchers: Launcher[], o: AutoO
 
     if (cake) {
       place({ t, at: pick(barges).id, type: 'cake', size: sizeCap(3), colors: theme, shots: 12, interval: 0.12, pattern: pick(['fan', 'zigzag'] as const) }, 2);
-    } else if (downbeat && e > 0.65 && i % 8 === 0) {
+    } else if (downbeat && e > 0.65 && i % (2 * bar) === 0) {
       // 큰 마디 첫 박: 양쪽 바지선에서 같은 불꽃을 마주 보게
       place({ t, at: left.id, type, size, colors: color, angle: -10, ...rise }, 3);
       place({ t, at: right.id, type, size, colors: color, angle: 10, ...rise }, 3);
@@ -550,7 +554,7 @@ export function autoChoreograph(music: MusicMap, launchers: Launcher[], o: AutoO
 
   // 꼭 넣어야 하는 불꽃: 조용한 첫 박부터, 가운데·양쪽 바지선과 반 박 뒤까지 차례로 찾아 놓일 때까지 (두 번).
   const quiet = [...Array(n).keys()]
-    .filter((i) => i % 4 === 0 && music.offset + i * beat < finaleStart && music.offset + i * beat > 6)
+    .filter((i) => i % bar === 0 && music.offset + i * beat < finaleStart && music.offset + i * beat > 6)
     .sort((a, b) => music.energy[a] - music.energy[b]);
   const placeQuietly = (make: (t: number, at: string, i: number) => Omit<Cue, 'colors'> & { colors?: ColorName[] }, times: number) => {
     let done = 0;
@@ -583,7 +587,7 @@ export function autoChoreograph(music: MusicMap, launchers: Launcher[], o: AutoO
     const mid = Math.floor(n * 0.45);
     let best = mid;
     for (let i = mid - 8; i < mid + 8; i++) if (i > 0 && i < n && music.energy[i] < music.energy[best]) best = i;
-    const t = music.offset + Math.max(0, best - (best % 4)) * beat;
+    const t = music.offset + Math.max(0, best - (best % bar)) * beat;
     if (t < finaleStart - 4) place({ t, at: frame.id, type: 'lancework', size: 5, colors: [themeFor(best)[0]], text: o.text, len: 10 }, 4);
   }
 
