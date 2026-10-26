@@ -253,7 +253,8 @@ $<HTMLButtonElement>('help-restart').addEventListener('click', () => {
   say(`처음 단계로 돌아갔습니다. 다음 할 일: ${progress.next?.todo}`);
 });
 // 첫 방문: 예시 쇼부터 보여 주고 자동 연출로 잇는다 (boot에서 연다).
-const intro = new Intro($('intro'), $('intro-end'), {
+const intro = new Intro($('intro'), $('intro-end'), $('arrive'), {
+  edit: () => setEditing(true),
   watch: () => startWatching(false),
   auto: () => el.autoBtn.click(),
   guide: () => guide.open(),
@@ -881,8 +882,10 @@ async function boot(): Promise<void> {
   }
   editor.emit('show');
   el.saveState.textContent = '저장됨';
-  // 처음 연 브라우저: 예시 쇼밖에 없으면 그 쇼부터 보여 주고, 받은 쇼가 있으면 시작 안내를 띄운다.
-  if (Intro.isNew() && !document.querySelector('dialog[open]')) {
+  // 상영관에서 받은 쇼를 가져왔으면 그에 맞는 안내를, 처음 연 브라우저면 예시 쇼부터 보여 준다.
+  const arrival = Intro.takeArrival();
+  if (arrival) intro.arrived(arrival);
+  else if (Intro.isNew() && !document.querySelector('dialog[open]')) {
     if (!rec) intro.open();
     else guide.openIfNew();
   }

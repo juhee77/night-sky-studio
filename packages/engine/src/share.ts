@@ -22,6 +22,9 @@ interface Packed {
   v: 1;
   seed: number;
   ti?: string;
+  /** 만든 사람, 원작 [제목, 만든 사람] */
+  au?: string;
+  rx?: [string, string?];
   mu?: [string, string, number, number, number];
   ve: [string, number?, number?, number?, number?];
   cd?: 1;
@@ -65,6 +68,8 @@ export function packShow(show: Show): Packed {
     ex: [],
   };
   if (show.title) p.ti = show.title;
+  if (show.author) p.au = show.author;
+  if (show.remixOf) p.rx = show.remixOf.author ? [show.remixOf.title, show.remixOf.author] : [show.remixOf.title];
   if (show.music) {
     const m = show.music;
     p.mu = [m.id, m.title, round(m.bpm, 2), round(m.offset), round(m.duration, 2)];
@@ -155,6 +160,11 @@ export function unpackShow(p: Packed): Show {
     cues,
   };
   if (p.ti) show.title = p.ti.slice(0, 60);
+  if (p.au) show.author = String(p.au).slice(0, 24);
+  if (Array.isArray(p.rx) && p.rx[0]) {
+    show.remixOf = { title: String(p.rx[0]).slice(0, 60) };
+    if (p.rx[1]) show.remixOf.author = String(p.rx[1]).slice(0, 24);
+  }
   if (p.mu) {
     const [id, title, bpm, offset, duration] = p.mu;
     show.music = { id, title, bpm, offset, duration };

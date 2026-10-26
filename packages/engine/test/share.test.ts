@@ -45,6 +45,15 @@ test('링크로 줄였다가 풀면 같은 쇼가 된다', async () => {
   assert.equal(a.stateHash(), b.stateHash());
 });
 
+test('만든 사람과 원작이 링크에 함께 간다', async () => {
+  const back = await decodeShow(await encodeShow({ ...show, author: '주희', remixOf: { title: '여름밤', author: '지수' } }));
+  assert.equal(back.author, '주희');
+  assert.deepEqual(back.remixOf, { title: '여름밤', author: '지수' });
+  const plain = await decodeShow(await encodeShow(show));
+  assert.equal(plain.author, undefined);
+  assert.equal(plain.remixOf, undefined);
+});
+
 test('불꽃 300개짜리 5분 쇼도 링크가 8,000자를 넘지 않는다', async () => {
   const cues = Array.from({ length: 300 }, (_, i) => ({
     t: 5 + i * 0.97, at: 'barge-1', type: (['peony', 'chrysanthemum', 'willow'] as const)[i % 3], size: 5 as const, colors: ['gold' as const],

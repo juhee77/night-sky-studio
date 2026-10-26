@@ -64,6 +64,27 @@ test('공유 링크를 만들면 상영관에서 같은 쇼가 열린다', async
   await expect(page.getByRole('button', { name: /쇼 보기/ })).toBeVisible();
 });
 
+test('공유 루프: 만든 사람이 보이고, 받은 쇼를 고쳐 다시 보내면 원작이 함께 간다', async ({ page }) => {
+  await open(page);
+  await page.locator('#share-btn').click();
+  await page.locator('#share-author').fill('주희');
+  await expect(page.locator('#share-link')).toHaveValue(/\/v\/#s=/);
+  await page.waitForTimeout(500);
+  const link = await page.locator('#share-link').inputValue();
+  await page.goto(link);
+  await expect(page.locator('#show-by')).toHaveText(/주희님이 만든 쇼/, { timeout: 15_000 });
+  await page.getByRole('button', { name: /쇼 보기/ }).click();
+  await expect(page.locator('#corner-make')).toBeVisible();
+  await page.locator('#import').click();
+  // 편집기: 받은 쇼 안내가 뜨고, 다시 공유하면 원작이 표시된다
+  await expect(page.locator('#arrive')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('#arrive-title')).toHaveText('받은 쇼를 가져왔습니다');
+  await page.locator('#arrive-go').click();
+  await expect(page.locator('#timeline')).toBeVisible();
+  await page.locator('#share-btn').click();
+  await expect(page.locator('#share-remix')).toContainText('주희님');
+});
+
 test('처음에는 꼭 필요한 버튼만 보이고, 할 일을 해내면 다음 기능이 열린다', async ({ page }) => {
   await open(page);
   await expect(page.locator('#workshop-btn')).toBeHidden();

@@ -4,11 +4,27 @@ import { encodeShow } from '@nss/engine';
 import type { Editor } from './editor.ts';
 import { fmtTime } from './format.ts';
 import { remoteEnabled, shortLink } from './remote.ts';
-import { el } from './ui.ts';
+import { $, el } from './ui.ts';
+
+const AUTHOR = 'nss:author';
+
+/** 이 기기에서 쓰는 만든 사람 이름 */
+function savedAuthor(): string {
+  try {
+    return localStorage.getItem(AUTHOR) ?? '';
+  } catch {
+    return '';
+  }
+}
 
 export function wireShare(ctx: { editor: Editor }): void {
-  el.shareBtn.addEventListener('click', async () => {
-    const code = await encodeShow(ctx.editor.show);
+  const authorInput = $<HTMLInputElement>('share-author');
+  const remixNote = $<HTMLParagraphElement>('share-remix');
+
+  /** 지금 쇼와 만든 사람 이름으로 링크를 만든다 */
+  async function build(): Promise<void> {
+    const author = authorInput.value.trim().slice(0, 24);
+    const code = await encodeShow({ ...ctx.editor.show, author: author || undefined });
     const base = new URL(`${import.meta.env.BASE_URL}v/`, location.origin);
     const link = `${base.href}#s=${code}`;
     el.shareLink.value = link;
@@ -19,12 +35,30 @@ export function wireShare(ctx: { editor: Editor }): void {
       notes.push(`음악 파일은 링크에 들어가지 않습니다. 받는 사람이 같은 파일(「${m.title}」, ${fmtTime(m.duration).replace(/\.\d+$/, '')})을 골라야 함께 들립니다. 바로 들려주려면 기본 곡을 쓰세요.`);
     }
     el.shareInfo.textContent = notes.join(' ');
-    el.shareNative.hidden = !navigator.share;
-    el.shareShort.hidden = !remoteEnabled();
     el.shareShort.disabled = false;
     el.shareShort.dataset.code = code;
+  }
+
+  el.shareBtn.addEventListener('click', async () => {
+    authorInput.value = savedAuthor();
+    const r = ctx.editor.show.remixOf;
+    remixNote.hidden = !r;
+    if (r) remixNote.textContent = `원작 「${r.title}」${r.author ? `(${r.author}님)` : ''}도 함께 표시됩니다.`;
+    await build();
+    el.shareNative.hidden = !navigator.share;
+    el.shareShort.hidden = !remoteEnabled();
     el.shareDialog.showModal();
     el.shareLink.select();
+  });
+  let timer = 0;
+  authorInput.addEventListener('input', () => {
+    try {
+      localStorage.setItem(AUTHOR, authorInput.value.trim().slice(0, 24));
+    } catch {
+      // 저장하지 못하면 이번 링크에만 넣는다.
+    }
+    clearTimeout(timer);
+    timer = window.setTimeout(() => void build(), 250);
   });
   el.shareCopy.addEventListener('click', async () => {
     try {
