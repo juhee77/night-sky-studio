@@ -52,11 +52,36 @@ class GalleryTest {
     }
 
     private long upload(String auth, String kind, String title, String data) throws Exception {
+        return upload(auth, kind, title, data, null);
+    }
+
+    private long upload(String auth, String kind, String title, String data, String challenge) throws Exception {
+        var week = challenge == null ? "" : ",\"challenge\":\"" + challenge + "\"";
         var res = mvc.perform(post("/api/gallery").header("Authorization", auth).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"kind\":\"" + kind + "\",\"title\":\"" + title + "\",\"data\":\"" + data.replace("\"", "\\\"") + "\"}"))
+                        .content("{\"kind\":\"" + kind + "\",\"title\":\"" + title + "\",\"data\":\"" + data.replace("\"", "\\\"") + "\"" + week + "}"))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         return Long.parseLong(res.replaceAll("\\D", ""));
+    }
+
+    @Test
+    void 이번_주_도전에_낸_쇼는_그_주차로만_모이고_좋아요_순으로_줄선다() throws Exception {
+        var a = signup();
+        var b = signup();
+        var show = pack("{\"v\":1,\"ti\":\"도전\"}");
+        var week = "2026-W44";
+        long first = upload(a, "show", "도전 하나", show, week);
+        long second = upload(b, "show", "도전 둘", show, week);
+        upload(a, "show", "다른 주", show, "2026-W43");
+        upload(a, "show", "그냥 쇼", show);
+        mvc.perform(post("/api/gallery/" + second + "/like").header("Authorization", a)).andExpect(status().isOk());
+        mvc.perform(get("/api/gallery").param("challenge", week).header("Authorization", b))
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].id").value(second))
+                .andExpect(jsonPath("$[1].id").value(first))
+                .andExpect(jsonPath("$[0].challenge").value(week));
+        // 주차 모양이 아니면 받지 않는다
+        mvc.perform(get("/api/gallery").param("challenge", "이번주").header("Authorization", b)).andExpect(status().isBadRequest());
     }
 
     @Test

@@ -120,3 +120,21 @@ test('공작소·발사장·도움말 창이 열리고 닫힌다', async ({ page
   await page.getByRole('tab', { name: '제작 공방' }).click();
   await expect(page.locator('#forge-section')).toBeVisible();
 });
+
+test('이번 주 도전: 받아서 채점하면 점수가 남고, 의뢰처럼 불꽃이 잠기지 않는다', async ({ page }) => {
+  await open(page);
+  await page.locator('#help-btn').click();
+  await page.locator('#help-open-all').click();
+  await page.keyboard.press('Escape');
+  await page.locator('#office-btn').click();
+  await expect(page.locator('#board-dialog')).toContainText('이번 주 도전');
+  await page.locator('[data-challenge]').click();
+  await expect(page.locator('#commission-bar')).toContainText('이번 주 도전');
+  await page.locator('#auto-btn').click();
+  await page.locator('#auto-run').click();
+  await page.locator('#commission-bar [data-act="deliver"]').click();
+  await page.locator('#result-dialog [data-act="confirm"]').click();
+  await expect(page.locator('#toast')).toContainText(/기록/);
+  // 다시 낼 수 있다 (납품 완료로 잠기지 않는다)
+  await expect(page.locator('#commission-bar [data-act="deliver"]')).toBeVisible();
+});

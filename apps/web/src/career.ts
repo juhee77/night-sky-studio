@@ -32,13 +32,15 @@ export interface CareerState {
   history: HistoryEntry[];
   /** 개발비를 내서 의뢰에 쓸 수 있게 된 내 불꽃 id */
   developed: string[];
+  /** 이번 주 도전: 주차마다 내 최고 점수 */
+  challenges: Record<string, { total: number; stars: number; at: number }>;
 }
 
 const KEY = 'nss:career';
 const TIER_LABEL = ['동네 의뢰', '지역 의뢰', '큰 행사'];
 
 function fresh(): CareerState {
-  return { money: 100, reputation: 0, unlocked: [...STARTER_TYPES], boardSeed: Date.now() % 1e9, taken: [], history: [], developed: [] };
+  return { money: 100, reputation: 0, unlocked: [...STARTER_TYPES], boardSeed: Date.now() % 1e9, taken: [], history: [], developed: [], challenges: {} };
 }
 
 export class Career {
@@ -114,6 +116,17 @@ export class Career {
     this.state.unlocked.push(t);
     this.save();
     return true;
+  }
+
+  /** 이번 주 도전 점수를 적는다. 최고 점수만 남기고, 올랐는지 알려 준다. */
+  recordChallenge(week: string, total: number, stars: number): { best: number; improved: boolean } {
+    const prev = this.state.challenges[week];
+    const improved = !prev || total > prev.total;
+    if (improved) {
+      this.state.challenges[week] = { total, stars, at: Date.now() };
+      this.save();
+    }
+    return { best: Math.max(total, prev?.total ?? 0), improved };
   }
 
   /** 납품 결과를 장부에 적는다. 같은 의뢰는 한 번만 받는다. */

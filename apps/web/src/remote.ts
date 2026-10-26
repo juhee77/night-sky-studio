@@ -104,9 +104,11 @@ export interface GalleryItem {
   createdAt: string;
 }
 
-export const galleryList = (kind: GalleryKind, sort: 'new' | 'top') => call<GalleryItem[]>('GET', `/api/gallery?kind=${kind}&sort=${sort}`);
+export const galleryList = (kind: GalleryKind, sort: 'new' | 'top', challenge?: string) =>
+  call<GalleryItem[]>('GET', `/api/gallery?kind=${kind}&sort=${sort}${challenge ? `&challenge=${challenge}` : ''}`);
 export const galleryGet = (id: number) => call<{ item: GalleryItem; data: string }>('GET', `/api/gallery/${id}`);
-export const galleryUpload = (kind: GalleryKind, title: string, data: string) => call<{ id: number }>('POST', '/api/gallery', { kind, title, data });
+export const galleryUpload = (kind: GalleryKind, title: string, data: string, challenge?: string) =>
+  call<{ id: number }>('POST', '/api/gallery', { kind, title, data, ...(challenge ? { challenge } : {}) });
 export const galleryLike = (id: number) => call<{ likes: number; liked: boolean }>('POST', `/api/gallery/${id}/like`);
 export const galleryReport = (id: number) => call<{ hidden: boolean }>('POST', `/api/gallery/${id}/report`);
 export const galleryDelete = (id: number) => call('DELETE', `/api/gallery/${id}`);
