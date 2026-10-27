@@ -700,9 +700,12 @@ wireShare({ editor });
 // ── 키보드 ──
 const typing = (t: EventTarget | null) =>
   t instanceof HTMLInputElement || t instanceof HTMLSelectElement || t instanceof HTMLTextAreaElement;
+/** 버튼·링크에 초점이 있으면 Space·Enter는 그것을 누르는 키다 (재생 단축키로 가로채지 않는다). */
+const pressable = (t: EventTarget | null) => t instanceof HTMLButtonElement || t instanceof HTMLAnchorElement || (t instanceof HTMLElement && t.getAttribute('role') === 'tab');
 
 document.addEventListener('keydown', (e) => {
   if (typing(e.target) || document.querySelector('dialog[open]')) return;
+  if ((e.code === 'Space' || e.key === 'Enter') && pressable(e.target)) return;
   if (document.body.classList.contains('watching')) {
     if (e.code === 'Space') {
       e.preventDefault();

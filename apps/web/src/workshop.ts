@@ -425,9 +425,11 @@ export class Workshop {
         ${Object.keys(EFFECTS).map((k) => `<button type="button" data-effect="${k}">${k}</button>`).join('')}
       </div></div>
 
-      <div class="ws-tabs" role="tablist">
-        <button type="button" role="tab" data-layer="0" aria-selected="${this.layer === 0}">바깥 층</button>
-        <button type="button" role="tab" data-layer="1" aria-selected="${this.layer === 1}" ${hasPistil ? '' : 'disabled'}>심(芯)</button>
+      <div class="ws-tabs">
+        <span class="ws-tabs" role="tablist" aria-label="층">
+          <button type="button" role="tab" data-layer="0" aria-selected="${this.layer === 0}">바깥 층</button>
+          <button type="button" role="tab" data-layer="1" aria-selected="${this.layer === 1}" ${hasPistil ? '' : 'disabled'}>심(芯)</button>
+        </span>
         <label class="check-label"><input type="checkbox" id="ws-pistil" ${hasPistil ? 'checked' : ''} /> 심 넣기</label>
       </div>
 
