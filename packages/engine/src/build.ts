@@ -193,7 +193,9 @@ export function buildReport(b: ShellBuild): BuildReport {
     const cap = starCapacity(b.size, b.star.sizeMm);
     if (b.stars.length > cap) warnings.push(`${b.star.sizeMm}mm 별은 이 알에 ${cap}알까지만 들어갑니다.`);
     if (b.star.dryHours < 24) warnings.push('별이 덜 말라 일부가 불붙지 않습니다.');
-    if (b.star.method === 'cut') warnings.push('자른 별은 크기가 들쭉날쭉해 꺼지는 때가 제각각입니다.');
+    const cut = methodShare(b.star, 'cut');
+    if (cut >= 1) warnings.push('자른 별은 크기가 들쭉날쭉해 꺼지는 때가 제각각입니다.');
+    else if (cut >= 0.2) warnings.push(`자른 별이 ${Math.round(cut * 100)}% 섞여 꺼지는 때가 조금 들쭉날쭉합니다.`);
   }
   const a = b.assembly;
   if (a && a.chargeOffset > 0.3) warnings.push('할약이 한쪽으로 몰려 그쪽 별만 멀리 날아갑니다.');
@@ -327,6 +329,9 @@ export function normalizeBuild(raw: ShellBuild): ShellBuild {
             sizeMm: clamp(raw.star.sizeMm, 5, 25),
             dryHours: clamp(raw.star.dryHours, 0, 96),
             ...(raw.star.handCare !== undefined ? { handCare: clamp(raw.star.handCare, 0, 1) } : {}),
+            ...(raw.star.mix
+              ? { mix: Object.fromEntries((['rolled', 'pumped', 'cut'] as const).filter((m) => (raw.star!.mix![m] ?? 0) > 0).map((m) => [m, Math.round(clamp(raw.star!.mix![m]!, 0, 2000))])) }
+              : {}),
             ...(raw.star.inner ? { inner: { color: raw.star.inner.color, outerShare: clamp(raw.star.inner.outerShare, 0.1, 0.9) } } : {}),
           },
         }
@@ -362,6 +367,15 @@ export interface StarMaking {
   inner?: { color: ColorName; outerShare: number };
   /** 굴림판에서 손으로 굴린 고르기 (0~1). 없으면 방식만으로 정한다 */
   handCare?: number;
+  /** 여러 방식으로 만든 별을 섞었으면 방식마다 알 수 (작업대). method는 가장 많은 방식 */
+  mix?: Partial<Record<StarMethod, number>>;
+}
+
+/** 섞인 별에서 이 방식 별의 몫 (0~1). 섞지 않았으면 그 방식이면 1, 아니면 0 */
+export function methodShare(s: StarMaking, m: StarMethod): number {
+  if (!s.mix) return s.method === m ? 1 : 0;
+  const total = Object.values(s.mix).reduce((a, b) => a + (b ?? 0), 0);
+  return total ? (s.mix[m] ?? 0) / total : 0;
 }
 
 export const STAR_METHOD_LABEL: Record<StarMethod, string> = { rolled: '굴리기', pumped: '찍기', cut: '자르기' };
@@ -391,7 +405,14 @@ export interface StarEffect {
 }
 
 export function starEffect(s: StarMaking): StarEffect {
-  const method = { rolled: { care: 0.9, cost: 1.25 }, pumped: { care: 0.65, cost: 1 }, cut: { care: 0.25, cost: 0.8 } }[s.method];
+  // 섞인 별은 방식마다 몫만큼 섞어 본다.
+  const M = { rolled: { care: 0.9, cost: 1.25 }, pumped: { care: 0.65, cost: 1 }, cut: { care: 0.25, cost: 0.8 } };
+  const method = { care: 0, cost: 0 };
+  for (const m of ['rolled', 'pumped', 'cut'] as StarMethod[]) {
+    const k = methodShare(s, m);
+    method.care += M[m].care * k;
+    method.cost += M[m].cost * k;
+  }
   const dry = Math.min(1, s.dryHours / 48);
   // 손으로 고르게 굴리면 별 크기가 고르고, 들쭉날쭉 굴리면 방식이 좋아도 고르지 않다.
   const hand = s.handCare === undefined ? 1 : 0.55 + 0.6 * s.handCare;

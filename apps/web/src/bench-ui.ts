@@ -85,6 +85,8 @@ function stepFor(title: string, cause: string): BenchStep {
 export interface BenchHost {
   /** 작업대가 바뀌면 (미리보기·서랍 저장용 설계를 다시 만든다) */
   changed(): void;
+  /** 공정을 옮겼다 (이어 만들 수 있게 기억한다) */
+  stepped?(step: BenchStep): void;
   shell(): CustomShell;
   save(): void;
 }
@@ -132,6 +134,7 @@ export class BenchUI {
 
   private go(step: BenchStep): void {
     this.step = step;
+    this.host.stepped?.(step);
     this.render();
   }
 
@@ -330,6 +333,7 @@ export class BenchUI {
         q('#bench-stars-reset')!.addEventListener('click', () => {
           b.stars.count = 0;
           b.stars.care = 0;
+          b.stars.made = {};
           b.placed = [];
           this.changed(true);
         });
