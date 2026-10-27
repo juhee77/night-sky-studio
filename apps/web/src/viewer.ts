@@ -6,6 +6,7 @@ import { openLink, remoteEnabled } from './remote.ts';
 import { fmtTime } from './format.ts';
 import { importMusicFile, iphoneMusicHint, loadMusic, musicErrorMessage, useDeviceFontForFrames } from './media.ts';
 import { runCountdown } from './countdown.ts';
+import { registerPwa } from './pwa.ts';
 import { CAMERA_SEATS, Stage } from './stage.ts';
 import { newId, putShow, rememberLastShow } from './storage.ts';
 import { Transport } from './transport.ts';
@@ -295,3 +296,4 @@ window.addEventListener('hashchange', () => location.reload());
 
 requestAnimationFrame(frame);
 void boot();
+registerPwa();
