@@ -104,8 +104,8 @@ async function boot(): Promise<void> {
   for (const [id, seat] of Object.entries(venue?.seats ?? {})) el.seat.add(new Option(seat.label, id));
   for (const s of CAMERA_SEATS) el.seat.add(new Option(s.label, s.id));
   stage.attachControls(() => {});
-  // 보낸 사람이 위에서 보기로 편집했더라도, 받는 사람은 관람석에서 보게 한다.
-  if (stage.seat.plan) stage.setSeat('front-near');
+  // 받는 사람은 연출 카메라로 본다 (관람석을 바꾸면 그 자리에서). 보낸 사람이 위에서 보기로 편집했더라도 마찬가지.
+  stage.setSeat('director');
   el.seat.value = stage.seatId;
 
   const m = show.music;

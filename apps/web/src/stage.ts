@@ -12,13 +12,17 @@ import {
   venueOf,
   makeView,
   paintBackdrop,
+  planShots,
+  shotCamera,
   projectPoint,
   soundDelay,
   waterSpan,
+  type Camera,
   type Launch,
   type Launcher,
   type Marker,
   type Seat,
+  type Shot,
   type Show,
   type Vec3,
   type Venue,
@@ -28,6 +32,7 @@ import { launcherLabel } from './editor.ts';
 
 /** 무대마다 있는 관람석 말고, 어느 무대에서나 쓰는 카메라 */
 export const CAMERA_SEATS = [
+  { id: 'director', label: '연출 카메라' },
   { id: 'free', label: '3D 자유 시점' },
   { id: 'fly', label: '날아다니기' },
 ] as const;
@@ -55,6 +60,7 @@ export class Stage {
   private backdrop = document.createElement('canvas');
   private backdropKey = '';
   private slowSince = 0;
+  private fastSince = 0;
   private orbit: Orbit = { yaw: 0, pitch: 0.15, dist: 900, target: [0, 140, 60] };
   /** 끌어서 돌리는 중 (배경을 낮은 해상도로 빨리 그린다) */
   dragging = false;
@@ -79,18 +85,35 @@ export class Stage {
   get seat(): Seat {
     if (this.seatId === 'free') return { label: '3D 자유 시점', ...this.orbitCamera(this.orbit), fovY: 55 };
     if (this.seatId === 'fly') return { label: '날아다니기', ...this.flyCamera(this.time), fovY: 55 };
+    if (this.seatId === 'director') return { label: '연출 카메라', ...this.directorCamera(this.time) };
     return this.venue.seats[this.seatId] ?? Object.values(this.venue.seats)[0];
   }
 
   /** t초일 때의 카메라 (날아다니기는 시각마다 다르다) */
   cameraAt(t: number): Seat {
     if (this.seatId === 'fly') return { label: '날아다니기', ...this.flyCamera(t), fovY: 55 };
+    if (this.seatId === 'director') return { label: '연출 카메라', ...this.directorCamera(t) };
     return this.seat;
+  }
+
+  private shots: Shot[] = [];
+  private shotsFor: unknown = null;
+
+  /** 연출 카메라: 쇼가 바뀌면 카메라 길을 다시 짠다 (같은 쇼면 늘 같은 길) */
+  private directorCamera(t: number): Camera {
+    if (this.shotsFor !== this.sim.launches) {
+      const barges = this.sim.show.launchers.filter((l) => l.kind === 'barge');
+      const n = Math.max(1, barges.length);
+      const center: Vec3 = [barges.reduce((s, l) => s + l.pos[0], 0) / n, 170, barges.reduce((s, l) => s + l.pos[2], 0) / n];
+      this.shots = planShots(this.sim.launches, Object.values(this.venue.seats), Math.max(this.sim.duration, 10), this.sim.show.seed, center);
+      this.shotsFor = this.sim.launches;
+    }
+    return shotCamera(this.shots, t) ?? Object.values(this.venue.seats)[0];
   }
 
   /** 움직이는 카메라인가 (배경을 매 프레임 다시 그린다) */
   get moving(): boolean {
-    return this.seatId === 'fly' || (this.seatId === 'free' && this.dragging);
+    return this.seatId === 'fly' || this.seatId === 'director' || (this.seatId === 'free' && this.dragging);
   }
 
   setSeat(id: string): void {
@@ -187,7 +210,9 @@ export class Stage {
   }
 
   layout(): void {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2) * (this.sim.density < 0.5 ? 0.75 : 1);
+    // 터치 기기(휴대폰·태블릿)는 화소를 1.5배까지만: 빛나는 점이라 티가 거의 안 나고 그래픽 부담은 크게 준다.
+    const maxDpr = matchMedia('(pointer: coarse)').matches ? 1.5 : 2;
+    const dpr = Math.min(window.devicePixelRatio || 1, maxDpr) * (this.sim.density < 0.5 ? 0.75 : 1);
     const w = Math.max(1, Math.round(this.canvas.clientWidth * dpr));
     const h = Math.max(1, Math.round(this.canvas.clientHeight * dpr));
     const cam = this.seat;
@@ -239,7 +264,11 @@ export class Stage {
     this.watchSpeed(playing);
   }
 
-  /** 0.5초마다 fps를 재고, 재생 중에 3초 동안 계속 느리면 밀도를 한 단계 낮춘다. */
+  /**
+   * 0.5초마다 fps를 재고, 불꽃이 많이 떠 있는데(입자 2,500개 넘게) 재생 중 3초 동안 계속 느리면 밀도를 한 단계 낮춘다.
+   * 입자가 적은데 느린 것은 불꽃 탓이 아니므로(창이 뒤에 있어 브라우저가 늦추는 등) 낮추지 않고,
+   * 낮춘 뒤 불꽃이 많은 장면에서도 8초 넘게 넉넉히 빠르면 한 단계 되돌린다.
+   */
   private watchSpeed(playing: boolean): void {
     const now = performance.now();
     this.frames++;
@@ -247,15 +276,25 @@ export class Stage {
     this.fps = (this.frames * 1000) / (now - this.windowStart);
     this.frames = 0;
     this.windowStart = now;
-    if (playing && this.fps < 45 && !document.hidden) {
+    const busy = this.count > 2500;
+    if (playing && busy && this.fps < 45 && !document.hidden) {
+      this.fastSince = 0;
       this.slowSince ||= now;
       if (now - this.slowSince > 3000 && this.sim.density > 0.35) {
         this.rebuild(this.sim.density > 0.6 ? 0.6 : 0.35);
         this.onDensityLowered?.();
         this.slowSince = 0;
       }
+    } else if (playing && this.count > 1500 && this.fps >= 57 && this.sim.density < 1) {
+      this.slowSince = 0;
+      this.fastSince ||= now;
+      if (now - this.fastSince > 8000) {
+        this.rebuild(this.sim.density < 0.5 ? 0.6 : 1);
+        this.fastSince = 0;
+      }
     } else {
       this.slowSince = 0;
+      if (!playing) this.fastSince = 0;
     }
   }
 

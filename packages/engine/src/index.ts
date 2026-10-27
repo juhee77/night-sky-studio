@@ -3,6 +3,7 @@ export * from './colors.ts';
 export * from './show.ts';
 export * from './sim.ts';
 export * from './camera.ts';
+export * from './director.ts';
 export * from './venues.ts';
 export * from './rng.ts';
 export * from './beat.ts';

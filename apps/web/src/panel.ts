@@ -57,6 +57,14 @@ export class Panel {
     root.innerHTML = `<h2 id="panel-title"></h2><div class="panel-body"></div>`;
     this.title = root.querySelector('#panel-title')!;
     this.body = root.querySelector('.panel-body')!;
+    // 좁은 화면에서는 제목을 눌러 칸을 접고 편다 (무대와 시간표를 넓게). 휴대폰 세로는 접은 채로 시작한다.
+    if (matchMedia('(max-width: 600px)').matches) root.classList.add('folded');
+    this.title.setAttribute('aria-expanded', String(!root.classList.contains('folded')));
+    this.title.addEventListener('click', () => {
+      if (!matchMedia('(max-width: 820px)').matches) return;
+      const folded = root.classList.toggle('folded');
+      this.title.setAttribute('aria-expanded', String(!folded));
+    });
     editor.on((c) => {
       if (c === 'selection' || c === 'template' || (c === 'show' && editor.selection.size)) this.render();
     });

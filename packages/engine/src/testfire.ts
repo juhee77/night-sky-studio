@@ -1,7 +1,7 @@
 // 시험장: 만든 알을 한 발 쏘아 실제로 어떻게 터졌는지 재고, 왜 그렇게 터졌는지 알려 준다.
 // 미리 계산한 보고서(buildReport)와 달리, 시뮬레이션에서 나온 별을 그대로 잰다.
 
-import { buildReport, evenStars, starBias, type Dir, type ShellBuild } from './build.ts';
+import { buildReport, evenStars, methodShare, starBias, type Dir, type ShellBuild } from './build.ts';
 import { customStarCount, type CustomShell } from './custom.ts';
 import type { Show } from './show.ts';
 import { Simulation } from './sim.ts';
@@ -210,7 +210,8 @@ export function diagnose(shell: CustomShell, rec: TestRecord): Defect[] {
     out.push({ title: `찌그러짐 (둥근 정도 ${rec.roundness})`, cause, fix });
   }
   if (rec.sync < 55) {
-    const cause = b?.star?.method === 'cut' ? '자른 별이라 크기가 들쭉날쭉합니다' : '별 크기가 고르지 않습니다';
+    const cut = b?.star ? methodShare(b.star, 'cut') : 0;
+    const cause = cut >= 1 ? '자른 별이라 크기가 들쭉날쭉합니다' : cut >= 0.2 ? `자른 별이 ${Math.round(cut * 100)}% 섞여 크기가 들쭉날쭉합니다` : '별 크기가 고르지 않습니다';
     out.push({ title: '별이 제각각 꺼짐', cause, fix: '별을 굴리거나 찍어서 크기를 고르게 만드세요.' });
   }
   if (rec.brightness < 45) {

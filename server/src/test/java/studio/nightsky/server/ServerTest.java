@@ -45,6 +45,11 @@ class ServerTest {
     }
 
     @Test
+    void 서버가_떴는지_확인할_수_있다() throws Exception {
+        mvc.perform(get("/api/health")).andExpect(status().isOk()).andExpect(jsonPath("$.ok").value(true));
+    }
+
+    @Test
     void 짧은_링크를_만들고_열면_같은_쇼가_나온다() throws Exception {
         var data = "eJxLzs8tKEotLs7Mz7NWMDQwNAIAKTAEyQ";
         var body = mvc.perform(post("/api/links").contentType(MediaType.APPLICATION_JSON).content(json("{'data':'" + data + "'}")))
