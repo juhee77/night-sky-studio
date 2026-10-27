@@ -140,3 +140,26 @@ test('이번 주 도전: 받아서 채점하면 점수가 남고, 의뢰처럼 �
   // 다시 낼 수 있다 (납품 완료로 잠기지 않는다)
   await expect(page.locator('#commission-bar [data-act="deliver"]')).toBeVisible();
 });
+
+test('작업대: 만들던 알을 새로고침해도 이어서 만들고, 「새 불꽃」은 비운다', async ({ page }) => {
+  await open(page);
+  await page.locator('#help-btn').click();
+  await page.locator('#help-open-all').click();
+  await page.keyboard.press('Escape');
+  await page.locator('#workshop-btn').click();
+  await page.getByRole('tab', { name: '작업대' }).click();
+  await page.locator('[data-scoop="oxidizer"]').click();
+  await page.locator('[data-scoop="oxidizer"]').click();
+  await page.locator('[data-bench-step="dry"]').click();
+  await page.locator('#bench-dry').click();
+  await page.reload();
+  await page.locator('#workshop-btn').click();
+  await page.getByRole('tab', { name: '작업대' }).click();
+  // 말리던 공정 그대로, 6시간째
+  await expect(page.locator('.bench-step h4')).toContainText('6시간째');
+  await page.locator('[data-bench-step="mix"]').click();
+  await expect(page.locator('[data-scoop="oxidizer"]')).toContainText('(2)');
+  await page.locator('#ws-new').click();
+  await page.getByRole('tab', { name: '작업대' }).click();
+  await expect(page.locator('[data-scoop="oxidizer"]')).toContainText('(0)');
+});

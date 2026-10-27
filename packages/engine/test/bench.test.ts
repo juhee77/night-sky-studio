@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { addStars, benchNeed, benchToBuild, cutScore, firstUnfinished, idealFuseCm, idealLiftG, joinSeam, newBench, pumpScore, stirScore, type Bench } from '../src/bench.ts';
-import { evenStars } from '../src/build.ts';
+import { buildReport, evenStars, methodShare, starEffect } from '../src/build.ts';
 import { evaluateMix } from '../src/chem.ts';
 import { buildToShell } from '../src/build.ts';
 import { newCustomShell } from '../src/custom.ts';
@@ -66,4 +66,25 @@ test('손이 고를수록 시험장 결과가 좋다', () => {
   const b = benchToBuild(finished(true));
   assert.ok(Math.abs(b.fuse - 1) < 1e-9 && Math.abs(b.lift - 1) < 1e-9);
   assert.equal(b.stars.length, 90);
+});
+
+test('방식을 섞어 만든 별: 가장 많은 방식으로 보고, 진단은 섞인 몫을 말한다', () => {
+  const b = newBench(5);
+  addStars(b, 30, 0.9, 'rolled');
+  addStars(b, 10, 0.9, 'cut');
+  // 마지막에 자르기를 골라 두었어도 굴린 별이 많으면 굴린 별로 본다
+  b.stars.method = 'cut';
+  const build = benchToBuild(b);
+  assert.equal(build.star?.method, 'rolled');
+  assert.deepEqual(build.star?.mix, { rolled: 30, cut: 10 });
+  assert.equal(methodShare(build.star!, 'cut'), 0.25);
+  // 고르기는 굴린 별만 쓴 것과 자른 별만 쓴 것 사이
+  const only = (m: 'rolled' | 'cut') => starEffect({ ...build.star!, method: m, mix: undefined }).care;
+  const mixed = starEffect(build.star!).care;
+  assert.ok(mixed < only('rolled') && mixed > only('cut'), `${only('cut')} < ${mixed} < ${only('rolled')}`);
+  assert.ok(buildReport(build).warnings.some((w) => w.includes('25% 섞여')), buildReport(build).warnings.join(' / '));
+  // 한 방식만 쓰면 mix가 없다
+  const one = newBench(5);
+  addStars(one, 20, 0.8, 'pumped');
+  assert.equal(benchToBuild(one).star?.mix, undefined);
 });
