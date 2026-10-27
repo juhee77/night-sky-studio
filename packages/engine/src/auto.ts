@@ -9,7 +9,8 @@ import { SHELL_COST, cueCost } from './commission.ts';
 import { onsetEnvelope } from './beat.ts';
 import { mulberry32 } from './rng.ts';
 import type { Tube } from './rig.ts';
-import type { Cue, Launcher } from './show.ts';
+import { cueLength, expandShow, windVector, type Cue, type Launcher, type Show } from './show.ts';
+import { analyzeSmoke } from './smoke.ts';
 
 /** 박 단위로 본 곡 */
 export interface MusicMap {
@@ -266,6 +267,10 @@ export interface AutoOptions {
   maxSize?: Size;
   /** 이 색만 쓴다 */
   colors?: ColorName[];
+  /** 의뢰인이 좋아하는 색: 색 조합마다 앞에 둔다 */
+  liked?: ColorName[];
+  /** 바람 (연기에 가리지 않게 자리를 고를 때 쓴다) */
+  wind?: { dir: number; speed: number };
   /** 꼭 넣을 종류 */
   include?: FireworkType[];
   /** 마지막 몇 초는 이 색만 */
@@ -422,8 +427,10 @@ export function autoChoreograph(music: MusicMap, launchers: Launcher[], o: AutoO
     const k = music.sections?.findIndex((s) => t >= s.start && t < s.end) ?? -1;
     return k >= 0 ? k : Math.floor(i / 32);
   };
+  const liked = colorsOk(o.liked ?? []);
   const themeFor = (i: number): ColorName[] => {
-    const theme = colorsOk(P.themes[(sectionIndex(i) + o.seed) % P.themes.length]);
+    // 좋아하는 색을 앞에 두고 분위기 색을 섞는다 (세 가지까지).
+    const theme = [...new Set([...liked, ...colorsOk(P.themes[(sectionIndex(i) + o.seed) % P.themes.length])])].slice(0, Math.max(3, liked.length));
     return theme.length ? theme : [pool[sectionIndex(i) % pool.length]];
   };
 
@@ -558,17 +565,17 @@ export function autoChoreograph(music: MusicMap, launchers: Launcher[], o: AutoO
     .sort((a, b) => music.energy[a] - music.energy[b]);
   const placeQuietly = (make: (t: number, at: string, i: number) => Omit<Cue, 'colors'> & { colors?: ColorName[] }, times: number) => {
     let done = 0;
-    for (const i of quiet) {
-      // 한 박에는 하나만
-      beatLoop: for (const at of [center, left, right]) {
-        for (const shift of [0, 0.5]) {
+    // 박 위를 먼저 (모든 바지선), 자리가 없을 때만 반 박 뒤에
+    for (const shift of [0, 0.5]) {
+      for (const i of quiet) {
+        if (done >= times) return;
+        for (const at of [center, left, right]) {
           if (place(make(music.offset + (i + shift) * beat, at.id, i), 4)) {
             done++;
-            break beatLoop;
+            break;
           }
         }
       }
-      if (done >= times) break;
     }
   };
   // 이미 흐름 속에 있으면 예산을 줄일 때 빠지지 않게 중요도만 올린다.
@@ -604,11 +611,12 @@ export function autoChoreograph(music: MusicMap, launchers: Launcher[], o: AutoO
     place({ t: music.offset + (fb + 2) * beat, at: left.id, type: 'cake', size: sizeCap(5), colors: theme, shots: 24, interval: 0.15, pattern: 'fan' }, 3);
     place({ t: music.offset + (fb + 2) * beat, at: right.id, type: 'cake', size: sizeCap(5), colors: theme, shots: 24, interval: 0.15, pattern: 'fan' }, 3);
   }
+  // 박마다 두 바지선이 함께 쏜다 (반 박에 쏘면 박자가 어긋나 보인다).
   for (let h = fb * 2; h < (lastBeat - 1) * 2; h++) {
-    const t = music.offset + (h / 2) * beat;
-    // 의뢰가 피날레를 요구하면 반 박마다 빠짐없이
+    const t = music.offset + Math.floor(h / 2) * beat;
+    // 의뢰가 피날레를 요구하면 빠짐없이
     if (!o.finaleSeconds && rnd() > P.finale * Math.max(0.6, o.density)) continue;
-    const at = barges[h % barges.length];
+    const at = barges[(h + Math.floor(h / 2)) % barges.length];
     const theme = themeFor(Math.floor(h / 2));
     const finaleType: ShellType = mood === 'romantic' ? (h % 4 === 0 ? 'heart' : 'peony') : h % 4 === 0 ? 'chrysanthemum' : h % 4 === 2 ? 'crossette' : 'peony';
     // 의뢰가 피날레를 요구하면 작은 알로 촘촘히 채우고, 예산을 줄일 때 피날레는 나중에 뺀다.
@@ -626,14 +634,6 @@ export function autoChoreograph(music: MusicMap, launchers: Launcher[], o: AutoO
     const mine = o.closeCustom;
     if (mine && place({ t: closeT, at: at.id, type: 'custom', custom: mine.id, size: sizeCap(mine.size), colors: closeColors }, 5)) continue;
     place({ t: closeT, at: at.id, type: closeType, size: closeSize, colors: closeColors }, 5);
-  }
-
-  // 마지막 몇 초 색 조건
-  if (o.endColors) {
-    const from = music.duration - o.endColors.seconds;
-    // 케이크는 마지막 발이 터지는 때까지 본다 (앞서 시작해도 끝이 그 안에 들면).
-    const lastBurst = (c: Placed) => c.t + (c.type === 'cake' ? ((c.shots ?? 1) - 1) * (c.interval ?? 0) : 0);
-    for (const c of out) if (lastBurst(c) >= from - 0.01) c.colors = [o.endColors.colors[0]];
   }
 
   // 예산: 넘치면 먼저 덜 중요한 알부터 한 단계씩 작게 (하늘은 채운 채로), 그래도 넘치면 덜 중요하고 비싼 것부터 뺀다.
@@ -660,7 +660,103 @@ export function autoChoreograph(music: MusicMap, launchers: Launcher[], o: AutoO
     }
   }
 
+  // 빈 하늘 메우기: 오래 비는 곳(차분할수록 조금 더 길게 둔다)에 작은 알을 박에 맞춰 넣는다.
+  // 조용해진 뒤 일부러 비운 한 마디는 그대로 두고, 예산이 모자라면 붐비는 곳(1.5초 안에 다른 불꽃이 있는 곳)의 덜 중요한 불꽃을 덜어 낸다.
+  {
+    const maxGap = mood === 'calm' ? 4.5 : mood === 'romantic' ? 4 : 3.5;
+    const rest = (t: number) => hushBeats.some((h) => t >= music.offset + (h - 0.5) * beat && t < music.offset + (h + bar + 0.5) * beat);
+    const limit = o.budget !== undefined ? o.budget * 0.95 : Infinity;
+    let spent = out.reduce((sum, c) => sum + cueCost(c), 0);
+    const fillTypes = [...new Set((['peony', 'chrysanthemum', 'ring', 'willow', 'palm', 'crossette'] as ShellType[]).map(typeOk))];
+    const lastT = Math.min(finaleStart, end - 2);
+    const crowded = (c: Placed) => c.importance <= 2 && out.some((x) => x !== c && Math.abs(x.t - c.t) < 1.5);
+    let from = 4;
+    for (let k = 0; k < 400 && from < lastT; k++) {
+      // from 뒤의 첫 빈 구간
+      let cursor = from;
+      let gap: [number, number] | null = null;
+      for (const c of [...out].sort((a, b) => a.t - b.t)) {
+        if (c.t - cursor > maxGap) {
+          gap = [cursor, Math.min(c.t, lastT)];
+          break;
+        }
+        cursor = Math.max(cursor, c.t + cueLength(c as Cue));
+      }
+      if (!gap && lastT - cursor > maxGap) gap = [cursor, lastT];
+      if (!gap || gap[1] - gap[0] <= maxGap) break;
+      let b = Math.round((gap[0] + 2 - music.offset) / beat);
+      // 쉬는 마디 안이면 그 마디가 끝난 뒤로
+      while (rest(music.offset + b * beat) && music.offset + b * beat < gap[1]) b++;
+      const t = music.offset + b * beat;
+      const cue = { t, at: barges[k % barges.length].id, type: fillTypes[k % fillTypes.length], size: 3 as Size, colors: [themeFor(b)[k % themeFor(b).length]] };
+      // 예산: 붐비는 곳에서 덜어 내 자리를 만든다.
+      while (spent + cueCost(cue) > limit) {
+        const spare = out.filter(crowded).sort((x, y) => cueCost(y) - cueCost(x))[0];
+        if (!spare) break;
+        spent -= cueCost(spare);
+        out.splice(out.indexOf(spare), 1);
+      }
+      if (spent + cueCost(cue) > limit) break;
+      const ok = barges.some((at) => place({ ...cue, at: at.id }, 3));
+      if (ok) spent += cueCost(cue);
+      // 놓지 못한 빈 구간은 건너뛴다.
+      else from = gap[0] + maxGap;
+    }
+  }
+
+  // 연기 피하기: 앞 불꽃 연기에 가리는 불꽃은 다른 바지선으로 옮기거나(앞 두 번),
+  // 크기를 한 단계 바꿔 다른 높이에서 터뜨리고(다음 두 번), 그래도 가리면 붐비는 곳의 덜 중요한 것은 뺀다.
+  // 실전 모드(실린 통)는 자리와 크기를 바꿀 수 없어 건너뛴다. 바람을 모르면(쇼에 날씨가 없으면) 하지 않는다.
+  if (!freeTubes && o.wind) {
+    const show: Show = { version: 1, seed: o.seed, venue: { preset: 'river-bridge-city', wind: o.wind }, launchers, cues: out as Cue[] };
+    const freeAt = (at: string, c: Placed) => !out.some((x) => x !== c && x.at === at && Math.abs(x.t - c.t) < 0.45);
+    const limit = o.budget !== undefined ? o.budget * 0.95 : Infinity;
+    let spent = out.reduce((sum, c) => sum + cueCost(c), 0);
+    for (let pass = 0; pass < 5; pass++) {
+      const { obscured } = analyzeSmoke(expandShow(show).launches, windVector(show));
+      if (!obscured.size) break;
+      const drop = new Set<Placed>();
+      for (const idx of new Set([...obscured].map((l) => l.cueIndex))) {
+        const c = out[idx];
+        // 드롭의 큰 한 방, 꼭 넣을 것, 마지막 한 방은 그대로 둔다.
+        if (c.importance >= 4) continue;
+        const other = pass < 2 ? barges.find((b) => b.id !== c.at && freeAt(b.id, c)) : undefined;
+        const resizable = isShell(c.type) && c.type !== 'cake' && c.type !== 'custom';
+        if (other) {
+          c.at = other.id;
+          if (c.angle) c.angle = other === left ? -Math.abs(c.angle) : other === right ? Math.abs(c.angle) : 0;
+        } else if (pass < 4 && resizable) {
+          // 낮게 터지면 앞 연기 밑으로, 예산·크기 제한 안에서는 높게
+          const down = stepSize(c.size, -1);
+          const up = sizeCap(stepSize(c.size, 1));
+          const extra = cueCost({ ...c, size: up }) - cueCost(c);
+          const before = cueCost(c);
+          c.size = (pass + idx) % 2 === 0 && down !== c.size ? down : up !== c.size && extra <= 2 && spent + extra <= limit ? up : down;
+          spent += cueCost(c) - before;
+        } else if (pass === 4 && crowdedForSmoke(c)) drop.add(c);
+      }
+      for (const c of drop) {
+        spent -= cueCost(c);
+        out.splice(out.indexOf(c), 1);
+      }
+      show.cues = out as Cue[];
+    }
+  }
+
+  // 마지막 몇 초 색 조건 (메운 불꽃까지)
+  if (o.endColors) {
+    const from = music.duration - o.endColors.seconds;
+    // 케이크는 마지막 발이 터지는 때까지 본다 (앞서 시작해도 끝이 그 안에 들면).
+    const lastBurst = (c: Placed) => c.t + (c.type === 'cake' ? ((c.shots ?? 1) - 1) * (c.interval ?? 0) : 0);
+    for (const c of out) if (lastBurst(c) >= from - 0.01) c.colors = [o.endColors.colors[0]];
+  }
+
   return out
     .sort((a, b) => a.t - b.t)
     .map(({ importance: _, ...c }) => c);
+
+  /** 빼도 하늘이 비지 않는 덜 중요한 불꽃 */
+  function crowdedForSmoke(c: Placed): boolean {
+    return c.importance <= 2 && out.some((x) => x !== c && Math.abs(x.t - c.t) < 1.5);
+  }
 }
