@@ -61,14 +61,15 @@ export const demoShow: Show = {
   title: '예시 쇼: 밤하늘 행진',
   seed: 8231,
   music: { id: 'basic-1', title: '밤하늘 행진', bpm: 112, offset: 0, duration: 61.5 },
-  venue: { preset: 'river-bridge-city', wind: { dir: 250, speed: 2.1 } },
+  // 한강 (여의도) 무대: 나이아가라는 원효대교에 건다.
+  venue: { preset: 'hangang', wind: { dir: 250, speed: 2.1 } },
   seat: { id: 'front-near' },
   launchers: [
     { id: 'barge-1', kind: 'barge', pos: [-220, 0, 0] },
-    { id: 'barge-2', kind: 'barge', pos: [220, 0, 60] },
-    { id: 'barge-3', kind: 'barge', pos: [0, 0, -80] },
-    { id: 'bridge', kind: 'bridge', pos: [0, 18, 258], from: [-500, 18, 258], to: [500, 18, 258] },
-    { id: 'ground', kind: 'frame', pos: [0, 0, -330] },
+    { id: 'barge-2', kind: 'barge', pos: [220, 0, 40] },
+    { id: 'barge-3', kind: 'barge', pos: [0, 0, -60] },
+    { id: 'bridge', kind: 'bridge', pos: [1000, 18, 0], from: [1000, 18, -420], to: [1000, 18, 420] },
+    { id: 'ground', kind: 'frame', pos: [0, 0, -440] },
   ],
   cues,
 };

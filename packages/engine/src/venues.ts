@@ -49,6 +49,19 @@ export interface Venue {
   permit: { zones: [number, number, number, number][]; maxBarges: number };
   /** 멀리 둘러싼 산 능선: z 거리와 [x, 높이] 점들 */
   mountains?: { z: number; ridge: [number, number][] }[];
+  /** 강을 가로지르는 다리들 (남북 방향, 3D 도시로만 그린다) */
+  crossings?: Crossing[];
+}
+
+/** 강을 가로지르는 다리: x 자리에서 z0부터 z1까지 */
+export interface Crossing {
+  name: string;
+  x: number;
+  z0: number;
+  z1: number;
+  deckY: number;
+  /** girder: 상판과 교각, truss: 철골 트러스(철교), arch: 아치 */
+  kind: 'girder' | 'truss' | 'arch';
 }
 
 interface Row {
@@ -292,7 +305,65 @@ export const MOUNTAIN_LAKE: Venue = {
   permit: { zones: [[-900, -200, 900, 800]], maxBarges: 3 },
 };
 
+/**
+ * 한강 (여의도): 서울세계불꽃축제처럼 여의도 한강공원에서 북쪽 강 건너(이촌·용산)를 바라본다.
+ * 바지선은 원효대교와 한강철교 사이 강 위, 나이아가라는 원효대교에 건다.
+ * 실제 자리를 손으로 줄여 옮긴 것이다 (동쪽 +x, 북쪽 +z, 여의도 한강공원 앞 강가가 z −500).
+ */
+export const HANGANG: Venue = {
+  id: 'hangang',
+  label: '한강 (여의도)',
+  place: '서울 여의도 한강공원',
+  farShoreZ: 560,
+  nearShoreZ: -500,
+  nearGround: '#04050b',
+  buildings: [
+    // 강 건너 이촌동 아파트, 그 뒤 용산 고층 건물, 더 뒤 도심
+    ...buildSkyline(31, [
+      { z: 660, min: 45, max: 95, gap: 18, from: -1600, to: 2600 },
+      { z: 1500, min: 90, max: 200, gap: 40, from: -300, to: 1400, tallChance: 0.25 },
+      { z: 2400, min: 40, max: 120, gap: 20, from: -3000, to: 3500 },
+    ]),
+    // 여의도 (관람석 뒤): 파크원·IFC·63빌딩과 아파트
+    ...buildSkyline(37, [{ z: -1450, min: 40, max: 110, gap: 25, from: -1800, to: 700 }]),
+    { x0: -540, x1: -490, z: -1560, height: 333, windows: [] },
+    { x0: -460, x1: -420, z: -1520, height: 300, windows: [] },
+    { x0: -940, x1: -895, z: -1380, height: 284, windows: [] },
+    { x0: 860, x1: 925, z: -1040, height: 249, windows: [] },
+    // 남산 위 N서울타워 (산 높이 + 탑)
+    { x0: 1496, x1: 1504, z: 3590, height: 480, windows: [] },
+  ],
+  bridge: { kind: 'none', z: 0, deckY: 18, x0: 0, x1: 0 },
+  crossings: [
+    { name: '마포대교', x: -1400, z0: -520, z1: 580, deckY: 18, kind: 'girder' },
+    { name: '원효대교', x: 1000, z0: -520, z1: 580, deckY: 18, kind: 'girder' },
+    { name: '한강철교', x: 1750, z0: -520, z1: 580, deckY: 14, kind: 'truss' },
+    { name: '한강대교', x: 2500, z0: -520, z1: 580, deckY: 16, kind: 'arch' },
+  ],
+  mountains: [
+    { z: 3600, ridge: [[200, 30], [900, 140], [1300, 225], [1500, 240], [1750, 220], [2300, 120], [3000, 30]] },
+    { z: 9000, ridge: [[-6000, 200], [-3500, 520], [-2000, 760], [-800, 640], [600, 830], [2200, 600], [4000, 700], [6500, 300]] },
+  ],
+  seats: {
+    'front-near': { label: '여의도 한강공원', eye: [0, 8, -560], target: [150, 170, 0], fovY: 50 },
+    'front-far': { label: '여의도 공원 안쪽', eye: [-200, 8, -950], target: [150, 150, 0], fovY: 50 },
+    ichon: { label: '이촌 한강공원', eye: [600, 8, 585], target: [0, 170, 0], fovY: 50 },
+    bridge: { label: '원효대교 위', eye: [1000, 34, -150], target: [0, 160, 0], fovY: 50 },
+    // 63빌딩 북쪽 벽 바로 바깥, 전망대 높이
+    tower: { label: '63빌딩 전망대', eye: [892, 240, -985], target: [0, 140, 0], fovY: 50 },
+    top: plan(-300, 0),
+  },
+  launchers: [
+    ...barges([[-220, 0, 0], [220, 0, 40], [0, 0, -60]]),
+    { id: 'bridge', kind: 'bridge', pos: [1000, 18, 0], from: [1000, 18, -420], to: [1000, 18, 420] },
+    { id: 'ground', kind: 'frame', pos: [0, 0, -440] },
+  ],
+  // 원효대교 서쪽 강 가운데 (다리에서 80m 넘게)
+  permit: { zones: [[-700, -380, 880, 400]], maxBarges: 5 },
+};
+
 export const VENUES: Record<string, Venue> = {
+  [HANGANG.id]: HANGANG,
   [RIVER_CITY.id]: RIVER_CITY,
   [HARBOUR.id]: HARBOUR,
   [BEACH.id]: BEACH,
