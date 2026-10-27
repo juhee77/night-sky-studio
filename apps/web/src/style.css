@@ -543,7 +543,10 @@ body.watching .intro-card { display: none; }
 
 /* 휴대폰 세로: 위 막대는 한 줄로 옆으로 넘기고, 설정 칸은 처음에 접어 둔다 (무대와 시간표를 넓게) */
 @media (max-width: 600px) {
-  .topbar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent); mask-image: linear-gradient(90deg, #000 88%, transparent); }
+  /* body는 격자라, 한 줄 막대가 화면보다 넓어도 칸이 따라 넓어지지 않게 min-width: 0 */
+  body { grid-template-columns: minmax(0, 1fr); }
+  /* position: relative — 안에 숨긴 파일 칸(position: absolute)이 막대 밖으로 나가 화면을 넓히지 않게 */
+  .topbar { position: relative; min-width: 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent); mask-image: linear-gradient(90deg, #000 88%, transparent); }
   .topbar::-webkit-scrollbar { display: none; }
   .topbar .group, .show-name, .music { flex: none; flex-wrap: nowrap; }
   .show-name input { flex: none; width: 150px; }
