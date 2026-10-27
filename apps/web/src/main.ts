@@ -34,6 +34,7 @@ import { Intro } from './intro.ts';
 import { Compare } from './compare.ts';
 import { remoteEnabled } from './remote.ts';
 import { Panel } from './panel.ts';
+import { registerPwa } from './pwa.ts';
 import { STEPS, progress, type Goal } from './progress.ts';
 import { runCountdown } from './countdown.ts';
 import { CAMERA_SEATS, Stage } from './stage.ts';
@@ -936,3 +937,4 @@ async function boot(): Promise<void> {
 
 requestAnimationFrame(frame);
 void boot();
+registerPwa();

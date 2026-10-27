@@ -50,6 +50,26 @@
       },
       "port": 5174,
       "url": "http://127.0.0.1:5174"
+    },
+    {
+      "name": "pages-preview",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "preview",
+        "-w",
+        "@nss/web",
+        "--",
+        "--mode",
+        "pages",
+        "--port",
+        "5176",
+        "--strictPort",
+        "--host",
+        "127.0.0.1"
+      ],
+      "port": 5176,
+      "url": "http://127.0.0.1:5176"
     }
   ]
 }
