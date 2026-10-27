@@ -82,7 +82,14 @@ export class Timeline {
     canvas.addEventListener('pointerup', (e) => this.onUp(e));
     canvas.addEventListener('pointercancel', (e) => this.onUp(e));
     canvas.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
+    // 쇼·고른 것이 바뀌거나 시간표를 만지면 다시 그린다.
+    editor.on(() => this.version++);
+    for (const ev of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'wheel'] as const) canvas.addEventListener(ev, () => this.version++);
   }
+
+  /** 그릴 것이 바뀐 횟수 (바뀐 것이 없으면 매 프레임 다시 그리지 않는다) */
+  private version = 0;
+  private drawnKey = '';
 
   get height(): number {
     return RULER_H + WAVE_H + this.editor.show.launchers.length * LANE_H + 6;
@@ -116,6 +123,10 @@ export class Timeline {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const w = this.canvas.clientWidth;
     const h = this.height;
+    // 바뀐 것이 없으면 그대로 둔다 (멈춰 있을 때 배터리를 아낀다). 재생 위치는 한 화소 단위로 본다.
+    const key = [w, h, dpr, this.pps, this.scroll, Math.round(this.x(this.host.time())), this.version, !!this.host.waveform(), this.host.musicDuration(), this.host.warnings().size].join('|');
+    if (key === this.drawnKey) return;
+    this.drawnKey = key;
     if (this.canvas.style.height !== `${h}px`) this.canvas.style.height = `${h}px`;
     if (this.cssW !== w || this.cssH !== h || this.canvas.width !== Math.round(w * dpr)) {
       this.cssW = w;
