@@ -144,6 +144,7 @@ export class Timeline {
     const t0 = this.scroll;
     const t1 = this.scroll + this.visibleSec;
     const lanesTop = RULER_H + WAVE_H;
+    const emptyHint = !show.cues.length;
 
     show.launchers.forEach((_, i) => {
       g.fillStyle = i % 2 ? C.laneAlt : C.lane;
@@ -293,6 +294,15 @@ export class Timeline {
     g.font = '12px "IBM Plex Sans KR", -apple-system, sans-serif';
     g.fillText('음악', 12, RULER_H + WAVE_H / 2 + 4);
     show.launchers.forEach((l, i) => g.fillText(launcherLabel(l, i), 12, lanesTop + i * LANE_H + LANE_H / 2 + 4));
+
+    // 빈 시간표: 무엇을 하면 되는지
+    if (emptyHint) {
+      g.fillStyle = C.label;
+      g.font = '13px "IBM Plex Sans KR", sans-serif';
+      g.textAlign = 'center';
+      g.fillText('빈 곳을 눌러 첫 불꽃을 놓아 보세요 · 또는 위의 「자동 연출」', LABEL_W + (w - LABEL_W) / 2, lanesTop + LANE_H * 1.6);
+      g.textAlign = 'start';
+    }
 
     // 재생 위치
     const px = this.x(this.host.time());
