@@ -170,6 +170,16 @@ export class SitePlanner {
     };
     this.canvas.addEventListener('pointerup', end);
     this.canvas.addEventListener('pointercancel', end);
+    // 키보드로도 옮긴다: 고른 것을 화살표로 10m씩 (Shift는 50m), 북쪽이 위
+    this.canvas.tabIndex = 0;
+    this.canvas.addEventListener('keydown', (e) => {
+      const step = e.shiftKey ? 50 : 10;
+      const dir = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] }[e.key];
+      const l = editor.show.launchers.find((x) => x.id === this.selected);
+      if (!dir || !l) return;
+      e.preventDefault();
+      editor.change((d) => moveLauncher(d, l.id, l.pos[0] + dir[0], l.pos[2] + dir[1]));
+    });
   }
 
   /** 고른 바지선의 갑판 (없으면 빈 목록) */

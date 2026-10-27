@@ -259,7 +259,8 @@ function poke(): void {
 for (const ev of ['pointermove', 'pointerdown', 'keydown'] as const) document.addEventListener(ev, poke);
 
 document.addEventListener('keydown', (e) => {
-  if (!started || e.target instanceof HTMLSelectElement) return;
+  // 버튼·링크·입력 칸에 초점이 있으면 Space는 그것을 누르는 키다.
+  if (!started || e.target instanceof HTMLSelectElement || e.target instanceof HTMLButtonElement || e.target instanceof HTMLAnchorElement || e.target instanceof HTMLInputElement) return;
   if (e.code === 'Space') {
     e.preventDefault();
     setPlaying(!transport.playing);
