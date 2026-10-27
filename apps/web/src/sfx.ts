@@ -226,6 +226,33 @@ export class Sfx {
     return { node: src, end: when + len + 1 };
   }
 
+  /** 감탄 「오~」: 낮은 목소리 높이의 잡음이 천천히 부풀었다 내려간다 (모음 오처럼 400Hz·800Hz 둘레) */
+  ooh(when: number, level: number): Scheduled | null {
+    if (this.late(when)) return null;
+    const ctx = this.ctx;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise;
+    src.loop = true;
+    const g = ctx.createGain();
+    for (const [freq, q] of [[420, 3], [820, 4]] as const) {
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.setValueAtTime(freq * 1.08, when);
+      // 「오~」는 끝에서 살짝 내려간다
+      f.frequency.linearRampToValueAtTime(freq * 0.92, when + 1.4);
+      f.Q.value = q;
+      src.connect(f).connect(g);
+    }
+    const peak = 0.06 + 0.08 * level;
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.linearRampToValueAtTime(peak, when + 0.45);
+    g.gain.setTargetAtTime(0.0001, when + 0.8, 0.4);
+    g.connect(this.out);
+    src.start(when, (when * 1.7) % 1);
+    src.stop(when + 2.6);
+    return { node: src, end: when + 2.6 };
+  }
+
   /** 박수: 짧은 손뼉 소리를 무작위 간격으로 4초 동안 */
   applause(when: number): Scheduled | null {
     if (this.late(when)) return null;
@@ -314,7 +341,11 @@ export function scheduleSounds(
       const fade = d > 0 ? Math.min(1, 2 / (1 + d)) : 1;
       const sounds = starSounds(l);
       // 살루트는 보통 폭발음 대신 더 큰 소리를 낸다.
-      if (bursts && !sounds.some((x) => x.kind === 'salute')) add(sfx.boom(toCtx(l.burstAt + d), l.size, count, fade));
+      if (bursts && !sounds.some((x) => x.kind === 'salute')) {
+        add(sfx.boom(toCtx(l.burstAt + d), l.size, count, fade));
+        // 큰 알은 강 건너 건물에 부딪혀 약 0.4초 뒤 메아리가 돌아온다
+        if (l.size >= 5) add(sfx.boom(toCtx(l.burstAt + d + 0.38 + (l.seed % 7) * 0.02), l.size, 1, fade * 0.22));
+      }
       if (fires) add(sfx.thump(toCtx(l.fireAt + d), count, fade));
       for (const snd of sounds) {
         const at = l.burstAt + d + snd.start;
@@ -323,6 +354,6 @@ export function scheduleSounds(
     }
   }
   for (const c of plan.crowd ?? []) {
-    if (c.t >= from && c.t < to) add(c.kind === 'cheer' ? sfx.cheer(toCtx(c.t), c.level) : sfx.applause(toCtx(c.t)));
+    if (c.t >= from && c.t < to) add(c.kind === 'cheer' ? sfx.cheer(toCtx(c.t), c.level) : c.kind === 'ooh' ? sfx.ooh(toCtx(c.t), c.level) : sfx.applause(toCtx(c.t)));
   }
 }
