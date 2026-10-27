@@ -12,13 +12,17 @@ import {
   venueOf,
   makeView,
   paintBackdrop,
+  planShots,
+  shotCamera,
   projectPoint,
   soundDelay,
   waterSpan,
+  type Camera,
   type Launch,
   type Launcher,
   type Marker,
   type Seat,
+  type Shot,
   type Show,
   type Vec3,
   type Venue,
@@ -28,6 +32,7 @@ import { launcherLabel } from './editor.ts';
 
 /** 무대마다 있는 관람석 말고, 어느 무대에서나 쓰는 카메라 */
 export const CAMERA_SEATS = [
+  { id: 'director', label: '연출 카메라' },
   { id: 'free', label: '3D 자유 시점' },
   { id: 'fly', label: '날아다니기' },
 ] as const;
@@ -80,18 +85,35 @@ export class Stage {
   get seat(): Seat {
     if (this.seatId === 'free') return { label: '3D 자유 시점', ...this.orbitCamera(this.orbit), fovY: 55 };
     if (this.seatId === 'fly') return { label: '날아다니기', ...this.flyCamera(this.time), fovY: 55 };
+    if (this.seatId === 'director') return { label: '연출 카메라', ...this.directorCamera(this.time) };
     return this.venue.seats[this.seatId] ?? Object.values(this.venue.seats)[0];
   }
 
   /** t초일 때의 카메라 (날아다니기는 시각마다 다르다) */
   cameraAt(t: number): Seat {
     if (this.seatId === 'fly') return { label: '날아다니기', ...this.flyCamera(t), fovY: 55 };
+    if (this.seatId === 'director') return { label: '연출 카메라', ...this.directorCamera(t) };
     return this.seat;
+  }
+
+  private shots: Shot[] = [];
+  private shotsFor: unknown = null;
+
+  /** 연출 카메라: 쇼가 바뀌면 카메라 길을 다시 짠다 (같은 쇼면 늘 같은 길) */
+  private directorCamera(t: number): Camera {
+    if (this.shotsFor !== this.sim.launches) {
+      const barges = this.sim.show.launchers.filter((l) => l.kind === 'barge');
+      const n = Math.max(1, barges.length);
+      const center: Vec3 = [barges.reduce((s, l) => s + l.pos[0], 0) / n, 170, barges.reduce((s, l) => s + l.pos[2], 0) / n];
+      this.shots = planShots(this.sim.launches, Object.values(this.venue.seats), Math.max(this.sim.duration, 10), this.sim.show.seed, center);
+      this.shotsFor = this.sim.launches;
+    }
+    return shotCamera(this.shots, t) ?? Object.values(this.venue.seats)[0];
   }
 
   /** 움직이는 카메라인가 (배경을 매 프레임 다시 그린다) */
   get moving(): boolean {
-    return this.seatId === 'fly' || (this.seatId === 'free' && this.dragging);
+    return this.seatId === 'fly' || this.seatId === 'director' || (this.seatId === 'free' && this.dragging);
   }
 
   setSeat(id: string): void {

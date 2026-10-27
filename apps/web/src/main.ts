@@ -255,7 +255,12 @@ $<HTMLButtonElement>('help-restart').addEventListener('click', () => {
 // 첫 방문: 예시 쇼부터 보여 주고 자동 연출로 잇는다 (boot에서 연다).
 const intro = new Intro($('intro'), $('intro-end'), $('arrive'), {
   edit: () => setEditing(true),
-  watch: () => startWatching(false),
+  watch: () => {
+    // 예시 쇼는 연출 카메라로 보여 준다.
+    el.seat.value = 'director';
+    el.seat.dispatchEvent(new Event('change'));
+    startWatching(false);
+  },
   auto: () => el.autoBtn.click(),
   guide: () => guide.open(),
 });
