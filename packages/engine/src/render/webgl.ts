@@ -74,6 +74,19 @@ void main() {
   outColor = vec4(vColor.rgb * a, a);
 }`;
 
+/** 연기: 가운데가 짙고 가장자리로 부드럽게 옅어지는 덩어리. 받은 빛깔로 물들고 뒤를 조금 가린다 */
+const SMOKE_FS = `#version 300 es
+precision mediump float;
+in vec4 vColor;
+out vec4 outColor;
+void main() {
+  vec2 d = gl_PointCoord * 2.0 - 1.0;
+  float r2 = dot(d, d);
+  if (r2 > 1.0) discard;
+  float a = vColor.a * (1.0 - r2) * (1.0 - r2);
+  outColor = vec4(vColor.rgb * a, a);
+}`;
+
 /** 블룸: 줄이며 번지기. 처음 한 번은 밝은 부분만 뽑는다 (부드러운 문턱) */
 const DOWN_FS = `#version 300 es
 precision mediump float;
@@ -85,6 +98,8 @@ out vec4 outColor;
 vec3 pick(vec2 uv) {
   vec3 c = texture(uSrc, uv).rgb;
   if (uThreshold < 0.0) return c;
+  // 별이 빽빽이 겹친 곳은 밝기가 몇 배로 쌓이므로, 먼저 부드럽게 눌러야 덩어리로 번지지 않는다.
+  c = c / (1.0 + max(c.r, max(c.g, c.b)) * 0.5);
   float b = max(c.r, max(c.g, c.b));
   float knee = uThreshold * 0.5;
   float soft = clamp(b - uThreshold + knee, 0.0, 2.0 * knee);
@@ -172,10 +187,12 @@ export interface FrameInput {
   shore: [number, number];
   /** 안개 거리(m). 0이면 없음 */
   fog?: number;
+  /** 연기 덩어리 (Simulation.writeSmoke). 없으면 그리지 않는다 */
+  smoke?: { buffer: Float32Array; count: number };
 }
 
 /** 블룸 세기 */
-const BLOOM = { high: { levels: 6, amount: 1.6, threshold: 0.28 }, medium: { levels: 4, amount: 1.3, threshold: 0.32 } };
+const BLOOM = { high: { levels: 6, amount: 1.4, threshold: 0.22 }, medium: { levels: 4, amount: 1.15, threshold: 0.26 } };
 
 export class StageRenderer {
   readonly gl: WebGL2RenderingContext;
@@ -188,6 +205,11 @@ export class StageRenderer {
   private capacityFloats = 0;
   private readonly u: Record<string, WebGLUniformLocation | null>;
   private readonly downProg: WebGLProgram;
+  private readonly smokeProg: WebGLProgram;
+  private readonly smokeVao: WebGLVertexArrayObject;
+  private readonly smokeVbo: WebGLBuffer;
+  private smokeCapacity = 0;
+  private readonly su: Record<string, WebGLUniformLocation | null>;
   private readonly upProg: WebGLProgram;
   private readonly composeProg: WebGLProgram;
   /** 반정밀도 실수 화면에 그릴 수 있는지 (없으면 화질을 낮음으로) */
@@ -233,6 +255,19 @@ export class StageRenderer {
     this.u = Object.fromEntries(names.map((n) => [n, gl.getUniformLocation(this.pointProg, n)]));
     this.u.uSkyLight = gl.getUniformLocation(this.quadProg, 'uSkyLight');
     this.u.uBackdrop = gl.getUniformLocation(this.quadProg, 'uBackdrop');
+
+    // 연기: 점 위치·크기 계산은 별과 같고, 그리는 방식(가리며 섞기)만 다르다.
+    this.smokeProg = compile(gl, POINT_VS, SMOKE_FS);
+    this.su = Object.fromEntries(names.map((n) => [n, gl.getUniformLocation(this.smokeProg, n)]));
+    this.smokeVao = gl.createVertexArray()!;
+    this.smokeVbo = gl.createBuffer()!;
+    gl.bindVertexArray(this.smokeVao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.smokeVbo);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 4, gl.FLOAT, false, RENDER_STRIDE * 4, 0);
+    gl.enableVertexAttribArray(1);
+    gl.vertexAttribPointer(1, 4, gl.FLOAT, false, RENDER_STRIDE * 4, 16);
+    gl.bindVertexArray(null);
 
     this.hdr = !!gl.getExtension('EXT_color_buffer_float');
     this.downProg = compile(gl, QUAD_VS, DOWN_FS);
@@ -390,6 +425,35 @@ export class StageRenderer {
     gl.uniform1f(this.u.uMirror, 1);
     gl.uniform1f(this.u.uFade, 1);
     gl.drawArrays(gl.POINTS, 0, f.count);
+    gl.bindVertexArray(null);
+    this.drawSmoke(f);
+  }
+
+  /** 연기: 별 위에 덮어 그린다 (앞을 조금 가리고, 받은 빛깔로 빛난다) */
+  private drawSmoke(f: FrameInput): void {
+    const s = f.smoke;
+    if (!s || s.count === 0) return;
+    const gl = this.gl;
+    const floats = s.count * RENDER_STRIDE;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.smokeVbo);
+    if (floats > this.smokeCapacity) {
+      this.smokeCapacity = s.buffer.length;
+      gl.bufferData(gl.ARRAY_BUFFER, this.smokeCapacity * 4, gl.DYNAMIC_DRAW);
+    }
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, s.buffer, 0, floats);
+    gl.useProgram(this.smokeProg);
+    gl.bindVertexArray(this.smokeVao);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    gl.uniformMatrix4fv(this.su.uViewProj, false, f.viewProj);
+    gl.uniform1f(this.su.uPxPerMeter, f.pxPerMeter);
+    gl.uniform1f(this.su.uMaxPoint, this.maxPoint);
+    gl.uniform3f(this.su.uEye, f.eye[0], f.eye[1], f.eye[2]);
+    gl.uniform2f(this.su.uShore, f.shore[0], f.shore[1]);
+    gl.uniform1f(this.su.uFog, f.fog ?? 0);
+    gl.uniform1f(this.su.uMirror, 1);
+    gl.uniform1f(this.su.uFade, 1);
+    gl.drawArrays(gl.POINTS, 0, s.count);
     gl.bindVertexArray(null);
   }
 }

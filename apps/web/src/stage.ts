@@ -3,6 +3,7 @@
 
 import {
   RENDER_EXTRA,
+  SMOKE_POINTS,
   SKIES,
   writeSnow,
   RENDER_STRIDE,
@@ -121,6 +122,8 @@ export class Stage {
     return this.seat;
   }
 
+  /** 연기 덩어리 버퍼 */
+  private smokeBuffer = new Float32Array(SMOKE_POINTS * RENDER_STRIDE);
   private shots: Shot[] = [];
   private shotsFor: unknown = null;
 
@@ -285,6 +288,7 @@ export class Stage {
       reflection: !this.seat.plan,
       shore: waterSpan(venue),
       fog: look.fog,
+      smoke: { buffer: this.smokeBuffer, count: this.sim.writeSmoke(this.smokeBuffer) },
     });
     this.watchSpeed(playing);
   }
