@@ -6,7 +6,11 @@ import { defaultBuild, buildToShell } from '../src/build.ts';
 import type { FireworkType } from '../src/catalog.ts';
 import { STARTER_TYPES, UNLOCK_PRICES, generateCommissions, showCost, weeklyChallenge } from '../src/commission.ts';
 import { newCustomShell } from '../src/custom.ts';
+import { applyLive } from '../src/live.ts';
+import { rigForShow } from '../src/loading.ts';
+import { allTubes } from '../src/rig.ts';
 import { scoreShow } from '../src/score.ts';
+import { fixFaults } from '../src/wiring.ts';
 import { expandShow, type Launcher, type Show } from '../src/show.ts';
 
 const RATE = 11025;
@@ -159,4 +163,17 @@ test('자동 연출 품질: 의뢰를 자동 연출로 만들면 평균 별 1.5�
   assert.ok(stars / n >= 1.5, `평균 별 ${(stars / n).toFixed(2)}`);
   assert.ok(gaps / n >= 85, `빈 하늘 ${(gaps / n).toFixed(1)}`);
   assert.ok(smoke / n >= 40, `연기 ${(smoke / n).toFixed(1)}`);
+});
+
+test('실전 모드: 빈 갑판에서 자동 연출 → 랙 채우기 → 실린 통 안에서 다시 만들기 → 회로 점검이면 모두 쏘아진다', () => {
+  const map = flatMusicMap(60, 112);
+  const base: Show = { ...showOf([]), rig: { decks: {}, live: true } };
+  const first = autoChoreograph(map, launchers, { seed: 4, style: 'grand', density: 0.8 });
+  const { rig, missing } = rigForShow({ ...base, cues: first });
+  const cues = autoChoreograph(map, launchers, { seed: 4, style: 'grand', density: 0.8, tubes: allTubes({ decks: rig.decks }) });
+  const show: Show = { ...base, cues, rig: { decks: rig.decks, live: true } };
+  fixFaults(show);
+  const { blocked } = applyLive(show, expandShow(show).launches);
+  assert.ok(cues.length > 20, `${cues.length}`);
+  assert.equal(blocked.filter((b) => /통|핀/.test(b.reason)).length, 0, `${missing.join(' ')} / ${blocked.slice(0, 3).map((b) => b.reason).join(', ')}`);
 });

@@ -712,20 +712,24 @@ export function autoChoreograph(music: MusicMap, launchers: Launcher[], o: AutoO
     const freeAt = (at: string, c: Placed) => !out.some((x) => x !== c && x.at === at && Math.abs(x.t - c.t) < 0.45);
     const limit = o.budget !== undefined ? o.budget * 0.95 : Infinity;
     let spent = out.reduce((sum, c) => sum + cueCost(c), 0);
-    for (let pass = 0; pass < 5; pass++) {
-      const { obscured } = analyzeSmoke(expandShow(show).launches, windVector(show));
+    // 바람이 불어오는 쪽 바지선일수록 앞 연기가 덜 흘러온다 (옮길 곳은 바람 위쪽부터 고른다).
+    const wv = windVector(show);
+    const upwind = [...barges].sort((a, b) => a.pos[0] * wv[0] + a.pos[2] * wv[2] - (b.pos[0] * wv[0] + b.pos[2] * wv[2]));
+    for (let pass = 0; pass < 8; pass++) {
+      const { obscured } = analyzeSmoke(expandShow(show).launches, wv);
       if (!obscured.size) break;
       const drop = new Set<Placed>();
       for (const idx of new Set([...obscured].map((l) => l.cueIndex))) {
         const c = out[idx];
         // 드롭의 큰 한 방, 꼭 넣을 것, 마지막 한 방은 그대로 둔다.
         if (c.importance >= 4) continue;
-        const other = pass < 2 ? barges.find((b) => b.id !== c.at && freeAt(b.id, c)) : undefined;
+        // 짝수 번째는 다른 바지선(바람 위쪽부터)으로, 홀수 번째는 높이를 바꾸고, 마지막엔 붐비는 곳이면 뺀다.
+        const other = pass % 2 === 0 && pass < 6 ? upwind.find((b) => b.id !== c.at && freeAt(b.id, c)) : undefined;
         const resizable = isShell(c.type) && c.type !== 'cake' && c.type !== 'custom';
         if (other) {
           c.at = other.id;
           if (c.angle) c.angle = other === left ? -Math.abs(c.angle) : other === right ? Math.abs(c.angle) : 0;
-        } else if (pass < 4 && resizable) {
+        } else if (pass < 7 && resizable) {
           // 낮게 터지면 앞 연기 밑으로, 예산·크기 제한 안에서는 높게
           const down = stepSize(c.size, -1);
           const up = sizeCap(stepSize(c.size, 1));
@@ -733,7 +737,7 @@ export function autoChoreograph(music: MusicMap, launchers: Launcher[], o: AutoO
           const before = cueCost(c);
           c.size = (pass + idx) % 2 === 0 && down !== c.size ? down : up !== c.size && extra <= 2 && spent + extra <= limit ? up : down;
           spent += cueCost(c) - before;
-        } else if (pass === 4 && crowdedForSmoke(c)) drop.add(c);
+        } else if (pass === 7 && crowdedForSmoke(c)) drop.add(c);
       }
       for (const c of drop) {
         spent -= cueCost(c);
