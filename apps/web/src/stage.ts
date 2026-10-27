@@ -11,8 +11,10 @@ import {
   StageRenderer,
   VENUES,
   venueOf,
+  buildCityMesh,
   makeView,
   paintBackdrop,
+  writeCityTraffic,
   planShots,
   shotCamera,
   projectPoint,
@@ -122,6 +124,9 @@ export class Stage {
     return this.seat;
   }
 
+  private cityKey = '';
+  /** 강변도로 차 불빛 버퍼 */
+  private trafficBuffer = new Float32Array(400 * RENDER_STRIDE);
   /** 연기 덩어리 버퍼 */
   private smokeBuffer = new Float32Array(SMOKE_POINTS * RENDER_STRIDE);
   private shots: Shot[] = [];
@@ -259,7 +264,14 @@ export class Stage {
     const markers: Marker[] = cam.plan
       ? this.sim.show.launchers.map((l, i) => ({ pos: l.pos, label: launcherLabel(l, i), from: l.from, to: l.to }))
       : [];
-    paintBackdrop(this.backdrop.getContext('2d')!, bw, bh, this.view.viewProj, this.venue, markers, this.sim.show.venue.cloud, this.look);
+    const venue = this.venue;
+    // 건물·다리는 3D 모형으로 그린다 (무대가 바뀔 때만 다시 만든다).
+    const cityKey = `${venue.id}:${this.sim.show.venue.map?.lat ?? ''}:${venue.buildings.length}`;
+    if (cityKey !== this.cityKey) {
+      this.cityKey = cityKey;
+      this.renderer.setCity(buildCityMesh(venue));
+    }
+    paintBackdrop(this.backdrop.getContext('2d')!, bw, bh, this.view.viewProj, venue, markers, this.sim.show.venue.cloud, this.look, true);
     this.renderer.setBackdrop(this.backdrop);
   }
 
@@ -289,6 +301,8 @@ export class Stage {
       shore: waterSpan(venue),
       fog: look.fog,
       smoke: { buffer: this.smokeBuffer, count: this.sim.writeSmoke(this.smokeBuffer) },
+      lights: { buffer: this.trafficBuffer, count: writeCityTraffic(venue, t, this.trafficBuffer) },
+      windows: look.windows,
     });
     this.watchSpeed(playing);
   }

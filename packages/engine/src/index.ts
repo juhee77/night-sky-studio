@@ -9,6 +9,7 @@ export * from './rng.ts';
 export * from './beat.ts';
 export { paintBackdrop, projectPoint, type Marker } from './render/backdrop.ts';
 export { StageRenderer, type FrameInput, type RenderQuality } from './render/webgl.ts';
+export { buildCityMesh, writeCityTraffic, type CityMesh } from './render/city.ts';
 export * from './text.ts';
 export * from './share.ts';
 export * from './sound.ts';

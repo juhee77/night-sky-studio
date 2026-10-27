@@ -103,8 +103,9 @@ export interface Marker {
   from?: Vec3;
 }
 
+/** city3d: 건물과 다리는 3D 모형(render/city.ts)으로 따로 그리므로 여기서는 빼고 하늘·물·땅·산만 */
 export function paintBackdrop(
-  ctx: Ctx, w: number, h: number, m: Mat4, venue: Venue, markers: Marker[] = [], cloud?: number, look: SkyLook = SKIES.night,
+  ctx: Ctx, w: number, h: number, m: Mat4, venue: Venue, markers: Marker[] = [], cloud?: number, look: SkyLook = SKIES.night, city3d = false,
 ): void {
   const sky = ctx.createLinearGradient(0, 0, 0, h);
   sky.addColorStop(0, look.top);
@@ -143,7 +144,7 @@ export function paintBackdrop(
   }
 
   // 멀리 있는 줄부터 그려야 가까운 건물이 앞을 가린다.
-  const buildings = [...venue.buildings].sort((a, b) => b.z - a.z);
+  const buildings = city3d ? [] : [...venue.buildings].sort((a, b) => b.z - a.z);
   for (const b of buildings) {
     fillWorld(ctx, m, [[b.x0, 0, b.z], [b.x1, 0, b.z], [b.x1, b.height, b.z], [b.x0, b.height, b.z]], w, h, BUILDING);
     for (const [wx, wy] of b.windows) {
@@ -151,7 +152,7 @@ export function paintBackdrop(
     }
   }
 
-  drawBridge(ctx, m, w, h, venue.bridge);
+  if (!city3d) drawBridge(ctx, m, w, h, venue.bridge);
 
   // 안개: 먼 것일수록 흐리게 덮는다 (화면 전체에 옅은 막)
   if (look.fog) {
