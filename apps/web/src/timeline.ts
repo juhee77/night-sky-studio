@@ -44,7 +44,7 @@ interface Hit {
 type Drag =
   | { kind: 'scrub' }
   | { kind: 'move'; startX: number; startY: number; anchor: number; originals: Map<number, Cue>; moved: boolean }
-  | { kind: 'empty'; startX: number; startY: number; startScroll: number; lane: number; moved: boolean };
+  | { kind: 'empty'; startX: number; startY: number; startScroll: number; startTop: number; lane: number; moved: boolean; vertical?: boolean; tap?: number };
 
 export interface TimelineHost {
   time(): number;
@@ -312,12 +312,22 @@ export class Timeline {
     return [e.clientX - r.left, e.clientY - r.top];
   }
 
-  private hitAt(x: number, y: number): Hit | undefined {
+  /** 손가락은 크므로 터치일 때는 좁은 불꽃도 좌우 10px 넓게 잡힌다. */
+  private hitAt(x: number, y: number, touch = false): Hit | undefined {
+    const pad = touch ? 10 : 0;
     for (let i = this.hits.length - 1; i >= 0; i--) {
       const h = this.hits[i];
-      if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) return h;
+      if (x >= h.x - pad && x <= h.x + h.w + pad && y >= h.y && y <= h.y + h.h) return h;
     }
     return undefined;
+  }
+
+  /** 길게 누르기 (터치에서 여러 개 고르기) */
+  private pressTimer = 0;
+
+  /** 세로로 넘기는 시간표 칸 */
+  private get scroller(): HTMLElement | null {
+    return this.canvas.parentElement;
   }
 
   private laneAt(y: number): number {
@@ -350,14 +360,27 @@ export class Timeline {
     this.pointers.set(e.pointerId, x);
     if (this.updatePinch()) return;
     if (x < LABEL_W) return;
-    this.canvas.setPointerCapture(e.pointerId);
+    try {
+      this.canvas.setPointerCapture(e.pointerId);
+    } catch {
+      // 손가락이 이미 떨어졌으면 붙잡지 않는다.
+    }
     if (y < RULER_H + WAVE_H) {
       this.drag = { kind: 'scrub' };
       this.host.seek(Math.max(0, this.t(x)));
       return;
     }
     const ed = this.editor;
-    const hit = this.hitAt(x, y);
+    const touch = e.pointerType === 'touch';
+    const hit = this.hitAt(x, y, touch);
+    // 터치: 고르지 않은 불꽃 위에서 끌면 시간표를 넘기고(실수로 옮기지 않게), 손을 떼면 고른다.
+    // 길게 누르면 고른 것에 더하거나 뺀다.
+    if (hit && touch && !ed.selection.has(hit.index)) {
+      this.drag = { kind: 'empty', startX: x, startY: y, startScroll: this.scroll, startTop: this.scroller?.scrollTop ?? 0, lane: -1, moved: false, tap: hit.index };
+      this.longPress(hit.index);
+      return;
+    }
+    if (hit && touch) this.longPress(hit.index);
     if (hit) {
       if (e.shiftKey || e.metaKey || e.ctrlKey) ed.toggle(hit.index);
       else if (!ed.selection.has(hit.index)) ed.select([hit.index]);
@@ -369,7 +392,19 @@ export class Timeline {
     }
     const lane = this.laneAt(y);
     if (lane < 0 || lane >= ed.show.launchers.length) return;
-    this.drag = { kind: 'empty', startX: x, startY: y, startScroll: this.scroll, lane, moved: false };
+    this.drag = { kind: 'empty', startX: x, startY: y, startScroll: this.scroll, startTop: this.scroller?.scrollTop ?? 0, lane, moved: false };
+  }
+
+  private longPress(index: number): void {
+    clearTimeout(this.pressTimer);
+    this.pressTimer = window.setTimeout(() => {
+      const d = this.drag;
+      if (!d || d.kind === 'scrub' || d.moved) return;
+      this.editor.toggle(index);
+      navigator.vibrate?.(15);
+      // 길게 누른 것은 손을 떼도 다시 고르지 않는다.
+      this.drag = null;
+    }, 450);
   }
 
   private onMove(e: PointerEvent): void {
@@ -386,10 +421,21 @@ export class Timeline {
     if (d.kind === 'scrub') {
       this.host.seek(Math.max(0, this.t(x)));
     } else if (d.kind === 'empty') {
-      if (Math.abs(x - d.startX) > 5) d.moved = true;
-      // 빈 곳을 끌면 시간표를 옆으로 민다 (터치 화면에서 쓰기 좋게).
-      if (d.moved) this.scroll = Math.max(0, d.startScroll - (x - d.startX) / this.pps);
+      if (!d.moved && Math.hypot(x - d.startX, y - d.startY) > 5) {
+        d.moved = true;
+        // 처음 움직인 방향으로: 옆이면 시간을, 위아래면 줄을 넘긴다.
+        d.vertical = Math.abs(y - d.startY) > Math.abs(x - d.startX);
+        clearTimeout(this.pressTimer);
+      }
+      // 빈 곳을 끌면 시간표를 민다 (터치 화면에서 쓰기 좋게).
+      if (d.moved && !d.vertical) this.scroll = Math.max(0, d.startScroll - (x - d.startX) / this.pps);
+      if (d.moved && d.vertical && this.scroller) {
+        // y는 캔버스 기준이라 넘긴 만큼 함께 움직인다: 화면에서 손가락이 움직인 거리 = (y - 지금 넘긴 양) - (처음 y - 처음 넘긴 양)
+        const top = this.scroller.scrollTop;
+        this.scroller.scrollTop = d.startTop - (y - top - (d.startY - d.startTop));
+      }
     } else {
+      if (Math.hypot(x - d.startX, y - d.startY) >= 4) clearTimeout(this.pressTimer);
       if (!d.moved && Math.hypot(x - d.startX, y - d.startY) < 4) return;
       const ed = this.editor;
       if (!d.moved) {
@@ -417,6 +463,7 @@ export class Timeline {
 
   private onUp(e: PointerEvent): void {
     this.pointers.delete(e.pointerId);
+    clearTimeout(this.pressTimer);
     if (this.pinch) {
       this.updatePinch();
       return;
@@ -426,6 +473,11 @@ export class Timeline {
     if (this.canvas.hasPointerCapture(e.pointerId)) this.canvas.releasePointerCapture(e.pointerId);
     if (!d) return;
     if (d.kind === 'move' && d.moved) this.editor.endBatch();
+    if (d.kind === 'empty' && !d.moved && d.tap !== undefined) {
+      // 터치로 불꽃을 톡 누르면 그것을 고른다.
+      this.editor.select([d.tap]);
+      return;
+    }
     if (d.kind === 'empty' && !d.moved) {
       const [x] = this.local(e);
       const ed = this.editor;
