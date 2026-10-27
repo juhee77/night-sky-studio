@@ -130,17 +130,16 @@ void main() {
   vec3 c = base + uSkyLight * 0.55 * facing;
   if (!bridge && abs(vNormal.y) < 0.5) {
     // 창문: 가로 4m, 층 높이 3.6m 격자. 몇 개는 불이 켜져 있다 (따뜻한 빛이 많고 가끔 흰빛)
-    vec2 cell = floor(vUv / vec2(4.0, 3.6));
-    vec2 f = fract(vUv / vec2(4.0, 3.6));
+    // 멀어서 한 칸이 화소보다 작아지면 칸을 두 배씩 키워, 반짝이지 않는 불빛 점으로 남긴다.
+    float px = max(fwidth(vUv.x) / 4.0, fwidth(vUv.y) / 3.6);
+    vec2 size = vec2(4.0, 3.6) * exp2(max(0.0, floor(log2(px * 2.5))));
+    vec2 cell = floor(vUv / size);
+    vec2 f = fract(vUv / size);
     float win = step(0.22, f.x) * step(f.x, 0.78) * step(0.28, f.y) * step(f.y, 0.78);
     float h = hash(cell + vInfo.x * 17.13);
     float lit = step(1.0 - uWindows * 0.9, h);
     vec3 tone = mix(vec3(1.0, 0.7, 0.4), vec3(0.78, 0.88, 1.0), step(0.82, hash(cell * 1.7 + vInfo.x)));
-    vec3 detail = win * (lit * tone * (0.35 + 0.35 * hash(cell + 3.1)) + (1.0 - lit) * vec3(0.012, 0.016, 0.03));
-    // 멀어서 창문 한 칸이 화소 두셋보다 작으면 반짝이지 않게 평균 밝기로 바꾼다
-    float px = max(fwidth(vUv.x) / 4.0, fwidth(vUv.y) / 3.6);
-    vec3 avg = vec3(1.0, 0.74, 0.46) * uWindows * 0.9 * 0.5 * 0.5 * 0.55;
-    c += mix(detail, avg, smoothstep(0.25, 0.6, px));
+    c += win * (lit * tone * (0.35 + 0.35 * hash(cell + 3.1)) + (1.0 - lit) * vec3(0.012, 0.016, 0.03));
   }
   // 물에 비친 모습은 잔물결로 가로 줄이 흔들린다
   if (uMirror < 0.0) c *= 0.65 + 0.35 * sin(gl_FragCoord.y * 0.9 + vWorld.x * 0.04);

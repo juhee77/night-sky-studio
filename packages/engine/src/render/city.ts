@@ -81,8 +81,8 @@ function addBridge(b: Builder, br: BridgeShape): void {
   // 상판 (차도 폭 22m)과 상판을 따라 양쪽 가로등 (30m마다)
   b.box(br.x0, br.x1, z - deckDepth / 2, z + deckDepth / 2, deckY - 3, deckY, 1, KIND_BRIDGE);
   for (let x = br.x0 + 15; x < br.x1; x += 30) {
-    b.lamp([x, deckY + 7, z - deckDepth / 2], WARM, 3, 0.9);
-    b.lamp([x + 15, deckY + 7, z + deckDepth / 2], WARM, 3, 0.6);
+    b.lamp([x, deckY + 7, z - deckDepth / 2], WARM, 1.8, 1);
+    b.lamp([x + 15, deckY + 7, z + deckDepth / 2], WARM, 1.8, 0.7);
   }
   if (br.kind === 'girder') {
     for (const x of br.piers) b.box(x - 3, x + 3, z - 6, z + 6, 0, deckY - 3, 2, KIND_BRIDGE);
