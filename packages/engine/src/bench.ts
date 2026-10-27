@@ -28,7 +28,8 @@ export interface Bench {
   size: Size;
   starKind: StarKind;
   mix: { scoops: Record<Ingredient, number>; colorant: Colorant; stir: number };
-  stars: { method: StarMethod; sizeMm: number; count: number; care: number };
+  /** made: 방식마다 만든 알 수 (방식을 섞으면 진단이 섞인 몫을 본다) */
+  stars: { method: StarMethod; sizeMm: number; count: number; care: number; made?: Partial<Record<StarMethod, number>> };
   dryHours: number;
   placed: Dir[];
   pour?: { charge: number; offset: number };
@@ -116,10 +117,20 @@ export function cutScore(pts: [number, number][]): number {
 export const joinSeam = (angleDeg: number) => clamp(1 - Math.abs(angleDeg) / 20, 0, 1);
 
 /** 별을 한 판 만들 때 쌓는 수와 고르기를 별 상자에 더한다 (고르기는 개수로 가중 평균) */
-export function addStars(b: Bench, count: number, care: number): void {
+export function addStars(b: Bench, count: number, care: number, method: StarMethod = b.stars.method): void {
   const total = b.stars.count + count;
   b.stars.care = total ? (b.stars.care * b.stars.count + care * count) / total : 0;
   b.stars.count = total;
+  const made = (b.stars.made ??= {});
+  made[method] = (made[method] ?? 0) + count;
+}
+
+/** 별 상자의 방식: 가장 많이 만든 방식과, 둘 이상 섞였으면 방식마다 알 수 */
+function starMethodOf(b: Bench): { method: StarMethod; mix?: Partial<Record<StarMethod, number>> } {
+  const made = Object.entries(b.stars.made ?? {}).filter(([, n]) => (n ?? 0) > 0) as [StarMethod, number][];
+  if (!made.length) return { method: b.stars.method };
+  const method = made.sort((x, y) => y[1] - x[1])[0][0];
+  return made.length > 1 ? { method, mix: Object.fromEntries(made) } : { method };
 }
 
 /** 작업대의 결과 → 알 설계. 아직 안 한 공정은 「서툰 첫 솜씨」 값으로 채운다 (시험해 보면 티가 난다). */
@@ -144,7 +155,7 @@ export function benchToBuild(b: Bench): ShellBuild {
     stars: b.placed.map((d) => [...d] as Dir),
     pistil: null,
     ...(hasMix ? { comp } : {}),
-    star: { method: b.stars.method, sizeMm: b.stars.sizeMm, dryHours: b.dryHours, handCare: b.stars.care },
+    star: { ...starMethodOf(b), sizeMm: b.stars.sizeMm, dryHours: b.dryHours, handCare: b.stars.care },
     breakCharge: b.pour?.charge ?? 0.3,
     paper: b.paste ? clamp(b.paste.layers, 2, 12) : 3,
     fuse: b.fuseCm !== undefined ? clamp(b.fuseCm / idealFuseCm(b.size), 0.6, 1.5) : 0.8,

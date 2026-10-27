@@ -131,3 +131,32 @@ test('3/4 곡: 구간 경계와 마디 첫 박의 큰 불꽃이 세 박 마디�
   assert.ok(mirrored.length > 0);
   for (const c of mirrored) assert.ok(onGrid(c.t, 6), `${c.t}`);
 });
+
+test('자동 연출 품질: 의뢰를 자동 연출로 만들면 평균 별 1.5개 이상, 빈 하늘과 연기도 기준 이상', () => {
+  const cs = [...Array.from({ length: 6 }, (_, k) => generateCommissions(700 + k, 100, 3)).flat(), ...Array.from({ length: 6 }, (_, k) => weeklyChallenge(`2026-W${String(k + 30)}`))];
+  const all = [...STARTER_TYPES, ...(Object.keys(UNLOCK_PRICES) as FireworkType[])];
+  let stars = 0;
+  let gaps = 0;
+  let smoke = 0;
+  let n = 0;
+  for (const c of cs) {
+    for (const [dur, bpm] of [[60, 84], [100, 124]]) {
+      const show: Show = {
+        ...showOf([]),
+        music: { id: 'x', title: 'x', bpm, offset: 0, duration: dur },
+        venue: { preset: 'river-bridge-city', wind: c.wind, ...(c.cloud ? { cloud: c.cloud } : {}) },
+        commission: c,
+      };
+      const { options } = commissionAutoOptions(c, show, all, []);
+      show.cues = autoChoreograph(flatMusicMap(dur, bpm), launchers, { seed: n, style: c.taste.style, density: 0.7, ...options });
+      const r = scoreShow(show, c);
+      stars += r.stars;
+      gaps += r.items.find((i) => i.key === 'gaps')!.score;
+      smoke += r.items.find((i) => i.key === 'smoke')!.score;
+      n++;
+    }
+  }
+  assert.ok(stars / n >= 1.5, `평균 별 ${(stars / n).toFixed(2)}`);
+  assert.ok(gaps / n >= 85, `빈 하늘 ${(gaps / n).toFixed(1)}`);
+  assert.ok(smoke / n >= 40, `연기 ${(smoke / n).toFixed(1)}`);
+});

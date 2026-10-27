@@ -29,7 +29,7 @@ function eulReul(word: string): string {
  * shells: 이 쇼에 쓸 수 있는 내 불꽃 (의뢰면 개발한 것만)
  */
 export function commissionAutoOptions(c: Commission, show: Show, unlocked: FireworkType[], shells: CustomShell[]): CommissionAuto {
-  const o: Partial<AutoOptions> = { budget: c.budget };
+  const o: Partial<AutoOptions> = { budget: c.budget, liked: c.taste.colors, wind: c.wind };
   if (!c.challenge) o.allowed = unlocked;
   const manual: CommissionAuto['manual'] = [];
   const mine = (kind: 'kamuroFinish' | 'workshopShell' | 'outerPop') => shells.find((s) => shellMeetsRule(kind, s));

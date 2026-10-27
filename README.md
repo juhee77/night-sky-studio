@@ -46,6 +46,20 @@ npm run dev
 | `npm run e2e` | 화면 자동 테스트 (Playwright, 개발 서버를 띄워 실제 브라우저로 누름) |
 | `npm run build:pages` | GitHub Pages용 정적판 빌드 → `apps/web/dist` |
 
+## 로컬에서 서버판 해 보기
+
+계정, 상영관, 짧은 링크, 이번 주 도전 순위까지 내 컴퓨터에서 써 볼 수 있습니다 (호스팅 없이).
+
+```bash
+npm run local
+```
+
+- 서버(+DB), 시험 데이터, 화면(서버 연결판)을 차례로 띄웁니다. 화면은 http://127.0.0.1:5174 입니다.
+- Docker가 돌고 있으면 서버와 PostgreSQL을 컨테이너로, 아니면 서버 jar를 직접 띄우고 DB는 `server/data`의 H2 파일을 씁니다 (Java 25 필요). Docker가 있어도 H2로 하려면 `npm run local -- --h2`.
+- 시험 데이터: 시험 계정 둘과 상영관 예시 쇼·내 불꽃, 이번 주 도전 글. 여러 번 돌려도 두 번 올리지 않습니다 (`npm run local:seed`로 따로, `npm run local -- --no-seed`로 빼기).
+- 시험 계정 (로컬 전용): `별빛연출가` / `night-sky-local-1`, `불꽃장인` / `night-sky-local-2`
+- Ctrl+C로 끕니다. Docker로 띄운 컨테이너는 `npm run local:stop`으로 끕니다.
+
 ## 배포
 
 - **정적판 (GitHub Pages)**: `main`에 push하면 [pages.yml](.github/workflows/pages.yml)이 타입 검사와 테스트를 거쳐 앱과 `docs/`를 올립니다.

@@ -21,6 +21,7 @@ import {
   type TestRecord,
   encodeShellCode,
   newCustomShell,
+  BENCH_STEPS,
   newBench,
   type Bench,
   type ColorName,
@@ -157,6 +158,8 @@ export interface WorkshopHost {
 
 type View = 'front' | 'side' | 'top' | 'wind';
 
+const BENCH_KEY = 'nss:bench';
+
 export class Workshop {
   private dialog: HTMLDialogElement;
   private drawer: Drawer;
@@ -199,7 +202,14 @@ export class Workshop {
     });
     dialog.querySelector('#ws-test')!.addEventListener('click', () => this.runTest());
     dialog.querySelector('#ws-save')!.addEventListener('click', () => this.save());
-    dialog.querySelector('#ws-new')!.addEventListener('click', () => this.load(newCustomShell(shortId(), '내 불꽃')));
+    dialog.querySelector('#ws-new')!.addEventListener('click', () => {
+      // 새 불꽃이면 작업대도 비운다.
+      this.bench = null;
+      this.benchStep = 'mix';
+      this.saveBench();
+      this.load(newCustomShell(shortId(), '내 불꽃'));
+    });
+    this.loadBench();
     dialog.querySelector('#ws-copy')!.addEventListener('click', () => void this.copyCode());
     dialog.querySelector('#ws-import')!.addEventListener('click', () => void this.importCode());
   }
@@ -347,8 +357,13 @@ export class Workshop {
           this.benchStep = ui.step;
           this.shell = BenchUI.shellOf(bench, this.shell);
           this.dirty = true;
+          this.saveBench();
           this.updateCount();
           this.refreshPreview();
+        },
+        stepped: (step) => {
+          this.benchStep = step;
+          this.saveBench();
         },
         shell: () => this.shell,
         save: () => this.save(),
@@ -713,6 +728,29 @@ export class Workshop {
         }
       }),
     );
+  }
+
+  /** 작업대 위의 알을 이 브라우저에 기억한다 (새로고침해도 이어서 만든다) */
+  private saveBench(): void {
+    try {
+      if (this.bench) localStorage.setItem(BENCH_KEY, JSON.stringify({ bench: this.bench, step: this.benchStep }));
+      else localStorage.removeItem(BENCH_KEY);
+    } catch {
+      // 기억하지 못해도 이번 창에서는 이어서 만든다.
+    }
+  }
+
+  private loadBench(): void {
+    try {
+      const raw = JSON.parse(localStorage.getItem(BENCH_KEY) ?? 'null') as { bench?: Partial<Bench>; step?: string } | null;
+      if (!raw?.bench) return;
+      const fresh = newBench(raw.bench.size ?? 5);
+      // 예전에 기억한 것에 빠진 칸은 새 작업대 값으로 채운다.
+      this.bench = { ...fresh, ...raw.bench, mix: { ...fresh.mix, ...raw.bench.mix }, stars: { ...fresh.stars, ...raw.bench.stars } } as Bench;
+      if (BENCH_STEPS.some((s) => s.id === raw.step)) this.benchStep = raw.step as BenchUI['step'];
+    } catch {
+      // 망가진 기록은 버리고 새로 시작한다.
+    }
   }
 
   private save(): void {
