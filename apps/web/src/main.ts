@@ -120,6 +120,10 @@ const office = new Office(editor, career, {
   },
   say,
   watch: () => startWatching(),
+  seek: (t) => {
+    if (transport.playing) togglePlay();
+    transport.seek(t);
+  },
 });
 editor.allowType = (t, custom) => !office.isLocked(t, custom);
 el.officeBtn.addEventListener('click', () => office.openBoard());
@@ -914,8 +918,10 @@ function frame(now: number): void {
     togglePlay();
     transport.seek(end);
     t = end;
-    // 감상으로 끝까지 봤으면 감상 화면을 닫는다 (첫 방문이면 끝 화면이 뜬다).
+    // 감상으로 끝까지 봤으면 감상 화면을 닫는다 (첫 방문이면 끝 화면이 뜬다). 의뢰 쇼면 성적표를 띄운다.
+    const watched = document.body.classList.contains('watching');
     stopWatching();
+    if (watched) office.report();
   }
   // 나란히 보기 창이 열려 있으면 편집 무대는 쉬고, 그 창이 무대를 그린다.
   if (!compare.open) stage.render(t, transport.playing);

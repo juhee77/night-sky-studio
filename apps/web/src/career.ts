@@ -34,6 +34,8 @@ export interface CareerState {
   developed: string[];
   /** 이번 주 도전: 주차마다 내 최고 점수 */
   challenges: Record<string, { total: number; stars: number; at: number }>;
+  /** 의뢰마다 채점해 본 가장 높은 점수 (성적표의 「최고 기록!」) */
+  bests?: Record<string, number>;
 }
 
 const KEY = 'nss:career';
@@ -127,6 +129,14 @@ export class Career {
       this.save();
     }
     return { best: Math.max(total, prev?.total ?? 0), improved };
+  }
+
+  /** 의뢰를 채점해 본 점수를 최고 기록과 견준다 */
+  noteBest(commissionId: string, total: number): void {
+    const prev = this.state.bests?.[commissionId];
+    if (prev !== undefined && total <= prev) return;
+    this.state.bests = { ...this.state.bests, [commissionId]: total };
+    this.save();
   }
 
   /** 납품 결과를 장부에 적는다. 같은 의뢰는 한 번만 받는다. */

@@ -6,10 +6,12 @@ import {
   UNLOCK_PRICES,
   VENUES,
   encodeShow,
+  gradeOf,
   isoWeekKey,
   ruleLabel,
   scoreShow,
   showCost,
+  showMoments,
   typeLabel,
   weeklyChallenge,
   type Commission,
@@ -44,6 +46,8 @@ export interface OfficeHost {
   saveNewShow(show: Show): Promise<string>;
   say(message: string): void;
   watch(): void;
+  /** 그 시각으로 옮겨 멈춘다 (성적표의 순간을 눌렀을 때) */
+  seek(t: number): void;
 }
 
 export class Office {
@@ -242,6 +246,11 @@ export class Office {
     this.bar.querySelector('[data-act="deliver"]')?.addEventListener('click', () => this.showResult(true));
   }
 
+  /** 의뢰 쇼를 끝까지 감상했을 때: 성적표 (미리 채점) */
+  report(): void {
+    if (this.editor.show.commission) this.showResult(false);
+  }
+
   /** 채점 결과를 보여 준다. deliver면 확인을 받은 뒤 장부에 적는다. */
   private showResult(deliver: boolean): void {
     const c = this.editor.show.commission;
@@ -250,9 +259,16 @@ export class Office {
     this.lastResult = r;
     const done = c.delivered;
     const body = this.result.querySelector('.result-body')!;
+    const grade = gradeOf(r);
+    // 최고 기록: 도전은 기록한 점수, 의뢰는 채점해 본 점수 가운데 가장 높은 것
+    const prevBest = c.challenge ? this.career.state.challenges[c.challenge]?.total : this.career.state.bests?.[c.id];
+    const record = !r.failed && prevBest !== undefined && r.total > prevBest;
+    if (!c.challenge && !r.failed) this.career.noteBest(c.id, r.total);
     const head = r.failed
-      ? `<p class="verdict fail">의뢰 실패: ${esc(r.failReason ?? '')}</p>`
-      : `<p class="verdict"><span class="stars big">${stars(r.stars)}</span><b class="num">${r.total}점</b></p>`;
+      ? `<p class="verdict fail"><span class="grade grade-F">F</span>의뢰 실패: ${esc(r.failReason ?? '')}</p>`
+      : `<p class="verdict"><span class="grade grade-${grade}">${grade}</span><span class="stars big">${stars(r.stars)}</span><b class="num">${r.total}점</b>${record ? '<span class="record">최고 기록!</span>' : prevBest !== undefined ? `<span class="note">내 최고 ${prevBest}점</span>` : ''}</p>`;
+    const m = showMoments(this.editor.show);
+    const moments = [m.best && { ...m.best, kind: 'best', label: '가장 좋았던 순간' }, m.worst && { ...m.worst, kind: 'worst', label: '가장 아쉬웠던 순간' }].filter((x) => !!x);
     const best = c.challenge ? this.career.state.challenges[c.challenge] : undefined;
     const money = c.challenge
       ? best ? `지금까지 내 최고 ${best.total}점` : '이번 주 첫 기록'
@@ -270,11 +286,13 @@ export class Office {
           </li>`,
         )
         .join('')}</ul>
+      ${moments.length ? `<ul class="moments">${moments.map((x) => `<li class="${x.kind}"><span class="label">${x.label}</span><button type="button" data-seek="${x.t}">${esc(x.text)} ▸</button></li>`).join('')}</ul>` : ''}
       <ul class="rule-results">${r.rules.map((x) => `<li class="${x.ok ? 'ok' : 'no'}">${x.ok ? '✓' : '✗'} ${esc(x.label)}${x.detail ? ` <span class="note">${esc(x.detail)}</span>` : ''}</li>`).join('')}</ul>
       <p class="money">${c.challenge ? money : done ? `받은 보상 ${done.reward}` : deliver ? `납품하면: ${money}` : `지금 납품하면: ${money}`}</p>
       <div class="dialog-actions">
         ${deliver && !done ? `<button type="button" class="primary" data-act="confirm">${c.challenge ? '이 점수 기록하기' : '이대로 납품하기'}</button><button type="button" data-act="close">더 고치기</button>` : '<button type="button" data-act="close">닫기</button>'}
         <button type="button" data-act="watch">관객과 함께 감상하기</button>
+        ${done && !c.challenge ? '<button type="button" data-act="next">다음 의뢰</button>' : ''}
         ${c.challenge && remoteEnabled() && !r.failed ? '<button type="button" data-act="upload">상영관 「이번 주 도전」에 올리기</button>' : ''}
       </div>
       ${c.challenge ? '<p class="note">도전은 몇 번이든 다시 낼 수 있고, 최고 점수만 남습니다.</p>' : deliver && !done ? '<p class="note">납품은 한 번만 할 수 있습니다. 납품한 뒤에도 쇼는 계속 고치고 공유할 수 있습니다.</p>' : ''}`;
@@ -284,6 +302,16 @@ export class Office {
       this.host.watch();
     });
     body.querySelector('[data-act="confirm"]')?.addEventListener('click', () => this.deliver());
+    body.querySelector('[data-act="next"]')?.addEventListener('click', () => {
+      this.result.close();
+      this.openBoard();
+    });
+    body.querySelectorAll<HTMLButtonElement>('[data-seek]').forEach((b) =>
+      b.addEventListener('click', () => {
+        this.result.close();
+        this.host.seek(Number(b.dataset.seek));
+      }),
+    );
     body.querySelector('[data-act="upload"]')?.addEventListener('click', () => void this.uploadChallenge());
     this.result.showModal();
   }

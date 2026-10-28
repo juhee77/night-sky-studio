@@ -620,3 +620,26 @@ body.watching .intro-card { display: none; }
   background: rgba(11, 12, 29, 0.6);
 }
 body.watching .crowd-gauge { top: calc(env(safe-area-inset-top, 0px) + 12px); }
+
+/* ── 성적표 ── */
+.grade {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  font: 800 28px/1 var(--mono);
+  background: rgba(255, 255, 255, 0.08);
+  align-self: center;
+}
+.grade-S { color: #fde68a; background: rgba(250, 204, 21, 0.18); }
+.grade-A { color: var(--accent); background: rgba(251, 146, 60, 0.16); }
+.grade-F { color: #ffb4ad; }
+.verdict .record { color: #fde68a; font-weight: 800; animation: record-pop 0.6s ease-out; }
+@keyframes record-pop { 0% { transform: scale(0.6); opacity: 0; } 70% { transform: scale(1.15); } 100% { transform: scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .verdict .record { animation: none; } }
+.moments { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.moments li { display: grid; grid-template-columns: 120px 1fr; align-items: center; gap: 10px; }
+.moments .label { font-size: 12px; color: var(--muted); }
+.moments li.best .label { color: #fde68a; }
+.moments button { text-align: left; }

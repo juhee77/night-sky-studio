@@ -9,7 +9,7 @@ import { analyzeSmoke } from './smoke.ts';
 import { craftReport, type CustomShell } from './custom.ts';
 import { applyLive, isLive } from './live.ts';
 import { artCount } from './art.ts';
-import { beatFit } from './audience.ts';
+import { beatFit, crowdTrack } from './audience.ts';
 
 export interface ScoreItem {
   key: 'beat' | 'gaps' | 'variety' | 'smoke' | 'finale' | 'taste' | 'rules' | 'craft';
@@ -320,4 +320,47 @@ export function scoreShow(show: Show, c: Commission): ScoreResult {
   const reputation = failed ? -5 : [0, 3, 6, 10][stars] + (stars ? c.tier * 2 : 0);
 
   return { items, total, coverage, stars, cost, budget: c.budget, rules, failed, failReason, reward, reputation };
+}
+
+/** 성적 등급: 별 셋(85점) 위로 S(92점)·A, 별 둘 B, 별 하나 C, 그 밑 D, 실패 F */
+export function gradeOf(r: Pick<ScoreResult, 'total' | 'failed'>): 'S' | 'A' | 'B' | 'C' | 'D' | 'F' {
+  if (r.failed) return 'F';
+  return r.total >= 92 ? 'S' : r.total >= 85 ? 'A' : r.total >= 70 ? 'B' : r.total >= 55 ? 'C' : 'D';
+}
+
+export interface Moment {
+  t: number;
+  text: string;
+}
+
+/**
+ * 성적표에 보일 가장 좋았던 순간(관객 열기가 가장 높던 때)과 가장 아쉬웠던 순간.
+ * 아쉬운 순간은 점수표 항목 순서로 고른다: 5초 넘게 빈 하늘 → 연기·구름에 가린 불꽃 → 박자에서 가장 어긋난 불꽃.
+ */
+export function showMoments(show: Show): { best: Moment | null; worst: Moment | null } {
+  const launches = applyLive(show, expandShow(show).launches).launches;
+  if (!launches.length) return { best: null, worst: null };
+  const track = crowdTrack(show, launches);
+  let peak = 0;
+  for (let i = 1; i < track.heat.length; i++) if (track.heat[i] > track.heat[peak]) peak = i;
+  // 열기가 가장 높아진 때보다 조금 앞에서 봐야 그 순간을 이룬 불꽃이 보인다
+  const best: Moment = { t: Math.max(0, peak / 10 - 3), text: `${fmt(peak / 10)} 관객 열기가 가장 높았던 순간` };
+
+  const end = endOf(show, launches);
+  const spans = show.cues.map((cue) => [cue.t, cue.t + cueLength(cue)] as const).sort((a, b) => a[0] - b[0]);
+  let cursor = 4;
+  let gap: [number, number] | null = null;
+  for (const [a, b] of [...spans, [end - 2, end - 2] as const]) {
+    if (a - cursor > 5 && (!gap || a - cursor > gap[1] - gap[0])) gap = [cursor, a];
+    cursor = Math.max(cursor, b);
+  }
+  if (gap) return { best, worst: { t: gap[0], text: `${fmt(gap[0])}~${fmt(gap[1])} 하늘이 비었어요` } };
+  const hidden = track.marks.find((m) => m.kind !== 'perfect');
+  if (hidden) return { best, worst: { t: Math.max(0, hidden.t - 2), text: hidden.kind === 'smoke' ? `${fmt(hidden.t)} 불꽃이 연기에 가렸어요` : `${fmt(hidden.t)} 불꽃이 구름 위에서 터졌어요` } };
+  if (show.music) {
+    const music = show.music;
+    const off = launches.filter((l) => l.sub === 0).map((l) => ({ t: l.burstAt, fit: beatFit(l.burstAt, music) })).sort((a, b) => a.fit - b.fit)[0];
+    if (off && off.fit < 0.5) return { best, worst: { t: Math.max(0, off.t - 2), text: `${fmt(off.t)} 불꽃이 박자에서 어긋났어요` } };
+  }
+  return { best, worst: null };
 }
