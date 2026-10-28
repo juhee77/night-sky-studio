@@ -158,3 +158,28 @@ test('이번 주 도전: 주차 이름과, 같은 주는 같은 도전', () => {
   }
   assert.ok(new Set(weeks.map((c) => `${c.title}|${c.budget}|${JSON.stringify(c.rules)}`)).size > 10);
 });
+
+test('재생 중 판정은 점수표와 같은 기준: 박자 딱이면 완벽, 연기·구름에 가리면 그 글자, 열기는 오르고 식는다', async () => {
+  const { crowdTrack, crowdAt } = await import('../src/audience.ts');
+  const beat = 60 / 84;
+  // 박에 맞은 7호, 박에서 0.3초 어긋난 7호, 바람 없는 날 같은 자리 연달아 (연기에 가림), 구름 위 10호
+  const show = base([
+    { t: beat * 8, at: 'barge-1', type: 'peony', size: 7 },
+    { t: beat * 16 + 0.3, at: 'barge-2', type: 'peony', size: 7 },
+    ...Array.from({ length: 6 }, (_, k) => ({ t: beat * (24 + k), at: 'barge-3', type: 'chrysanthemum' as const, size: 5 as const })),
+    { t: beat * 40, at: 'barge-1', type: 'peony', size: 10 },
+  ], 0);
+  show.venue.cloud = 250;
+  const { launches } = expandShow(show);
+  const track = crowdTrack(show, launches);
+  const kinds = (from: number, to: number) => track.marks.filter((m) => m.t >= from && m.t < to).map((m) => m.kind);
+  assert.deepEqual(kinds(0, beat * 9), ['perfect']);
+  assert.deepEqual(kinds(beat * 15, beat * 17), []);
+  const hidden = kinds(beat * 23, beat * 31).filter((k) => k === 'smoke').length;
+  const score = scoreShow(show, generateCommissions(1, 0, 3)[0]).items.find((i) => i.key === 'smoke')!;
+  assert.ok(hidden > 0 && score.comment.includes(`연기에 가린 불꽃 ${hidden}발`), `${hidden} / ${score.comment}`);
+  assert.ok(kinds(beat * 39, beat * 41).includes('cloud'));
+  // 열기: 연달아 쏜 뒤가 가장 뜨겁고, 한참 지나면 식는다
+  const hot = crowdAt(track, beat * 30).heat;
+  assert.ok(hot > crowdAt(track, beat * 9).heat && hot > crowdAt(track, beat * 38).heat * 1.5);
+});

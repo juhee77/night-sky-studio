@@ -563,3 +563,60 @@ body.watching .intro-card { display: none; }
 .coach-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 .coach-actions .quiet { background: transparent; border-color: transparent; color: var(--muted); }
 .coach-target { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* ── 재생 중 관객 반응 ── */
+.crowd-hud { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.crowd-people { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 64px; }
+.crowd-gauge {
+  position: absolute;
+  top: 34px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(11, 12, 29, 0.55);
+  font-size: 11px;
+  color: var(--muted);
+}
+.crowd-gauge-bar { width: 110px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+.crowd-gauge-fill {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, #f59e0b, var(--accent), #f43f5e);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.25s ease-out;
+}
+.crowd-hud.hot .crowd-gauge-label { color: #fde68a; }
+.crowd-mark {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-weight: 800;
+  font-size: 15px;
+  white-space: nowrap;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8);
+  animation: crowd-mark 1.3s ease-out forwards;
+}
+.crowd-mark.perfect { color: #fde68a; }
+.crowd-mark.smoke, .crowd-mark.cloud { color: #a5b4c8; font-weight: 600; }
+@keyframes crowd-mark {
+  0% { opacity: 0; transform: translate(-50%, -30%) scale(0.85); }
+  15% { opacity: 1; transform: translate(-50%, -60%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -160%) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .crowd-mark { animation-duration: 1.3s; animation-name: crowd-fade; }
+  @keyframes crowd-fade { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
+}
+.crowd-toggle {
+  position: absolute;
+  right: 12px;
+  bottom: 72px;
+  z-index: 2;
+  font-size: 11px;
+  padding: 4px 8px;
+  background: rgba(11, 12, 29, 0.6);
+}
+body.watching .crowd-gauge { top: calc(env(safe-area-inset-top, 0px) + 12px); }

@@ -361,6 +361,12 @@ export class Stage {
     }
   }
 
+  /** 하늘의 한 점이 무대 위 어디에 보이는지 (CSS 픽셀, 카메라 뒤면 null) */
+  toScreen(p: Vec3): [number, number] | null {
+    const q = projectPoint(this.view.viewProj, p, this.canvas.clientWidth, this.canvas.clientHeight);
+    return q && q[0] >= 0 && q[0] <= this.canvas.clientWidth && q[1] >= 0 && q[1] <= this.canvas.clientHeight ? q : null;
+  }
+
   /** 화면의 x 좌표(클라이언트 픽셀)에서 가장 가까운, 그 종류의 발사 위치 번호 */
   nearestLauncher(clientX: number, kind: Launcher['kind']): number {
     const r = this.canvas.getBoundingClientRect();
