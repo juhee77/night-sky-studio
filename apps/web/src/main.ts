@@ -34,6 +34,7 @@ import { Intro } from './intro.ts';
 import { Coach } from './coach.ts';
 import { Compare } from './compare.ts';
 import { CrowdHud } from './crowd-hud.ts';
+import { LiveFire } from './live-fire.ts';
 import { remoteEnabled } from './remote.ts';
 import { Panel } from './panel.ts';
 import { registerPwa } from './pwa.ts';
@@ -88,6 +89,13 @@ const duration = () => Math.max(stage.sim.duration, editor.show.music?.duration 
 // 3D 자유 시점에서는 끌어서 돌리고, 휠이나 두 손가락으로 확대한다.
 stage.attachControls((clientX) => {
   if (document.body.classList.contains('watching')) return;
+  if (liveFire.active) {
+    // 직접 쏘기: 누른 자리에서 가장 가까운 바지선에서 쏜다
+    const best = stage.nearestLauncher(clientX, 'barge');
+    const barges = editor.show.launchers.filter((l) => l.kind === 'barge');
+    liveFire.fire(Math.max(0, barges.indexOf(editor.show.launchers[best])));
+    return;
+  }
   const best = stage.nearestLauncher(clientX, launcherKindFor(editor.template.type));
   if (best >= 0) placeNow(best);
 });
@@ -107,6 +115,13 @@ function rejectPlacement(why: 'kind' | 'locked'): void {
       : '나이아가라는 다리 줄에, 지상 틀불꽃은 지상 틀 줄에 놓습니다. 바지선 줄에는 하늘 불꽃과 케이크를 놓으세요.',
   );
 }
+
+// ── 직접 쏘기: 음악에 맞춰 키나 무대를 눌러 쏜다 ──
+const liveFire = new LiveFire({ editor, stage, transport, togglePlay, say }, el.stageWrap);
+$<HTMLButtonElement>('fire-btn').addEventListener('click', () => {
+  stopWatching();
+  liveFire.start();
+});
 
 // ── 의뢰소 ──
 const career = new Career();
@@ -735,6 +750,15 @@ const pressable = (t: EventTarget | null) => t instanceof HTMLButtonElement || t
 
 document.addEventListener('keydown', (e) => {
   if (typing(e.target) || document.querySelector('dialog[open]')) return;
+  if (liveFire.active) {
+    // 직접 쏘기: 1~3 바지선, Space 큰 불꽃, Esc 끝내기 (단추에 초점이 있어도 쏜다)
+    if (/^[1-3]$/.test(e.key)) liveFire.fire(Number(e.key) - 1);
+    else if (e.code === 'Space') liveFire.fire('big');
+    else if (e.key === 'Escape') liveFire.finish();
+    else return;
+    e.preventDefault();
+    return;
+  }
   if ((e.code === 'Space' || e.key === 'Enter') && pressable(e.target)) return;
   if (document.body.classList.contains('watching')) {
     if (e.code === 'Space') {
@@ -906,7 +930,7 @@ el.importFile.addEventListener('change', async () => {
 const crowdHud = new CrowdHud(el.stageWrap);
 
 // ── 매 프레임 ──
-const fanCount = (l: Launch) => editor.show.cues[l.cueIndex]?.fan?.count ?? 1;
+const fanCount = (l: Launch) => stage.sim.show.cues[l.cueIndex]?.fan?.count ?? 1;
 let lastClock = '';
 let lastHud = 0;
 let lastBeatNo = -1;
@@ -919,13 +943,16 @@ function frame(now: number): void {
     transport.seek(end);
     t = end;
     // 감상으로 끝까지 봤으면 감상 화면을 닫는다 (첫 방문이면 끝 화면이 뜬다). 의뢰 쇼면 성적표를 띄운다.
+    // 직접 쏘기 중이면 쏜 기록을 시간표로 저장할지 묻는다.
     const watched = document.body.classList.contains('watching');
+    if (liveFire.active) liveFire.finish();
     stopWatching();
     if (watched) office.report();
   }
   // 나란히 보기 창이 열려 있으면 편집 무대는 쉬고, 그 창이 무대를 그린다.
   if (!compare.open) stage.render(t, transport.playing);
   crowdHud.update(stage, stage.sim.show, t, transport.playing && !compare.open);
+  liveFire.update();
   transport.schedule(stage.sim.launches, fanCount);
   if (transport.playing) timeline.follow(t);
   timeline.draw();

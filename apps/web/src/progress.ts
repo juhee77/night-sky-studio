@@ -18,7 +18,7 @@ interface Step {
 }
 
 export const STEPS: Step[] = [
-  { goal: 'auto', todo: '「자동 연출」로 첫 쇼 만들기', opens: ['capture'], opened: '사진 · 영상 · 나란히. 쇼를 장노출 사진이나 영상으로 남기고, 두 자리에서 나란히 볼 수 있습니다.' },
+  { goal: 'auto', todo: '「자동 연출」로 첫 쇼 만들기', opens: ['capture'], opened: '사진 · 영상 · 나란히 · 직접 쏘기. 쇼를 사진이나 영상으로 남기고, 두 자리에서 나란히 보고, 음악에 맞춰 직접 쏴 볼 수 있습니다.' },
   { goal: 'watch', todo: '「감상」으로 내 쇼 보기', opens: ['workshop'], opened: '공작소. 색과 모양을 골라 내 불꽃을 만들어 보세요.' },
   { goal: 'shell-saved', todo: '공작소에서 내 불꽃을 만들어 서랍에 저장하기', opens: ['office'], opened: '의뢰소. 손님의 의뢰를 받아 쇼를 납품하고 돈과 평판을 모읍니다.' },
   { goal: 'delivered', todo: '의뢰소에서 의뢰 하나 납품하기', opens: ['site', 'build'], opened: '발사장과 공작소의 제작 공방. 바지선 자리를 정하고, 알 속에 별을 직접 붙여 만듭니다.' },
@@ -27,7 +27,7 @@ export const STEPS: Step[] = [
 
 /** 기능마다 숨기거나 보일 위 막대 버튼 */
 const BUTTONS: Partial<Record<Feature, string[]>> = {
-  capture: ['photo-btn', 'video-btn', 'compare-btn'],
+  capture: ['photo-btn', 'video-btn', 'compare-btn', 'fire-btn'],
   workshop: ['workshop-btn'],
   office: ['office-btn'],
   site: ['site-btn'],
