@@ -86,7 +86,7 @@ export const SHELLS: Record<ShellType, ShellSpec> = {
     starSize: 5, tail: 'spark', ember: true, glitter: true, split: false,
   },
   peony: {
-    label: '모란', pattern: 'sphere', starsAt5: 140, starLife: 1.5, drag: 1.8, spreadScale: 0.95,
+    label: '모란', pattern: 'sphere', starsAt5: 140, starLife: 1.8, drag: 1.8, spreadScale: 0.95,
     starSize: 5.5, tail: 'none', ember: false, glitter: false, split: false,
   },
   willow: {

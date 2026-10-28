@@ -129,17 +129,30 @@ void main() {
   float facing = max(-vNormal.z, 0.0) * 0.8 + up * 0.5 + 0.15;
   vec3 c = base + uSkyLight * 0.55 * facing;
   if (!bridge && abs(vNormal.y) < 0.5) {
-    // 창문: 가로 4m, 층 높이 3.6m 격자. 몇 개는 불이 켜져 있다 (따뜻한 빛이 많고 가끔 흰빛)
-    // 멀어서 한 칸이 화소보다 작아지면 칸을 두 배씩 키워, 반짝이지 않는 불빛 점으로 남긴다.
+    // 창문: 가로 4m, 층 높이 3.6m 격자. 실제 야경처럼 사무실 한 칸(창 6개 × 한 층)씩 불이 켜져
+    // 가로 띠를 이루고, 켜진 칸 안에서도 몇 개는 꺼져 있다. 띠마다 빛깔(따뜻한 빛·형광등 흰빛)이 다르다.
+    // 멀어서 창이 작아지면 창 무늬 없이 띠로만, 띠가 2화소보다 얇아지면 층 묶음을 두 배씩 키운다
+    // (화소보다 작은 무늬가 카메라 움직임에 반짝이지 않게).
     float px = max(fwidth(vUv.x) / 4.0, fwidth(vUv.y) / 3.6);
-    vec2 size = vec2(4.0, 3.6) * exp2(max(0.0, floor(log2(px * 2.5))));
-    vec2 cell = floor(vUv / size);
-    vec2 f = fract(vUv / size);
+    float k = exp2(max(0.0, ceil(log2(px * 2.0))));
+    vec2 cell = floor(vUv / vec2(4.0, 3.6));
+    vec2 f = fract(vUv / vec2(4.0, 3.6));
+    vec2 group = vec2(floor(cell.x / 6.0), floor(cell.y / k));
+    vec2 gf = fract(vec2(cell.x / 6.0, vUv.y / (3.6 * k)));
+    float bandLit = step(1.0 - uWindows * 0.55, hash(group + vInfo.x * 17.13 + k));
+    float lit = bandLit * step(0.22, hash(cell + 5.3));
+    vec3 tone = mix(vec3(1.0, 0.72, 0.42), vec3(0.8, 0.88, 1.0), step(0.7, hash(group * 1.7 + vInfo.x)));
+    float bright = 0.45 + 0.25 * hash(group + 3.1);
+    vec3 dark = vec3(0.012, 0.016, 0.03);
     float win = step(0.22, f.x) * step(f.x, 0.78) * step(0.28, f.y) * step(f.y, 0.78);
-    float h = hash(cell + vInfo.x * 17.13);
-    float lit = step(1.0 - uWindows * 0.9, h);
-    vec3 tone = mix(vec3(1.0, 0.7, 0.4), vec3(0.78, 0.88, 1.0), step(0.82, hash(cell * 1.7 + vInfo.x)));
-    c += win * (lit * tone * (0.35 + 0.35 * hash(cell + 3.1)) + (1.0 - lit) * vec3(0.012, 0.016, 0.03));
+    vec3 near = win * (lit * tone * bright + (1.0 - lit) * dark);
+    // 띠: 칸 가장자리를 조금 비워 묶음끼리 붙지 않게, 창 면적만큼 어둡게
+    float strip = step(0.06, gf.x) * step(gf.x, 0.94) * step(0.3, gf.y) * step(gf.y, 0.75);
+    vec3 band = strip * (bandLit * tone * bright * 0.5 + (1.0 - bandLit) * dark);
+    vec3 glow = mix(near, band, smoothstep(0.12, 0.25, px));
+    // 물에 비친 모습은 잔물결에 번져 창 무늬 대신 세로로 늘어진 빛줄기가 된다
+    if (uMirror < 0.0) glow = uWindows * vec3(0.95, 0.72, 0.48) * 0.5 * step(0.55, hash(vec2(floor(vWorld.x / 6.0), vInfo.x)));
+    c += glow;
   }
   // 물에 비친 모습은 잔물결로 가로 줄이 흔들린다
   if (uMirror < 0.0) c *= 0.65 + 0.35 * sin(gl_FragCoord.y * 0.9 + vWorld.x * 0.04);
@@ -269,7 +282,7 @@ export interface FrameInput {
 }
 
 /** 블룸 세기 */
-const BLOOM = { high: { levels: 6, amount: 1.4, threshold: 0.22 }, medium: { levels: 4, amount: 1.15, threshold: 0.26 } };
+const BLOOM = { high: { levels: 6, amount: 0.95, threshold: 0.3 }, medium: { levels: 4, amount: 0.8, threshold: 0.34 } };
 
 export class StageRenderer {
   readonly gl: WebGL2RenderingContext;
@@ -593,9 +606,14 @@ export class StageRenderer {
     gl.uniform3f(this.cu.uSkyLight, f.skyLight[0], f.skyLight[1], f.skyLight[2]);
     gl.uniform1f(this.cu.uWindows, f.windows ?? 0.35);
     if (f.reflection) {
+      // 비친 모습은 물빛과 반쯤 섞여 건물 그림자가 검은 상자처럼 박히지 않는다
       gl.uniform1f(this.cu.uMirror, -1);
-      gl.uniform1f(this.cu.uFade, 0.3);
+      gl.uniform1f(this.cu.uFade, 0.5);
+      gl.enable(gl.BLEND);
+      gl.blendColor(0, 0, 0, 0.5);
+      gl.blendFunc(gl.CONSTANT_ALPHA, gl.ONE_MINUS_CONSTANT_ALPHA);
       gl.drawArrays(gl.TRIANGLES, 0, this.cityCount);
+      gl.disable(gl.BLEND);
       gl.clear(gl.DEPTH_BUFFER_BIT);
     }
     gl.uniform1f(this.cu.uMirror, 1);

@@ -804,7 +804,7 @@ export class Simulation {
     if (shell.split) flags |= FLAG_SPLIT;
     if (shell.effect) flags |= EFFECT_FLAG[shell.effect];
     // 살루트: 별 대신 아주 밝은 섬광 하나와 짧은 불티
-    const flashScale = shell.salute ? 1.4 : 0.45;
+    const flashScale = shell.salute ? 1.4 : 0.32;
     const flashLife = shell.salute ? 0.22 : 0.16;
 
     for (let i = 0; i < n; i++) {
@@ -814,13 +814,18 @@ export class Simulation {
       // 모양 불꽃은 모양이 흐트러지지 않게 속도 오차를 줄인다.
       const jitter = shell.pattern === 'sphere' || shell.pattern === 'palm' ? 0.14 : 0.03;
       const speed = shell.drag * radius * mag * (1 - jitter / 2 + rand01(s, 4) * jitter);
-      const rgb = shell.salute ? ([1.3, 1.25, 1.1] as const) : COLORS[l.colors[i % l.colors.length]];
+      // 모란에 두 색을 주면 실제 모란처럼 모든 별이 첫 색으로 피었다가 날아가는 도중 둘째 색으로 바뀐다 (색변화).
+      const change = l.type === 'peony' && l.colors.length > 1;
+      const rgb = shell.salute ? ([1.3, 1.25, 1.1] as const) : COLORS[l.colors[change ? 0 : i % l.colors.length]];
+      const aux = change ? (Math.round((0.45 + rand01(s, 6) * 0.1) * 255) << 8) | (COLOR_NAMES.indexOf(l.colors[1]) + 1) : 0;
+      // 모란은 별마다 타는 시간이 더 들쭉날쭉해서 둥근 공이 가장자리부터 조금씩 지워진다.
+      const lifeJitter = l.type === 'peony' ? 0.75 + rand01(s, 5) * 0.45 : 0.9 + rand01(s, 5) * 0.2;
       pool.spawn(
         at[0], at[1], at[2],
         dx * speed, dy * speed, dz * speed,
-        shell.starLife * (shell.split ? 0.95 + rand01(s, 5) * 0.1 : 0.9 + rand01(s, 5) * 0.2),
+        shell.starLife * (shell.split ? 0.95 + rand01(s, 5) * 0.1 : lifeJitter),
         rgb[0] * dim, rgb[1] * dim, rgb[2] * dim,
-        shell.starSize, damp, 9.8, flags, s,
+        shell.starSize, damp, 9.8, flags, s, aux,
       );
     }
 
@@ -1064,7 +1069,7 @@ export class Simulation {
           a = Math.min(1, age / 0.08, left / 0.8) * (0.7 + 0.3 * rand01(p.seed[i], Math.floor(age * 30), 2));
         }
       } else if (f & FLAG_FLASH) {
-        a = (1 - u) * (1 - u) * 0.9;
+        a = (1 - u) * (1 - u) * 0.55;
       } else if (f & FLAG_SPARK) {
         a = (1 - u) * 0.8;
       } else if (f & FLAG_SPLIT) {
@@ -1076,16 +1081,17 @@ export class Simulation {
         a = fadeIn * fadeOut;
         // 실제 별처럼 타기: 터지는 순간은 하얗게 뜨겁고 밝다가 곧 제 색으로,
         // 꺼질 무렵엔 식으며 주황빛으로 바래고 깜빡이며 꺼진다. 별마다 밝기도 조금씩 다르다.
-        const hot = Math.exp(-Math.max(0, age) / 0.06) * 0.85;
+        const hot = Math.exp(-Math.max(0, age) / 0.06) * 0.6;
         r += (1 - r) * hot;
         g += (0.96 - g) * hot;
         b += (0.88 - b) * hot;
-        a *= (1 + hot) * (0.78 + 0.44 * rand01(p.seed[i], 11, 3));
+        a *= (1 + hot * 0.4) * (0.8 + 0.4 * rand01(p.seed[i], 11, 3));
         const cool = smoothstep(0.72, 1, u) * 0.45;
         r += (EMBER_RGB[0] - r) * cool;
         g += (EMBER_RGB[1] - g) * cool;
         b += (EMBER_RGB[2] - b) * cool;
-        if (u > 0.82) a *= 0.55 + 0.9 * rand01(p.seed[i], Math.floor(age * 22), 4);
+        // 꺼지기 직전 잔잔히 일렁인다 (번쩍이지 않게 낮은 빠르기로 어둡게만)
+        if (u > 0.85) a *= 0.7 + 0.3 * rand01(p.seed[i], Math.floor(age * 12), 4);
         if (f & FLAG_EMBER) {
           const e = smoothstep(0.45, 1, u);
           r += (EMBER_RGB[0] - r) * e;
@@ -1093,7 +1099,7 @@ export class Simulation {
           b += (EMBER_RGB[2] - b) * e;
         }
         if (f & FLAG_GLITTER && u > 0.62) {
-          a *= rand01(p.seed[i], Math.floor(age * 24), 9) > 0.45 ? 1.5 : 0.12;
+          a *= rand01(p.seed[i], Math.floor(age * 18), 9) > 0.45 ? 1.25 : 0.2;
         }
       }
       // 색이 바뀌는 별
