@@ -80,6 +80,13 @@ test('의뢰 조건을 따른다: 해금한 종류, 크기 제한, 색, 꼭 넣�
   assert.ok(showCost(showOf(cues)) <= 100, `값 ${showCost(showOf(cues))}`);
 });
 
+test('모양 불꽃(하트·별·웃는 얼굴)은 방향을 정할 수 없어 세 발을 함께 쏜다', () => {
+  const cues = autoChoreograph(flatMusicMap(60, 112), launchers, { seed: 3, style: 'calm', mood: 'romantic', density: 0.8 });
+  const hearts = cues.filter((c) => c.type === 'heart');
+  assert.ok(hearts.length > 0);
+  assert.ok(hearts.every((c) => c.fan?.count === 3), hearts.map((c) => c.fan?.count).join());
+});
+
 test('다리와 지상 틀이 있으면 피날레 나이아가라와 글자를 넣는다', () => {
   const cues = autoChoreograph(flatMusicMap(60, 112), launchers, { seed: 9, style: 'grand', density: 0.8, text: '축하해' });
   assert.ok(cues.some((c) => c.type === 'niagara' && c.t > 45));

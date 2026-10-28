@@ -1255,7 +1255,7 @@ function starDirections(pattern: string, n: number, seed: number): [number, numb
 
   if (pattern === 'ring' || pattern === 'heart' || pattern === 'star' || pattern === 'smile') {
     const [r, u] = planeAxes(seed);
-    const roll = pattern === 'ring' ? rot : (rand01(seed, 4) - 0.5) * 0.4;
+    const roll = rot;
     const cr = Math.cos(roll);
     const sr = Math.sin(roll);
     for (let i = 0; i < n; i++) {
@@ -1309,15 +1309,14 @@ function starDirections(pattern: string, n: number, seed: number): [number, numb
 }
 
 /**
- * 평면 모양 불꽃의 면 위 두 축 [오른쪽, 위쪽]. 실제처럼 터질 때마다 면이 향하는 방향이 달라진다.
- * 관객(남쪽, -z)을 기준으로 좌우 ±70도, 앞뒤 ±25도 안에서 정한다.
+ * 평면 모양 불꽃의 면 위 두 축 [오른쪽, 위쪽]. 알은 날며 아무렇게나 구르므로 면도 아무 방향을 본다.
+ * 관객 쪽을 보면 모양이 보이고, 옆으로 서면 선으로, 기울면 찌그러져 보인다 (실제로도 그래서 두세 발을 함께 쏜다).
  */
 function planeAxes(seed: number): [Vec3, Vec3] {
-  const yaw = (rand01(seed, 2) - 0.5) * (Math.PI * 140) / 180;
-  const pitch = (rand01(seed, 3) - 0.5) * (Math.PI * 50) / 180;
+  const m = tumble(hash32(seed, 7, 41));
   return [
-    [Math.cos(yaw), 0, Math.sin(yaw)],
-    [-Math.sin(yaw) * Math.sin(pitch), Math.cos(pitch), Math.cos(yaw) * Math.sin(pitch)],
+    [m[0], m[3], m[6]],
+    [m[1], m[4], m[7]],
   ];
 }
 

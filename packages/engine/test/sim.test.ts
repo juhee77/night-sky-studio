@@ -196,3 +196,25 @@ test('두 색 모란은 모든 별이 첫 색으로 피었다가 둘째 색으�
   const lives = stars.map((i) => s.pool.life[i]);
   assert.ok(Math.max(...lives) / Math.min(...lives) > 1.35);
 });
+
+test('하트 같은 모양 불꽃은 알이 굴러 아무 방향으로 선다 (늘 똑바로 관객을 보지 않는다)', () => {
+  // 터진 직후 별들의 속도는 한 면 위에 있다: 두 별의 속도를 곱해(외적) 면이 보는 방향을 구한다
+  const up: number[] = [];
+  const facing: number[] = [];
+  for (let k = 0; k < 24; k++) {
+    const s = new Simulation({ ...show, seed: 100 + k, cues: [{ t: 1, at: 'barge-1', type: 'heart', size: 5 }] });
+    s.advanceTo(1.02);
+    const p = s.pool;
+    const stars = [...Array(p.count).keys()].filter((i) => p.grav[i] > 0 && !(p.flags[i] & (16 | 32)));
+    const v = (i: number) => [p.vx[i], p.vy[i], p.vz[i]];
+    const a = v(stars[0]);
+    const b = v(stars[Math.floor(stars.length / 4)]);
+    const n = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+    const len = Math.hypot(n[0], n[1], n[2]);
+    up.push(Math.abs(n[1] / len));
+    facing.push(Math.abs(n[2] / len));
+  }
+  // 하늘을 보고 눕는 발도, 관객을 바로 보는 발도 섞여 나온다
+  assert.ok(up.some((x) => x > 0.7), `누운 발 없음 ${up.map((x) => x.toFixed(2))}`);
+  assert.ok(facing.some((x) => x > 0.8), '관객을 보는 발도 있다');
+});
