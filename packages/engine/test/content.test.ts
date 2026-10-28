@@ -46,6 +46,6 @@ test('장인 경연: 바깥 층이 차례로 터지는 내 불꽃이 있어야 �
   const s = showFor(c, { p: pop }, [{ t: 10, at: 'barge-1', type: 'custom', custom: 'p', size: 5 }]);
   const rule = () => scoreShow(s, c).rules.find((r) => r.rule.kind === 'outerPop')!;
   assert.equal(rule().ok, false);
-  pop.layers[0].sequence = { order: 'down', span: 1.4, mode: 'pop' };
+  pop.layers[0].sequence = { order: 'random', span: 1.4, mode: 'pop' };
   assert.equal(rule().ok, true);
 });

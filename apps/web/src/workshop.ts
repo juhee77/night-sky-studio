@@ -52,27 +52,21 @@ const HALF = (GRID - 1) / 2;
 const TAILED: StarKind[] = ['tail', 'willow', 'brocade', 'kamuro'];
 
 const EFFECTS: Record<string, () => Partial<CustomShell>> = {
-  '위에서 아래로 반짝': () => ({
-    layers: [{ role: 'outer', shape: { kind: 'sphere', count: 130 }, star: 'dot', color: 'white', scale: 1, delay: 0, sequence: { order: 'down', span: 1.4, mode: 'sparkle' } }],
-    motion: { speed: 1, droop: 0.25, life: 2.2, flicker: false },
-    chain: undefined,
-    split: undefined,
-  }),
   '타임 레인': () => ({
     layers: [{ role: 'outer', shape: { kind: 'sphere', count: 90 }, star: 'dot', color: 'gold', scale: 1, delay: 0, sequence: { order: 'random', span: 2.2, mode: 'sparkle' } }],
     motion: { speed: 0.9, droop: 0.85, life: 2.6, flicker: false },
     chain: undefined,
     split: undefined,
   }),
-  '옆으로 물결': () => ({
-    layers: [{ role: 'outer', shape: { kind: 'sphere', count: 110 }, star: 'dot', color: 'cyan', scale: 1, delay: 0, sequence: { order: 'sweep', span: 1.2, mode: 'light' } }],
+  '어둡게 날다 하나씩 켜짐': () => ({
+    layers: [{ role: 'outer', shape: { kind: 'sphere', count: 110 }, star: 'dot', color: 'cyan', scale: 1, delay: 0, sequence: { order: 'random', span: 1.2, mode: 'light' } }],
     motion: { speed: 1, droop: 0.3, life: 2.2, flicker: false },
     chain: undefined,
     split: undefined,
   }),
-  '심 먼저, 바깥은 위에서 아래로 터짐': () => ({
+  '심 먼저, 바깥은 차례로 작게 터짐 (천륜)': () => ({
     layers: [
-      { role: 'outer', shape: { kind: 'sphere', count: 80 }, star: 'dot', color: 'gold', scale: 1, delay: 0, sequence: { order: 'down', span: 1.6, mode: 'pop' } },
+      { role: 'outer', shape: { kind: 'sphere', count: 80 }, star: 'dot', color: 'gold', scale: 1, delay: 0, sequence: { order: 'random', span: 1.6, mode: 'pop' } },
       { role: 'pistil', shape: { kind: 'sphere', count: 36 }, star: 'dot', color: 'cyan', scale: 0.45, delay: 0 },
     ],
     motion: { speed: 1, droop: 0.3, life: 2.4, flicker: false },

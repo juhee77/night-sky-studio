@@ -643,12 +643,14 @@ export class Simulation {
     const radius = (spec.spread / 2) * def.motion.speed * craft.spread;
     const baseLife = def.motion.life * craft.life;
     // 별이 오래 살수록 공기 저항을 줄여 너무 일찍 멈추지 않게 한다.
-    const drag = Math.max(0.8, 3.4 / baseLife);
+    // 늘어짐: 중력은 어디서나 같으므로(9.8) 별의 공기 저항으로 낸다. 저항이 작은(무겁고 촘촘한) 별은
+    // 바깥으로 계속 날며 포물선으로 처지고, 저항이 큰(가볍고 푸석한) 별은 금방 멈춰 제자리에 떠 있듯 천천히 떨어진다.
+    const drag = Math.max(0.5, (3.4 / baseLife) * (1.5 - def.motion.droop));
     // 장인 모드: 알이 고르게 터지지 않으면 한쪽으로 눌린 모양이 된다.
     const squashAxis = randomUnit(hash32(l.seed, 5, 91));
     const squash = 1 - 0.22 * Math.max(0, craft.asym - 0.3);
     const damp = Math.exp(-drag * STEP);
-    const grav = 9.8 * (0.25 + 1.75 * def.motion.droop);
+    const grav = 9.8;
     // 여러 단 터지기: 별을 칸마다 나눠, 아래 칸일수록 늦게 조금 아래에서 핀다.
     const chain = def.chain ?? 1;
     for (let k = 0; k < chain; k++) {
@@ -741,13 +743,8 @@ export class Simulation {
           // 꼬리 길이: aux 24~27비트 (0 보통, 1 짧게, 2 길게, 3 카무로)
           const tailCode = layer.star === 'kamuro' ? 3 : layer.tail === 'short' ? 1 : layer.tail === 'long' ? 2 : 0;
           if (seq) {
-            // 하늘 기준 방향으로 순서를 정한다 (알이 굴러도 위는 위다).
-            const n = Math.hypot(dx, dy, dz) || 1;
-            const order =
-              seq.order === 'down' ? (1 - dy / n) / 2 :
-              seq.order === 'up' ? (1 + dy / n) / 2 :
-              seq.order === 'sweep' ? (1 + dx / n) / 2 :
-              rand01(s, 14);
+            // 도화선 길이는 별마다 제각각이다 (알이 굴러 위아래를 모르므로 하늘 기준 차례는 없다).
+            const order = rand01(s, 14);
             const ignite = 0.25 + order * seq.span;
             if (seq.mode === 'pop') {
               // 차례가 올 때까지 어둡게 날다가, 그 자리에서 작은 불꽃으로 터진다 (두 번 터지기와 같은 방식).

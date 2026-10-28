@@ -58,12 +58,14 @@ export interface ShellLayer {
 }
 
 /**
- * 시간 차 연출. 실제로는 별마다 속에 넣은 도화선 길이나 배합을 달리해
+ * 시간 차 연출 (타임 레인). 실제로는 별마다 속에 넣은 도화선 길이나 배합을 달리해
  * 불이 붙는 때를 늦춘다 (어둡게 날아가다 제때 켜진다).
+ * 알은 날아가며 아무렇게나 구르고 터질 때 어느 쪽이 위인지 알 수 없으므로,
+ * 「위에서 아래로」처럼 하늘 기준 방향으로 차례를 맞출 수는 없다. 차례는 별마다 무작위다.
  */
 export interface Sequence {
-  /** down 위에서 아래로, up 아래에서 위로, sweep 옆으로 물결, random 하나씩 무작위 (타임 레인) */
-  order: 'down' | 'up' | 'sweep' | 'random';
+  /** random 하나씩 무작위 (타임 레인). 예전 쇼의 down·up·sweep도 이것으로 읽는다 */
+  order: 'random';
   /** 첫 별과 마지막 별 사이 시간(초) */
   span: number;
   /** sparkle 반짝 터지고 꺼짐, light 켜져서 계속 탐, pop 차례가 오면 그 자리에서 작은 불꽃으로 터짐 */
@@ -71,15 +73,12 @@ export interface Sequence {
 }
 
 export const SEQUENCE_LABEL: Record<Sequence['order'], string> = {
-  down: '위에서 아래로',
-  up: '아래에서 위로',
-  sweep: '옆으로 물결',
   random: '하나씩 무작위 (타임 레인)',
 };
 
 export function normalizeSequence(raw: Sequence): Sequence {
   return {
-    order: (['down', 'up', 'sweep', 'random'] as const).includes(raw.order) ? raw.order : 'down',
+    order: 'random',
     span: clamp(raw.span, 0.3, 3),
     mode: raw.mode === 'light' || raw.mode === 'pop' ? raw.mode : 'sparkle',
   };
