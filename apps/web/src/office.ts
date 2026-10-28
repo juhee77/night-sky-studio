@@ -4,7 +4,11 @@ import {
   DEVELOP_PRICE,
   FIREWORK_TYPES,
   UNLOCK_PRICES,
+  RIVALS,
+  STORY,
   VENUES,
+  contestCommission,
+  contestRanking,
   encodeShow,
   gradeOf,
   isoWeekKey,
@@ -95,7 +99,22 @@ export class Office {
     const challenge = weeklyChallenge(week);
     const pastChallenges = Object.entries(st.challenges).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 6);
 
+    const stage = this.career.stage;
+    const nextStage = STORY[stage + 1];
+    const contest = stage >= STORY.length - 1 ? contestCommission() : null;
+    const contestDone = this.career.contestDone;
     body.innerHTML = `
+      <section class="story">
+        <ol class="story-steps">${STORY.map((s, i) => `<li class="${i < stage ? 'done' : i === stage ? 'now' : ''}">${esc(s.title)}</li>`).join('')}</ol>
+        <p class="quote">“${esc(STORY[stage].line)}” <span class="note">— ${esc(STORY[stage].client)}</span></p>
+        <p class="note">모은 별 ${this.career.totalStars}개${nextStage ? ` · 「${esc(nextStage.title)}」까지 별 ${nextStage.stars - this.career.totalStars}개` : ''}</p>
+      </section>
+      ${contest
+        ? `<h3>한강 세계불꽃축제 대회</h3>
+          ${contestDone
+            ? `<p class="note">대회를 마쳤습니다: ${contestDone.total}점, ${contestRanking(contestDone.total).findIndex((r) => r.mine) + 1}위 (${RIVALS.length + 1}팀 중).</p>`
+            : `<div class="cards">${this.card(contest, -2)}</div>`}`
+        : ''}
       <section class="ledger">
         <div><span class="label">돈</span><b class="num">${st.money}</b></div>
         <div><span class="label">평판</span><b class="num">${st.reputation}</b></div>
@@ -150,6 +169,7 @@ export class Office {
       b.addEventListener('click', () => void this.take(cards[Number(b.dataset.take)])),
     );
     body.querySelector('[data-challenge]')?.addEventListener('click', () => void this.take(challenge));
+    body.querySelector('[data-contest]')?.addEventListener('click', () => void this.take(contestCommission()));
     body.querySelector('[data-act="refresh"]')?.addEventListener('click', () => this.career.refreshBoard());
     body.querySelectorAll<HTMLButtonElement>('[data-develop]').forEach((b) =>
       b.addEventListener('click', () => {
@@ -172,7 +192,8 @@ export class Office {
   }
 
   private card(c: Commission, i: number): string {
-    const seat = VENUES['river-bridge-city'].seats[c.seat]?.label ?? c.seat;
+    const venue = VENUES[c.venue ?? 'river-bridge-city'] ?? VENUES['river-bridge-city'];
+    const seat = (venue.seats[c.seat] ?? Object.values(venue.seats)[0]).label;
     const track = BASIC_TRACKS.find((t) => t.id === c.music);
     return `
       <article class="commission-card tier-${c.tier}">
@@ -184,10 +205,11 @@ export class Office {
           <div><dt>예산</dt><dd class="num">${c.budget}</dd></div>
           <div><dt>보상</dt><dd class="num">${c.challenge ? '점수 기록' : `최대 ${Math.round(c.reward * 1.2)}`}</dd></div>
           <div><dt>곡</dt><dd>${esc(track?.title ?? c.music)}</dd></div>
+          <div><dt>무대</dt><dd>${esc(venue.label)}</dd></div>
           <div><dt>관람석</dt><dd>${esc(seat)}</dd></div>
           <div class="wide"><dt>날씨</dt><dd>${esc(weatherText(c))}</dd></div>
         </dl>
-        ${c.challenge ? this.challengeAction(c.challenge) : `<button type="button" class="primary" data-take="${i}">의뢰 받기</button>`}
+        ${c.challenge ? this.challengeAction(c.challenge) : i === -2 ? '<button type="button" class="primary" data-contest>대회 나가기</button>' : `<button type="button" class="primary" data-take="${i}">의뢰 받기</button>`}
       </article>`;
   }
 
@@ -199,10 +221,12 @@ export class Office {
 
   private async take(c: Commission): Promise<void> {
     const track = BASIC_TRACKS.find((t) => t.id === c.music) ?? BASIC_TRACKS[0];
-    const show = newShow(c.title);
+    // 의뢰 무대의 바지선·다리·지상 틀로 시작한다 (그 무대에 없는 관람석이면 첫 관람석)
+    const venue = VENUES[c.venue ?? 'river-bridge-city'] ?? VENUES['river-bridge-city'];
+    const show = newShow(c.title, venue.id);
     show.music = trackRef(track);
-    show.venue = { preset: 'river-bridge-city', wind: c.wind, ...(c.cloud ? { cloud: c.cloud } : {}) };
-    show.seat = { id: c.seat };
+    show.venue = { preset: venue.id, wind: c.wind, ...(c.cloud ? { cloud: c.cloud } : {}) };
+    show.seat = { id: venue.seats[c.seat] ? c.seat : Object.keys(venue.seats)[0] };
     show.commission = c;
     // 이번 주 도전은 게시판의 의뢰가 아니라서 받아도 게시판이 그대로다.
     if (!c.challenge) this.career.take(c);
@@ -286,6 +310,9 @@ export class Office {
           </li>`,
         )
         .join('')}</ul>
+      ${c.id === contestCommission().id && !r.failed
+        ? `<ol class="ranking">${contestRanking(r.total).map((x, k) => `<li class="${x.mine ? 'mine' : ''}"><span class="num">${k + 1}위</span><span>${esc(x.team)}</span><span class="num">${x.total}점</span></li>`).join('')}</ol>`
+        : ''}
       ${moments.length ? `<ul class="moments">${moments.map((x) => `<li class="${x.kind}"><span class="label">${x.label}</span><button type="button" data-seek="${x.t}">${esc(x.text)} ▸</button></li>`).join('')}</ul>` : ''}
       <ul class="rule-results">${r.rules.map((x) => `<li class="${x.ok ? 'ok' : 'no'}">${x.ok ? '✓' : '✗'} ${esc(x.label)}${x.detail ? ` <span class="note">${esc(x.detail)}</span>` : ''}</li>`).join('')}</ul>
       <p class="money">${c.challenge ? money : done ? `받은 보상 ${done.reward}` : deliver ? `납품하면: ${money}` : `지금 납품하면: ${money}`}</p>
@@ -351,6 +378,7 @@ export class Office {
       if (!r.failed) progress.did('delivered');
       return;
     }
+    const stageBefore = this.career.stage;
     this.career.settle({
       commissionId: c.id,
       title: c.title,
@@ -364,10 +392,16 @@ export class Office {
       if (d.commission) d.commission.delivered = { total: r.total, stars: r.stars, reward: r.reward, at: Date.now() };
     });
     this.result.close();
+    const stage = this.career.stage;
+    const rank = c.id === contestCommission().id && !r.failed ? contestRanking(r.total).findIndex((x) => x.mine) + 1 : 0;
     this.host.say(
       r.failed
         ? '의뢰에 실패했습니다. 평판이 조금 내려갔습니다. 게시판에 새 의뢰가 올라왔습니다.'
-        : `납품했습니다. ${stars(r.stars)} · 보상 ${r.reward} · 평판 +${r.reputation}. 게시판에 새 의뢰가 올라왔습니다.`,
+        : rank
+          ? `한강 세계불꽃축제 대회: ${r.total}점으로 ${RIVALS.length + 1}팀 중 ${rank}위${rank === 1 ? '! 우승입니다!' : '.'}`
+          : stage > stageBefore
+            ? `「${STORY[stage].title}」 단계가 열렸습니다. ${STORY[stage].client}: “${STORY[stage].line}”`
+            : `납품했습니다. ${stars(r.stars)} · 보상 ${r.reward} · 평판 +${r.reputation}. 게시판에 새 의뢰가 올라왔습니다.`,
     );
     progress.did('delivered');
   }

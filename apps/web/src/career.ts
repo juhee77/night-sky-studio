@@ -5,7 +5,9 @@ import {
   DEVELOP_PRICE,
   STARTER_TYPES,
   UNLOCK_PRICES,
+  contestCommission,
   generateCommissions,
+  storyStage,
   tierFor,
   type Commission,
   type FireworkType,
@@ -80,6 +82,21 @@ export class Career {
   get nextTierAt(): number | null {
     const r = this.state.reputation;
     return r < 20 ? 20 : r < 60 ? 60 : null;
+  }
+
+  /** 납품해서 모은 별 (경력 이야기의 단계를 연다) */
+  get totalStars(): number {
+    return this.state.history.reduce((s, h) => s + h.stars, 0);
+  }
+
+  /** 경력 이야기의 지금 단계 (0 동네 축제 … 3 한강 대회) */
+  get stage(): number {
+    return storyStage(this.totalStars);
+  }
+
+  /** 한강 대회를 이미 납품했는지 */
+  get contestDone(): HistoryEntry | undefined {
+    return this.state.history.find((h) => h.commissionId === contestCommission().id);
   }
 
   board(): Commission[] {
