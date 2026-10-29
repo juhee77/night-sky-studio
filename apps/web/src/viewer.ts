@@ -68,6 +68,8 @@ function fail(message: string): void {
 
 useDeviceFontForFrames();
 const transport = new Transport();
+// 소리 장치가 응답하지 않으면 화면은 벽시계로 계속 간다.
+transport.onAudioStall = () => say('소리 장치가 응답하지 않아 소리 없이 재생합니다. 스피커·이어폰 연결을 확인해 주세요.', 6000);
 let stage: Stage | null = null;
 let show: Show | null = null;
 let duration = 0;

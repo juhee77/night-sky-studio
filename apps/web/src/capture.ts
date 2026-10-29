@@ -55,7 +55,8 @@ export async function longExposure(
   const gl = document.createElement('canvas');
   gl.width = w;
   gl.height = h;
-  const renderer = new StageRenderer(gl, { preserve: true });
+  // 장노출은 여러 장의 빛을 쌓으므로 번짐(블룸) 없이 그린다 (쌓이면 하얗게 탄다).
+  const renderer = new StageRenderer(gl, { preserve: true, quality: 'low' });
   // 빛만 모으려고 배경은 검게 그린다. 배경은 마지막에 한 번 깐다.
   const black = document.createElement('canvas');
   black.width = black.height = 2;

@@ -18,6 +18,7 @@ import {
   soundDelay,
   waterSpan,
   type Camera,
+  type RenderQuality,
   type Launch,
   type Launcher,
   type Marker,
@@ -45,6 +46,17 @@ interface Orbit {
   target: Vec3;
 }
 
+const QUALITY_KEY = 'nss:quality';
+
+function readQuality(): 'auto' | RenderQuality {
+  try {
+    const v = localStorage.getItem(QUALITY_KEY);
+    return v === 'high' || v === 'medium' || v === 'low' ? v : 'auto';
+  } catch {
+    return 'auto';
+  }
+}
+
 export class Stage {
   sim: Simulation;
   view!: View;
@@ -61,6 +73,18 @@ export class Stage {
   private backdropKey = '';
   private slowSince = 0;
   private fastSince = 0;
+  /** 화질 고르기 (이 기기에 기억). 자동이면 높음으로 시작해 느리면 밀도보다 먼저 낮춘다 */
+  qualityPref: 'auto' | RenderQuality = readQuality();
+
+  setQuality(pref: 'auto' | RenderQuality): void {
+    this.qualityPref = pref;
+    try {
+      localStorage.setItem(QUALITY_KEY, pref);
+    } catch {
+      // 기억하지 못해도 이번에는 바꾼다.
+    }
+    this.renderer.quality = pref === 'auto' ? (this.renderer.software ? 'low' : 'high') : pref;
+  }
   private orbit: Orbit = { yaw: 0, pitch: 0.15, dist: 900, target: [0, 140, 60] };
   /** 끌어서 돌리는 중 (배경을 낮은 해상도로 빨리 그린다) */
   dragging = false;
@@ -71,7 +95,8 @@ export class Stage {
 
   constructor(canvas: HTMLCanvasElement, show: Show) {
     this.canvas = canvas;
-    this.renderer = new StageRenderer(canvas);
+    // 자동이면 렌더러가 기기에 맞게 고른다 (보통 높음, CPU로 그리는 기기는 낮음).
+    this.renderer = new StageRenderer(canvas, this.qualityPref === 'auto' ? {} : { quality: this.qualityPref });
     this.sim = new Simulation(show);
     this.buffer = new Float32Array((this.sim.pool.capacity + RENDER_EXTRA) * RENDER_STRIDE);
     this.seatId = show.seat?.id ?? 'front-near';
@@ -277,12 +302,24 @@ export class Stage {
     this.frames = 0;
     this.windowStart = now;
     const busy = this.count > 2500;
+    // 아주 느리면(초당 25장 아래) 불꽃 양과 상관없이 번짐부터 줄인다 (번짐은 화소 수만큼 든다).
+    if (this.qualityPref === 'auto' && this.renderer.effectiveQuality !== 'low' && this.fps < 25 && !document.hidden) {
+      this.renderer.quality = this.renderer.effectiveQuality === 'high' ? 'medium' : 'low';
+      this.slowSince = 0;
+      this.fastSince = 0;
+      return;
+    }
     if (playing && busy && this.fps < 45 && !document.hidden) {
       this.fastSince = 0;
       this.slowSince ||= now;
-      if (now - this.slowSince > 3000 && this.sim.density > 0.35) {
-        this.rebuild(this.sim.density > 0.6 ? 0.6 : 0.35);
-        this.onDensityLowered?.();
+      if (now - this.slowSince > 3000) {
+        // 자동 화질이면 번짐부터 줄이고, 그래도 느리면 밀도를 낮춘다.
+        const q = this.renderer.effectiveQuality;
+        if (this.qualityPref === 'auto' && q !== 'low') this.renderer.quality = q === 'high' ? 'medium' : 'low';
+        else if (this.sim.density > 0.35) {
+          this.rebuild(this.sim.density > 0.6 ? 0.6 : 0.35);
+          this.onDensityLowered?.();
+        }
         this.slowSince = 0;
       }
     } else if (playing && this.count > 1500 && this.fps >= 57 && this.sim.density < 1) {
@@ -290,6 +327,14 @@ export class Stage {
       this.fastSince ||= now;
       if (now - this.fastSince > 8000) {
         this.rebuild(this.sim.density < 0.5 ? 0.6 : 1);
+        this.fastSince = 0;
+      }
+    } else if (playing && this.count > 1500 && this.fps >= 57 && this.qualityPref === 'auto' && this.renderer.quality !== 'high') {
+      // 밀도를 다 되돌린 뒤에도 넉넉하면 번짐을 한 단계 되돌린다.
+      this.slowSince = 0;
+      this.fastSince ||= now;
+      if (now - this.fastSince > 8000) {
+        this.renderer.quality = this.renderer.quality === 'low' ? 'medium' : 'high';
         this.fastSince = 0;
       }
     } else {

@@ -8,7 +8,7 @@ export * from './venues.ts';
 export * from './rng.ts';
 export * from './beat.ts';
 export { paintBackdrop, projectPoint, type Marker } from './render/backdrop.ts';
-export { StageRenderer, type FrameInput } from './render/webgl.ts';
+export { StageRenderer, type FrameInput, type RenderQuality } from './render/webgl.ts';
 export * from './text.ts';
 export * from './share.ts';
 export * from './sound.ts';

@@ -1,5 +1,6 @@
 // 재생 시계와 소리. 화면의 시각은 오디오 시계를 따른다.
 // 그래야 음악과 불꽃이 어긋나지 않는다 (블루투스 이어폰 지연도 빼서 맞춘다).
+// 소리 장치가 없거나 끊겨 오디오 시계가 멈추면 벽시계로 넘어가 화면은 계속 간다 (소리 없이).
 
 import type { CrowdCue, Launch } from '@nss/engine';
 import { Sfx, scheduleSounds, type Scheduled } from './sfx.ts';
@@ -25,6 +26,12 @@ export class Transport {
   private startCtx = 0;
   /** 재생을 시작한 쇼 시각 */
   private startAt = 0;
+  /** 재생을 시작한 벽시계 시각(ms) */
+  private startWall = 0;
+  /** 오디오 시계가 멈춰 벽시계로 가는 중 */
+  audioStalled = false;
+  /** 오디오 시계가 멈춘 것을 처음 알아챘을 때 */
+  onAudioStall: (() => void) | null = null;
   private position = 0;
 
   /** 사용자가 버튼을 누른 순간에 불러야 소리가 난다. */
@@ -61,13 +68,22 @@ export class Transport {
   /** 지금 보여 줄 쇼 시각(초) */
   get time(): number {
     if (!this.playing || !this.ctx) return this.position;
-    return Math.max(this.startAt, this.ctx.currentTime - this.latency - this.startCtx + this.startAt);
+    const audio = this.ctx.currentTime - this.latency - this.startCtx;
+    const wall = (performance.now() - this.startWall) / 1000 - 0.03;
+    // 오디오 시계가 벽시계보다 0.5초 넘게 뒤처지면 소리 장치가 멈춘 것으로 본다.
+    if (!this.audioStalled && wall - audio > 0.5) {
+      this.audioStalled = true;
+      this.onAudioStall?.();
+    }
+    return Math.max(this.startAt, (this.audioStalled ? wall : audio) + this.startAt);
   }
 
   play(): void {
     const ctx = this.ensureContext();
     this.startAt = this.position;
     this.startCtx = ctx.currentTime + 0.03;
+    this.startWall = performance.now();
+    this.audioStalled = false;
     this.scheduledUntil = this.startAt;
     if (this.music && this.startAt < this.music.duration) {
       const src = ctx.createBufferSource();

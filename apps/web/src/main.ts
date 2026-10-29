@@ -601,6 +601,12 @@ el.cloudOn.addEventListener('change', () =>
 );
 el.cloudH.addEventListener('input', () => (el.cloudOut.value = `${el.cloudH.value}m`));
 el.cloudH.addEventListener('change', () => editor.change((d) => (d.venue.cloud = Number(el.cloudH.value))));
+// 소리 장치가 응답하지 않으면 화면은 벽시계로 계속 가고, 한 번 알린다.
+transport.onAudioStall = () => say('소리 장치가 응답하지 않아 소리 없이 재생합니다. 스피커·이어폰 연결을 확인해 주세요.', 6000);
+// 화질: 이 기기에만 기억한다 (쇼에는 넣지 않는다).
+const qualitySel = $<HTMLSelectElement>('quality');
+qualitySel.value = stage.qualityPref;
+qualitySel.addEventListener('change', () => stage.setQuality(qualitySel.value as typeof stage.qualityPref));
 el.countdown.addEventListener('change', () =>
   editor.change((d) => {
     if (el.countdown.checked) d.countdown = true;
