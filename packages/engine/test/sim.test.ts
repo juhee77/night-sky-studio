@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { COLOR_NAMES } from '../src/colors.ts';
 import { cueLength, expandShow } from '../src/show.ts';
 import { STEP, Simulation } from '../src/sim.ts';
 import type { Show } from '../src/show.ts';
@@ -183,4 +184,15 @@ test('정면 관람석에서 동쪽(+x)은 화면 오른쪽에 보인다', async
     const west = toClip(v.viewProj, [-200, 100, 0]);
     assert.ok(east[0] / east[3] > west[0] / west[3], `${id}: 동쪽이 오른쪽이어야 한다`);
   }
+});
+
+test('두 색 모란은 모든 별이 첫 색으로 피었다가 둘째 색으로 바뀌고, 별마다 꺼지는 때가 다르다', () => {
+  const s = new Simulation({ ...show, cues: [{ t: 1, at: 'barge-1', type: 'peony', size: 5, colors: ['red', 'green'] }] });
+  s.advanceTo(2);
+  const stars = [...Array(s.pool.count).keys()].filter((i) => s.pool.aux[i] & 0xff);
+  assert.ok(stars.length > 50, `색이 바뀌는 별 ${stars.length}`);
+  const green = COLOR_NAMES.indexOf('green') + 1;
+  assert.ok(stars.every((i) => (s.pool.aux[i] & 0xff) === green));
+  const lives = stars.map((i) => s.pool.life[i]);
+  assert.ok(Math.max(...lives) / Math.min(...lives) > 1.35);
 });
