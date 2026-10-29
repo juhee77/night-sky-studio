@@ -94,6 +94,21 @@ test('다리와 지상 틀이 있으면 피날레 나이아가라와 글자를 �
   assert.ok(cues.filter((c) => c.t > 50).length > cues.filter((c) => c.t > 20 && c.t < 30).length);
 });
 
+test('틀 그림 조건: 주제에 맞는 본보기 그림을 지상 틀에 세운다', async () => {
+  const { artFor } = await import('../src/autorules.ts');
+  const { ART_PRESETS } = await import('../src/art.ts');
+  assert.equal(artFor('별 모양 카페 로고'), '별');
+  assert.equal(artFor('결혼 기념 하트'), '하트');
+  const art = ART_PRESETS['별']();
+  const cues = autoChoreograph(flatMusicMap(60, 112), launchers, { seed: 9, style: 'grand', density: 0.8, text: '축하해', art });
+  const frames = cues.filter((c) => c.type === 'lancework');
+  assert.ok(frames.some((c) => c.art?.cells === art.cells && !c.text));
+  assert.ok(frames.some((c) => c.text === '축하해'));
+  // 같은 틀에서 겹치지 않는다
+  const [a, b] = frames.map((c) => c.t).sort((x, y) => x - y);
+  assert.ok(b - a >= 10, `${a} ${b}`);
+});
+
 test('모든 의뢰와 이번 주 도전: 자동 연출로 만들면 사람이 할 일을 뺀 조건은 다 지킨다', () => {
   const kamuro = newCustomShell('kamuro', '긴 버들');
   kamuro.layers[0].star = 'kamuro';

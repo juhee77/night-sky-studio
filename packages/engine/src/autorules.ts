@@ -1,6 +1,7 @@
 // 의뢰 조건 → 자동 연출 옵션. 자동 연출이 맞출 수 있는 조건은 옵션으로 넘기고,
 // 사람이 직접 해야 하는 조건(틀 그림, 서랍에 없는 내 불꽃, 실전 장비)은 할 일과 함께 따로 돌려준다.
 
+import { ART_PRESETS } from './art.ts';
 import type { AutoOptions } from './auto.ts';
 import { typeLabel, type FireworkType, type Size } from './catalog.ts';
 import type { Commission, Rule } from './commission.ts';
@@ -73,7 +74,10 @@ export function commissionAutoOptions(c: Commission, show: Show, unlocked: Firew
         break;
       }
       case 'frameArt':
-        manual.push({ rule: r, hint: `시간표의 지상 틀불꽃을 고르고 「그림 그리기」로 ${r.subject}을 그려 넣으세요.` });
+        // 본보기 그림(하트·별·웃는 얼굴) 가운데 주제에 맞는 것을 세운다. 내 그림으로 바꾸려면 「그림 그리기」로.
+        o.art = ART_PRESETS[artFor(r.subject)]();
+        if (o.allowed && !o.allowed.includes('lancework')) manual.push({ rule: r, hint: '「의뢰소」에서 지상 틀불꽃을 해금하면 자동 연출이 그림을 세웁니다.' });
+        else if (!show.launchers.some((l) => l.kind === 'frame')) manual.push({ rule: r, hint: '「발사장」에서 지상 틀을 세우세요.' });
         break;
       case 'live':
         if (!isLive(show)) manual.push({ rule: r, hint: '「발사장」에서 실전 모드를 켜고 허가 구역·장비를 맞추세요.' });
@@ -81,4 +85,11 @@ export function commissionAutoOptions(c: Commission, show: Show, unlocked: Firew
     }
   }
   return { options: o, manual };
+}
+
+/** 그림 주제에 맞는 본보기 그림 (모르면 별: 로고에 흔한 모양) */
+export function artFor(subject: string): keyof typeof ART_PRESETS {
+  if (/하트|사랑|웨딩|결혼|커플/.test(subject)) return '하트';
+  if (/웃|얼굴|어린이|아이/.test(subject)) return '웃는 얼굴';
+  return '별';
 }
