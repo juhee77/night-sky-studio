@@ -148,3 +148,15 @@ test('직접 쏘기: 누르면 상승 시간 뒤에 터지는 불꽃이 기록�
   await dialog.locator('[data-act="keep"]').click();
   await expect(page.locator('#toast')).toContainText('5발을 시간표에 놓았습니다');
 });
+
+test('경력 이야기: 의뢰소에 지금 단계와 의뢰인 말이 보이고, 받은 의뢰는 그 의뢰의 무대에서 시작한다', async ({ page }) => {
+  await openAll(page);
+  await page.locator('#office-btn').click();
+  await expect(page.locator('.story-steps li.now')).toHaveText('동네 축제');
+  await expect(page.locator('.story .quote')).toContainText('마을');
+  const card = page.locator('.commission-card').filter({ has: page.locator('[data-take]') }).first();
+  const venue = (await card.locator('.facts div', { hasText: '무대' }).locator('dd').textContent())!.trim();
+  await card.locator('[data-take]').click();
+  const want = { '산으로 둘러싼 호수': 'mountain-lake', '강변 도시와 다리': 'river-bridge-city', '넓은 강변 초대형 축제': 'grand-river' }[venue];
+  await expect(page.locator('#seat')).toHaveAttribute('data-venue', want!);
+});

@@ -37,6 +37,8 @@ export interface Commission {
   quote: string;
   /** 기본 곡 id. 쇼 길이는 곡 길이를 따른다. */
   music: string;
+  /** 무대 (없으면 강변 도시). 경력 단계가 오를수록 큰 무대 */
+  venue?: string;
   budget: number;
   reward: number;
   /** 바람이 불어오는 방향(도)과 세기(m/s) */
@@ -104,7 +106,10 @@ export const UNLOCK_PRICES: Partial<Record<FireworkType, number>> = {
   drones: 200,
 };
 
-const TRACKS = { march: 'basic-1', calm: 'basic-2', drive: 'basic-3', waltz: 'basic-4', epic: 'basic-5' } as const;
+export const TRACKS = { march: 'basic-1', calm: 'basic-2', drive: 'basic-3', waltz: 'basic-4', epic: 'basic-5' } as const;
+
+/** 등급마다 의뢰가 열리는 무대: 동네(호숫가 마을) → 지역(강변 도시) → 큰 행사(넓은 강변) */
+export const TIER_VENUE = ['mountain-lake', 'river-bridge-city', 'grand-river'] as const;
 
 interface Template {
   tier: number;
@@ -236,6 +241,7 @@ export function generateCommissions(seed: number, reputation: number, count = 3)
       client: t.client,
       quote: t.quote,
       music: TRACKS[t.music],
+      venue: TIER_VENUE[t.tier],
       budget,
       reward: Math.round(budget * 0.8 + 30 + t.tier * 40),
       wind,
