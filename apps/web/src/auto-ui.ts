@@ -1,6 +1,19 @@
 // 자동 연출 창: 분위기·밀도·효과·구간을 골라 곡에 맞춰 불꽃을 놓는다.
 
-import { allTubes, autoChoreograph, commissionAutoOptions, isLive, scoreShow, type AutoOptions, type CommissionAuto, type MusicMap, type Mood } from '@nss/engine';
+import {
+  allTubes,
+  autoChoreograph,
+  commissionAutoOptions,
+  fixFaults,
+  isLive,
+  rigForShow,
+  scoreShow,
+  type AutoOptions,
+  type CommissionAuto,
+  type Cue,
+  type MusicMap,
+  type Mood,
+} from '@nss/engine';
 import type { Career } from './career.ts';
 import type { Drawer } from './drawer.ts';
 import type { Editor } from './editor.ts';
@@ -34,8 +47,8 @@ export function wireAuto(ctx: AutoCtx): void {
       const mine = ctx.drawer.list().filter((x) => !ctx.office.isLocked('custom', x.id));
       if (mine.length) o.customs = mine.slice(0, 6).map((x) => ({ id: x.id, size: x.build?.size ?? 5 }));
     }
-    // 실전 모드: 갑판에 실린 통 안에서만
-    if (isLive(ctx.editor.show)) o.tubes = allTubes(ctx.editor.show.rig);
+    // 실전 모드: 갑판에 실린 통 안에서만 (장비까지 맞추면 run에서 랙을 새로 채운 뒤 정한다)
+    if (isLive(ctx.editor.show) && !rigAuto()) o.tubes = allTubes(ctx.editor.show.rig);
     const range = autoRange();
     if (range && $<HTMLInputElement>('auto-range').checked) o.range = range;
     const text = el.autoText.value.trim();
@@ -68,6 +81,7 @@ export function wireAuto(ctx: AutoCtx): void {
     $<HTMLInputElement>('auto-range').checked = !!range;
     if (range) $<HTMLElement>('auto-range-label').textContent = `고른 불꽃이 있는 구간(${fmtTime(range.from)}~${fmtTime(range.to)})만 다시 만들기`;
     $<HTMLElement>('auto-customs-field').hidden = !ctx.drawer.list().length;
+    $<HTMLElement>('auto-rig-field').hidden = !isLive(ctx.editor.show);
     const n = ctx.editor.show.cues.length;
     el.autoReplace.textContent = n ? `지금 놓인 불꽃 ${n}개를 지우고 새로 만듭니다. 마음에 들지 않으면 「되돌리기」로 되돌릴 수 있습니다.` : '';
     const c = ctx.editor.show.commission;
@@ -91,14 +105,32 @@ export function wireAuto(ctx: AutoCtx): void {
     const d = Number(el.autoDensity.value);
     el.autoDensityOut.value = d < 0.5 ? '드문드문' : d < 0.8 ? '보통' : '촘촘하게';
   });
+  /** 실전 모드에서 장비까지 맞추는지 (구간만 다시 만들 때는 지금 장비 그대로) */
+  const rigAuto = () => isLive(ctx.editor.show) && $<HTMLInputElement>('auto-rig').checked && !($<HTMLInputElement>('auto-range').checked && autoRange());
+
   el.autoRun.addEventListener('click', () => {
     const seed = Math.floor(Math.random() * 1e9);
     const o = autoOptions(seed);
-    const cues = autoChoreograph(ctx.musicMap(), ctx.editor.show.launchers, o);
+    let cues: Cue[] = autoChoreograph(ctx.musicMap(), ctx.editor.show.launchers, o);
     const range = o.range;
+    // 장비까지: 먼저 자유롭게 만들고 → 그 쇼에 맞게 랙을 채우고 → 실린 통 안에서 다시 만든다 (같은 시드).
+    let rigNote = '';
+    let rig = null as ReturnType<typeof rigForShow> | null;
+    if (rigAuto()) {
+      rig = rigForShow({ ...ctx.editor.show, cues });
+      cues = autoChoreograph(ctx.musicMap(), ctx.editor.show.launchers, { ...o, tubes: allTubes({ decks: rig.rig.decks }) });
+      rigNote = rig.missing.length ? ` 갑판이 모자라 일부 랙을 싣지 못해 실린 통 안에서만 만들었습니다.` : ' 랙 채우기·장전·회로 점검까지 맞췄습니다.';
+    }
     ctx.editor.change((d) => {
       // 구간만 다시 만들면 그 밖의 불꽃은 그대로 둔다.
       d.cues = range ? [...d.cues.filter((c) => c.t < range.from || c.t >= range.to), ...cues].sort((a, b) => a.t - b.t) : cues;
+      if (rig) {
+        // 실전 모드·핀 설정은 두고 갑판만 바꾼 뒤, 끊긴 선을 찾아 고친다 (회로 점검).
+        const { checked: _c, fixed: _f, ...keep } = d.rig ?? { decks: {} };
+        d.rig = { ...keep, decks: rig.rig.decks };
+        for (const c of d.cues) delete c.tubes;
+        fixFaults(d);
+      }
       // 섞어 쓴 내 불꽃은 설계를 쇼 안에 복사해 둔다.
       for (const c of cues) {
         const def = c.custom ? ctx.drawer.get(c.custom) : undefined;
@@ -121,6 +153,7 @@ export function wireAuto(ctx: AutoCtx): void {
         : c
           ? `불꽃 ${cues.length}개를 놓았습니다.${left.length ? '' : ' 의뢰 조건을 모두 지켰습니다.'}`
           : `불꽃 ${cues.length}개를 놓았습니다. ▶ 재생해 보고, 마음에 안 들면 「자동 연출」을 다시 누르면 다른 쇼가 나옵니다.`) +
+        rigNote +
         (left.length ? ` 아직 못 지킨 조건 ${left.length}개: ${todo.join(' ')}` : ''),
       left.length ? 12000 : 4500,
     );
