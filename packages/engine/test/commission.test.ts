@@ -183,3 +183,20 @@ test('재생 중 판정은 점수표와 같은 기준: 박자 딱이면 완벽, 
   const hot = crowdAt(track, beat * 30).heat;
   assert.ok(hot > crowdAt(track, beat * 9).heat && hot > crowdAt(track, beat * 38).heat * 1.5);
 });
+
+test('성적표: 등급은 점수대로, 아쉬운 순간은 빈 하늘 → 가림 → 박자 순서로 고른다', async () => {
+  const { gradeOf, showMoments } = await import('../src/score.ts');
+  assert.equal(gradeOf({ total: 95, failed: false }), 'S');
+  assert.equal(gradeOf({ total: 86, failed: false }), 'A');
+  assert.equal(gradeOf({ total: 60, failed: false }), 'C');
+  assert.equal(gradeOf({ total: 95, failed: true }), 'F');
+  const beat = 60 / 84;
+  const cues = (from: number, to: number) => Array.from({ length: to - from }, (_, k) => ({ t: beat * (from + k * 2), at: k % 2 ? 'barge-1' : 'barge-3', type: 'peony' as const, size: 5 as const }));
+  // 20초 비운 쇼: 그 빈 곳이 아쉬운 순간
+  const gappy = showMoments(base([...cues(8, 14), ...cues(50, 60)]));
+  assert.match(gappy.worst!.text, /하늘이 비었어요/);
+  assert.ok(gappy.best && gappy.best.t >= 0);
+  // 고르게 채웠지만 하나가 박에서 크게 어긋난 쇼
+  const off = showMoments(base([...cues(8, 50), { t: beat * 30 + beat / 2, at: 'barge-2', type: 'ring', size: 5 }]));
+  assert.match(off.worst!.text, /박자에서 어긋났어요/);
+});

@@ -110,3 +110,23 @@ test('재생 중에는 관객 열기 게이지가 오르고, 「관객 반응」
   await expect(hud).toBeHidden();
   await expect(page.locator('#crowd-toggle')).toHaveText('관객 반응 꺼짐');
 });
+
+test('성적표: 등급과 순간이 보이고, 순간을 누르면 그 시각으로 가며, 점수가 오르면 「최고 기록!」', async ({ page }) => {
+  await openAll(page);
+  await page.locator('#office-btn').click();
+  await page.locator('[data-take]').first().click();
+  await page.locator('#auto-btn').click();
+  await page.locator('#auto-run').click();
+  await page.locator('#commission-bar [data-act="preview"]').click();
+  const dialog = page.locator('#result-dialog');
+  await expect(dialog.locator('.grade')).toHaveText(/^[SABCDF]$/);
+  await expect(dialog.locator('.moments li').first()).toContainText('가장 좋았던 순간');
+  // 처음 채점하면 비교할 기록이 없다
+  await expect(dialog.locator('.record')).toHaveCount(0);
+  const seek = dialog.locator('[data-seek]').first();
+  const t = Number(await seek.getAttribute('data-seek'));
+  await seek.click();
+  await expect(dialog).toBeHidden();
+  const want = `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+  await expect(page.locator('#clock')).toContainText(want);
+});
