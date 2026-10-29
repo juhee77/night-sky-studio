@@ -6,6 +6,7 @@
 import { isShell, shellSize, type FireworkType, type RiseEffect, type ShellType, type Size } from './catalog.ts';
 import { COLOR_NAMES, type ColorName } from './colors.ts';
 import { SHELL_COST, cueCost } from './commission.ts';
+import type { FrameArt } from './art.ts';
 import { onsetEnvelope } from './beat.ts';
 import { mulberry32 } from './rng.ts';
 import type { Tube } from './rig.ts';
@@ -277,6 +278,8 @@ export interface AutoOptions {
   endColors?: { seconds: number; colors: ColorName[] };
   /** 지상 틀에 띄울 글자 (없으면 틀불꽃을 쓰지 않는다) */
   text?: string;
+  /** 지상 틀에 세울 그림 (글자와 다른 때에 따로 띄운다) */
+  art?: FrameArt;
   /** 쓸 수 있는 값의 상한 */
   budget?: number;
   /** 섞어 쓸 내 불꽃 (서랍의 설계 id와 크기) */
@@ -596,11 +599,21 @@ export function autoChoreograph(music: MusicMap, launchers: Launcher[], o: AutoO
 
   // 틀불꽃: 곡 가운데쯤 잔잔한 곳에서 글자를 띄운다.
   if (frame && o.text && can('lancework')) {
-    const mid = Math.floor(n * 0.45);
+    // 그림도 띄우면 그림은 앞쪽(4분의 1쯤), 글자는 조금 뒤로 미뤄 같은 틀에서 겹치지 않게 한다.
+    const mid = Math.floor(n * (o.art ? 0.6 : 0.45));
     let best = mid;
     for (let i = mid - 8; i < mid + 8; i++) if (i > 0 && i < n && music.energy[i] < music.energy[best]) best = i;
     const t = music.offset + Math.max(0, best - (best % bar)) * beat;
     if (t < finaleStart - 4) place({ t, at: frame.id, type: 'lancework', size: 5, colors: [themeFor(best)[0]], text: o.text, len: 10 }, 4);
+  }
+  // 틀 그림: 곡 4분의 1쯤 잔잔한 곳에 (글자보다 앞쪽에)
+  if (frame && o.art && can('lancework')) {
+    const q = Math.floor(n * 0.22);
+    let best = q;
+    for (let i = q - 6; i < q + 6; i++) if (i > 0 && i < n && music.energy[i] < music.energy[best]) best = i;
+    const t = music.offset + Math.max(0, best - (best % bar)) * beat;
+    const busy = out.some((c) => c.at === frame.id && Math.abs(c.t - t) < 12);
+    if (!busy && t < finaleStart - 4) place({ t, at: frame.id, type: 'lancework', size: 5, colors: [themeFor(best)[0]], art: o.art, len: 10 }, 4);
   }
 
   // 피날레: 반 박마다 양쪽을 번갈아, 케이크와 나이아가라를 깔고, 마지막은 큰 버들로 덮는다.
