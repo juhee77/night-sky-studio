@@ -3,6 +3,7 @@
 // 계산은 터지는 순서와 바람만으로 정해지므로, 시뮬레이션과 채점이 같은 결과를 쓴다.
 
 import { shellSize } from './catalog.ts';
+import { COLORS } from './colors.ts';
 import { isShellLaunch, type Launch, type Vec3 } from './show.ts';
 import { soundSource } from './sound.ts';
 
@@ -17,6 +18,8 @@ export interface Puff {
   r0: number;
   /** 처음 짙기 (케이크는 연기가 적다) */
   d0: number;
+  /** 터진 불꽃의 빛깔 (연기를 그 색으로 물들인다) */
+  rgb?: readonly [number, number, number];
 }
 
 export interface SmokeResult {
@@ -61,7 +64,8 @@ export function analyzeSmoke(launches: Launch[], wind: Vec3): SmokeResult {
     const spread = shellSize(l.type, l.size).spread;
     // 연기 양: 케이크는 적고, 내 불꽃은 배합에 따라 다르다.
     const d0 = l.type === 'cake' ? 0.15 : (l.customDef?.smoke ?? 1);
-    puffs.push({ pos, t: l.burstAt, r0: spread * 0.25, d0 });
+    const c = COLORS[l.colors[0]];
+    puffs.push({ pos, t: l.burstAt, r0: spread * 0.25, d0, ...(c ? { rgb: [c[0], c[1], c[2]] as const } : {}) });
   }
   return { puffs, obscured };
 }

@@ -51,6 +51,8 @@ export const RENDER_STRIDE = 8;
 const MAX_TRAIL_POINTS = 12000;
 export const RENDER_EXTRA = 1100 + MAX_TRAIL_POINTS;
 const MAX_PUFFS = 300;
+/** 연기를 그릴 때 쓰는 버퍼 크기(점 수): writeSmoke에 넘길 버퍼는 SMOKE_POINTS * RENDER_STRIDE */
+export const SMOKE_POINTS = MAX_PUFFS;
 
 /** 이 스텝마다 중간 저장점을 남긴다 (2초) */
 const CHECKPOINT_EVERY = 240;
@@ -1163,27 +1165,6 @@ export class Simulation {
     out.set(tb.subarray(0, t), k);
     k += t;
 
-    // 연기: 불꽃 빛을 받아 희미하게 보이는 덩어리
-    const now = this.time;
-    let shown = 0;
-    for (let i = this.puffs.length - 1; i >= 0 && shown < MAX_PUFFS; i--) {
-      const puff = this.puffs[i];
-      if (puff.t > now) continue;
-      if (now - puff.t > SMOKE_LIFE) break;
-      const at = puffAt(puff, now, this.wind);
-      if (at.density < 0.03) continue;
-      const lit = 0.12 + Math.min(0.5, (this.skyLight[0] + this.skyLight[1] + this.skyLight[2]) * 0.6);
-      out[k++] = at.pos[0];
-      out[k++] = at.pos[1];
-      out[k++] = at.pos[2];
-      out[k++] = at.r * 1.6;
-      out[k++] = lit;
-      out[k++] = lit;
-      out[k++] = lit * 1.2;
-      out[k++] = at.density * 0.16 * (at.pos[1] > cloud ? 0.2 : 1);
-      shown++;
-    }
-
     for (const s of this.rising) {
       out[k++] = s.pos[0];
       out[k++] = s.pos[1];
@@ -1193,6 +1174,57 @@ export class Simulation {
       out[k++] = HEAD_RGB[1];
       out[k++] = HEAD_RGB[2];
       out[k++] = s.pos[1] > cloud ? 0.12 : 1;
+    }
+    return k / RENDER_STRIDE;
+  }
+
+  /**
+   * 연기를 out에 채우고 개수를 돌려준다: 바람에 흐르는 연기 덩어리가 막 터진 가까운 불꽃 빛을 받아 그 색으로 물든다.
+   * 별과 달리 앞을 조금 가리며 그린다(렌더러의 연기 단계). 그리기만 바꾸므로 계산·결정성은 그대로다.
+   */
+  writeSmoke(out: Float32Array): number {
+    const now = this.time;
+    const cloud = this.show.venue.cloud ?? Infinity;
+    // 빛을 내는 것: 0.8초 안에 터진 불꽃 (최근 것부터)
+    const lights: { pos: Vec3; rgb: readonly [number, number, number]; k: number; reach: number }[] = [];
+    for (let i = this.puffs.length - 1; i >= 0; i--) {
+      const p = this.puffs[i];
+      if (p.t > now) continue;
+      if (now - p.t > 0.8) break;
+      lights.push({ pos: p.pos, rgb: p.rgb ?? [1, 0.8, 0.5], k: Math.exp(-(now - p.t) / 0.22), reach: p.r0 * 1.6 + 70 });
+    }
+    const sky = (this.skyLight[0] + this.skyLight[1] + this.skyLight[2]) * 0.05;
+    let k = 0;
+    let shown = 0;
+    for (let i = this.puffs.length - 1; i >= 0 && shown < MAX_PUFFS && k + RENDER_STRIDE <= out.length; i--) {
+      const puff = this.puffs[i];
+      if (puff.t > now) continue;
+      if (now - puff.t > SMOKE_LIFE) break;
+      const at = puffAt(puff, now, this.wind);
+      if (at.density < 0.03) continue;
+      // 어둠 속 연기는 도시 불빛에 희미하게, 가까이서 터진 불꽃 빛을 받으면 그 색으로 밝게
+      // 어둠 속 연기는 도시 불빛을 아래에서 받아 희미한 회갈색으로 보인다.
+      let lr = 0.11 + sky;
+      let lg = 0.1 + sky;
+      let lb = 0.11 + sky;
+      for (const L of lights) {
+        const d = Math.hypot(at.pos[0] - L.pos[0], at.pos[1] - L.pos[1], at.pos[2] - L.pos[2]) / L.reach;
+        const w = (L.k * 0.5) / (1 + d * d);
+        // 연기는 빛을 흩뜨려 색이 옅어진다 (회색 쪽으로 섞기)
+        const grey = (L.rgb[0] + L.rgb[1] + L.rgb[2]) / 3;
+        lr += (L.rgb[0] * 0.6 + grey * 0.4) * w;
+        lg += (L.rgb[1] * 0.6 + grey * 0.4) * w;
+        lb += (L.rgb[2] * 0.6 + grey * 0.4) * w;
+      }
+      out[k++] = at.pos[0];
+      out[k++] = at.pos[1];
+      out[k++] = at.pos[2];
+      out[k++] = at.r * 2.2;
+      out[k++] = Math.min(0.55, lr);
+      out[k++] = Math.min(0.55, lg);
+      out[k++] = Math.min(0.55, lb);
+      out[k++] = Math.min(0.42, at.density * 0.4) * (at.pos[1] > cloud ? 0.3 : 1);
+      shown++;
     }
     return k / RENDER_STRIDE;
   }

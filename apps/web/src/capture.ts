@@ -13,6 +13,7 @@ import {
 } from 'mediabunny';
 import {
   RENDER_EXTRA,
+  SMOKE_POINTS,
   SKIES,
   writeSnow,
   type CrowdCue,
@@ -176,6 +177,7 @@ export async function makeVideo(o: VideoOptions): Promise<Blob> {
   const renderer = new StageRenderer(canvas, { preserve: true });
   const sim = new Simulation(show, { density: 1 });
   const buffer = new Float32Array((sim.pool.capacity + RENDER_EXTRA) * RENDER_STRIDE);
+  const smokeBuffer = new Float32Array(SMOKE_POINTS * RENDER_STRIDE);
 
   o.onProgress(0, '소리를 섞는 중');
   const audio = await mixAudio(o, sim.launches);
@@ -223,6 +225,7 @@ export async function makeVideo(o: VideoOptions): Promise<Blob> {
         reflection: !cam.plan,
         shore: waterSpan(venue),
         fog: look.fog,
+        smoke: { buffer: smokeBuffer, count: sim.writeSmoke(smokeBuffer) },
       });
       await video.add(i / fps, 1 / fps);
       if (i % 15 === 0) o.onProgress(i / frames, '영상을 만드는 중');
