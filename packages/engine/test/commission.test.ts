@@ -107,7 +107,7 @@ test('구름보다 높이 터지는 불꽃은 점수에서 깎인다', () => {
   assert.match(cloudy.comment, /구름\(250m\)/);
 });
 
-test('큰 불꽃과 촘촘한 순간에 함성, 끝에는 박수', async () => {
+test('큰 불꽃과 촘촘한 순간에 함성, 홀로 큰 불꽃엔 「오~」, 피날레에 환호, 끝에는 박수', async () => {
   const { audienceCues } = await import('../src/audience.ts');
   const quiet = expandShow(base([{ t: 5, at: 'barge-1', type: 'peony', size: 3 }, { t: 9, at: 'barge-1', type: 'peony', size: 3 }])).launches;
   assert.deepEqual(audienceCues(quiet).map((c) => c.kind), ['applause']);
@@ -118,6 +118,16 @@ test('큰 불꽃과 촘촘한 순간에 함성, 끝에는 박수', async () => {
   const cues = audienceCues(big);
   assert.deepEqual(cues.map((c) => c.kind), ['cheer', 'cheer', 'applause']);
   assert.ok(Math.abs(cues[0].t - 10.35) < 1e-9);
+  // 홀로 크게 피는 7호에는 「오~」, 길게 이어진 쇼의 피날레가 시작되면 큰 환호
+  const long = expandShow(base([
+    { t: 6, at: 'barge-1', type: 'peony', size: 7 },
+    { t: 15, at: 'barge-1', type: 'peony', size: 3 },
+    { t: 30, at: 'barge-1', type: 'peony', size: 3 },
+    { t: 40, at: 'barge-1', type: 'peony', size: 3 },
+  ])).launches;
+  const lc = audienceCues(long);
+  assert.deepEqual(lc.map((c) => c.kind), ['ooh', 'cheer', 'applause']);
+  assert.ok(lc[1].t > lc[0].t);
 });
 
 test('불꽃 몇 발만 놓고 곡 대부분을 비우면 별을 받지 못한다', () => {
