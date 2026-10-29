@@ -273,7 +273,7 @@ export function launcherLabel(l: Launcher, index: number): string {
   return '지상 틀';
 }
 
-export function newShow(title: string, venueId = 'river-bridge-city'): Show {
+export function newShow(title: string, venueId = 'hangang'): Show {
   const venue = VENUES[venueId] ?? VENUES['river-bridge-city'];
   return {
     version: 1,

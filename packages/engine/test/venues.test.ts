@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { decodeShow, encodeShow } from '../src/share.ts';
 import type { Show } from '../src/show.ts';
 import { allowedSizeAt, inPermitZone, siteCheck } from '../src/site.ts';
+import { buildCityMesh } from '../src/render/city.ts';
 import { GRAND_RIVER, MOUNTAIN_LAKE, NARROW_RIVER, SKYSCRAPER, VENUES } from '../src/venues.ts';
 
 const showAt = (id: string): Show => ({
@@ -10,8 +11,8 @@ const showAt = (id: string): Show => ({
   cues: [{ t: 6, at: 'barge-1', type: 'peony', size: 3 }],
 });
 
-test('세계의 무대는 일곱 곳이고, 기본 발사 위치는 모두 허가 구역 안·물 위에 있다', () => {
-  assert.equal(Object.keys(VENUES).length, 7);
+test('세계의 무대는 여덟 곳이고, 기본 발사 위치는 모두 허가 구역 안·물 위에 있다', () => {
+  assert.equal(Object.keys(VENUES).length, 8);
   for (const id of Object.keys(VENUES)) {
     const s = showAt(id);
     for (const l of s.launchers.filter((x) => x.kind === 'barge')) assert.ok(inPermitZone(s, l), `${id} ${l.id}`);
@@ -39,4 +40,18 @@ test('새 무대의 쇼도 공유 링크로 열린다', async () => {
     assert.equal(back.venue.preset, id);
     assert.deepEqual(back.launchers, VENUES[id].launchers);
   }
+});
+
+test('한강 무대: 원효대교에 나이아가라, 강을 가로지르는 다리 넷, 남산타워, 3D 모형이 만들어진다', () => {
+  const v = VENUES.hangang;
+  assert.equal(Object.keys(VENUES)[0], 'hangang');
+  const br = v.launchers.find((l) => l.kind === 'bridge')!;
+  // 다리는 남북 방향 (원효대교 위)
+  assert.equal(br.from![0], br.to![0]);
+  assert.ok(Math.abs(br.to![2] - br.from![2]) > 600);
+  assert.deepEqual((v.crossings ?? []).map((c) => c.name), ['마포대교', '원효대교', '한강철교', '한강대교']);
+  assert.ok(v.buildings.some((b) => b.height >= 480), 'N서울타워');
+  assert.ok(v.seats.ichon && v.seats.bridge && v.seats.tower);
+  const mesh = buildCityMesh(v);
+  assert.ok(mesh.count > 1000 && mesh.lampCount > 100, `${mesh.count} ${mesh.lampCount}`);
 });

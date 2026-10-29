@@ -5,7 +5,7 @@
 
 import { RENDER_STRIDE } from '../sim.ts';
 import type { Vec3 } from '../show.ts';
-import type { BridgeShape, Venue } from '../venues.ts';
+import type { BridgeShape, Crossing, Venue } from '../venues.ts';
 
 /** 꼭짓점 하나: 위치(3) 법선(3) 면 위 자리 m(2) 건물 번호·종류(2) */
 export const CITY_STRIDE = 10;
@@ -56,6 +56,13 @@ class Builder {
     const y0 = Math.min(a[1], b[1]);
     const y1 = Math.max(a[1], b[1]) + t;
     this.box(x0, Math.max(x1, x0 + t), a[2] - depth / 2, a[2] + depth / 2, y0, y1, seed, KIND_BRIDGE);
+  }
+
+  /** 남북(z) 방향으로 기울어진 막대: a에서 b까지 두께 t, 폭 width */
+  beamZ(a: Vec3, b: Vec3, t: number, width: number, seed: number): void {
+    const z0 = Math.min(a[2], b[2]);
+    const z1 = Math.max(a[2], b[2]);
+    this.box(a[0] - width / 2, a[0] + width / 2, z0, Math.max(z1, z0 + t), Math.min(a[1], b[1]), Math.max(a[1], b[1]) + t, seed, KIND_BRIDGE);
   }
 
   lamp(p: Vec3, rgb: Vec3, size: number, bright: number): void {
@@ -125,6 +132,34 @@ function addBridge(b: Builder, br: BridgeShape): void {
   }
 }
 
+/** 강을 가로지르는 다리 (남북 방향): 상판·교각, 철교는 트러스, 아치교는 아치. 양쪽 가로등 */
+function addCrossing(b: Builder, c: Crossing): void {
+  const { x, z0, z1, deckY } = c;
+  const half = c.kind === 'truss' ? 8 : 13;
+  b.box(x - half, x + half, z0, z1, deckY - 3, deckY, 21, KIND_BRIDGE);
+  for (let z = z0 + 60; z < z1; z += 120) b.box(x - 4, x + 4, z - 4, z + 4, 0, deckY - 3, 22, KIND_BRIDGE);
+  for (let z = z0 + 15; z < z1; z += 30) {
+    b.lamp([x - half, deckY + 7, z], WARM, 1.8, 0.9);
+    b.lamp([x + half, deckY + 7, z + 15], WARM, 1.8, 0.65);
+  }
+  if (c.kind === 'truss') {
+    // 철교: 양쪽 위 줄과 15m마다 세로 부재
+    for (const side of [-half, half]) {
+      b.box(x + side - 0.8, x + side + 0.8, z0, z1, deckY + 11, deckY + 12.5, 23, KIND_BRIDGE);
+      for (let z = z0; z < z1; z += 15) b.box(x + side - 0.6, x + side + 0.6, z - 0.6, z + 0.6, deckY, deckY + 12, 23, KIND_BRIDGE);
+    }
+  } else if (c.kind === 'arch') {
+    // 한강대교처럼 경간마다 낮은 아치
+    for (let z = z0; z < z1; z += 120) {
+      const step = 12;
+      for (let s = 0; s < 120; s += step) {
+        const y = (t: number) => deckY + 22 * Math.sin((Math.PI * t) / 120);
+        for (const side of [-half, half]) b.beamZ([x + side, y(s), z + s], [x + side, y(s + step), z + s + step], 1.2, 1.2, 24);
+      }
+    }
+  }
+}
+
 /** 무대의 건물과 다리로 3D 모형을 만든다. 무대가 바뀔 때만 부른다. */
 export function buildCityMesh(venue: Venue): CityMesh {
   const b = new Builder();
@@ -137,6 +172,7 @@ export function buildCityMesh(venue: Venue): CityMesh {
     if (bd.height > 120) b.lamp([(bd.x0 + bd.x1) / 2, bd.height + 2, bd.z + depth / 2], [1, 0.12, 0.08], 2.2, 0.6);
   });
   addBridge(b, venue.bridge);
+  for (const c of venue.crossings ?? []) addCrossing(b, c);
   return b.done();
 }
 
