@@ -118,3 +118,22 @@ export async function deleteAccount(): Promise<void> {
   await call('DELETE', '/api/auth/me');
   setAuth(null);
 }
+
+const REACHED = 'nss:funnel';
+
+/**
+ * 어디서 막히는지 재기 (서버판만): 단계별 열기의 단계에 처음 도달하면 단계 이름만 한 번 알린다.
+ * 계정이 있어도 보내지 않고, 이 브라우저에서 이미 알린 단계는 다시 보내지 않는다. 실패해도 조용히 넘어간다.
+ */
+export function reportStep(step: string): void {
+  if (!remoteEnabled()) return;
+  let sent: string[] = [];
+  try {
+    sent = JSON.parse(localStorage.getItem(REACHED) ?? '[]') as string[];
+    if (sent.includes(step)) return;
+    localStorage.setItem(REACHED, JSON.stringify([...sent, step]));
+  } catch {
+    return;
+  }
+  void fetch(`${API_URL}/api/funnel`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ step }) }).catch(() => {});
+}

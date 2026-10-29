@@ -1,5 +1,8 @@
 // 처음 시작을 쉽게: 처음에는 꼭 필요한 버튼만 보이고, 할 일을 하나씩 해낼 때마다 다음 기능이 열린다.
-// 위 막대의 「다음: …」 버튼이 지금 할 일을 알려 준다. 이 기기의 브라우저에만 저장한다.
+// 위 막대의 「다음: …」 버튼이 지금 할 일을 알려 준다. 이 기기의 브라우저에만 저장한다
+// (서버판이면 단계에 처음 도달할 때 단계 이름만 이름 없이 알려, 어디서 막히는지 센다: remote.reportStep).
+
+import { reportStep } from './remote.ts';
 
 const KEY = 'nss:progress';
 
@@ -48,6 +51,7 @@ export class Progress {
         // 이미 쓰던 사람(시작 안내를 봤거나 의뢰 기록이 있음)은 모두 열린 채로 시작한다.
         const career = JSON.parse(localStorage.getItem('nss:career') ?? 'null') as { history?: unknown[] } | null;
         if (localStorage.getItem('nss:guided') === '1' || career?.history?.length) this.openAll(false);
+        else reportStep('start');
         this.save();
       }
     } catch {
@@ -80,6 +84,7 @@ export class Progress {
     if (this.done.has(goal)) return;
     const before = this.level;
     this.done.add(goal);
+    reportStep(goal);
     this.save();
     const after = this.level;
     if (after > before) {

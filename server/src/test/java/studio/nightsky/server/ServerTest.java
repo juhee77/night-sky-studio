@@ -45,6 +45,22 @@ class ServerTest {
     }
 
     @Test
+    void 단계에_도달하면_이름_없이_수만_세고_숫자_화면에_보인다() throws Exception {
+        var before = mvc.perform(get("/api/funnel")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        long watched = ((Number) com.jayway.jsonpath.JsonPath.read(before, "$[2].reached")).longValue();
+        for (int i = 0; i < 2; i++) {
+            mvc.perform(post("/api/funnel").contentType(MediaType.APPLICATION_JSON).content(json("{'step':'watch'}"))).andExpect(status().isOk());
+        }
+        mvc.perform(get("/api/funnel"))
+                .andExpect(jsonPath("$[0].step").value("start"))
+                .andExpect(jsonPath("$[2].step").value("watch"))
+                .andExpect(jsonPath("$[2].reached").value(watched + 2));
+        mvc.perform(post("/api/funnel").contentType(MediaType.APPLICATION_JSON).content(json("{'step':'who-am-i'}"))).andExpect(status().isBadRequest());
+        var page = mvc.perform(get("/funnel")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(page).contains("어디서 막히나").contains("감상으로 보기");
+    }
+
+    @Test
     void 서버가_떴는지_확인할_수_있다() throws Exception {
         mvc.perform(get("/api/health")).andExpect(status().isOk()).andExpect(jsonPath("$.ok").value(true));
     }
