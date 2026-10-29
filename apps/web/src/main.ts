@@ -24,11 +24,6 @@ import { fmtDate, fmtTime } from './format.ts';
 import { importMusicFile, iphoneMusicHint, loadMusic, monoForTempo, musicErrorMessage, useDeviceFontForFrames } from './media.ts';
 import { Drawer } from './drawer.ts';
 import { Office } from './office.ts';
-import { Workshop } from './workshop.ts';
-import { SitePlanner } from './siteplan.ts';
-import { AccountPanel } from './account.ts';
-import { Gallery } from './gallery.ts';
-import { ArtEditor } from './artedit.ts';
 import { Guide } from './guide.ts';
 import { Intro } from './intro.ts';
 import { Compare } from './compare.ts';
@@ -122,41 +117,57 @@ const office = new Office(editor, career, {
 editor.allowType = (t, custom) => !office.isLocked(t, custom);
 el.officeBtn.addEventListener('click', () => office.openBoard());
 
+// ── 처음 열 때 불러오기: 첫 화면에 안 쓰는 창(공작소·발사장·틀 그림·계정·상영관)은 처음 열 때 받는다 ──
+function lazy<T>(load: () => Promise<T>): () => Promise<T> {
+  let made: Promise<T> | null = null;
+  return () => (made ??= load());
+}
+
 // ── 불꽃 공작소와 내 불꽃 서랍 ──
 const drawer = new Drawer();
 editor.findShell = (id) => drawer.get(id) ?? editor.show.customShells?.[id];
-const workshop = new Workshop(el.workshopDialog, drawer, {
-  useInShow: (id) => {
-    editor.select([]);
-    editor.setTemplate({ type: 'custom', custom: id });
-    say(`「${drawer.get(id)?.name}」을 골랐습니다. 시간표의 바지선 줄 빈 곳을 누르면 놓입니다.`);
-  },
-  say,
+const getWorkshop = lazy(async () => {
+  const { Workshop } = await import('./workshop.ts');
+  return new Workshop(el.workshopDialog, drawer, {
+    useInShow: (id) => {
+      editor.select([]);
+      editor.setTemplate({ type: 'custom', custom: id });
+      say(`「${drawer.get(id)?.name}」을 골랐습니다. 시간표의 바지선 줄 빈 곳을 누르면 놓입니다.`);
+    },
+    say,
+  });
 });
 drawer.on(() => editor.emit('template'));
-el.workshopBtn.addEventListener('click', () => {
+async function openWorkshop(): Promise<void> {
   if (transport.playing) togglePlay();
-  workshop.open(editor.template.type === 'custom' ? editor.template.custom : undefined);
-});
+  (await getWorkshop()).open(editor.template.type === 'custom' ? editor.template.custom : undefined);
+}
+el.workshopBtn.addEventListener('click', () => void openWorkshop());
 
 // ── 서버판: 계정과 클라우드 (서버가 있을 때만) ──
 if (remoteEnabled()) {
-  const account = new AccountPanel($<HTMLDialogElement>('account-dialog'), editor, drawer, { openShow: (id, show) => openShow(id, show), say });
-  el.accountBtn.hidden = false;
-  el.accountBtn.addEventListener('click', () => {
-    if (transport.playing) togglePlay();
-    account.open();
+  const getAccount = lazy(async () => {
+    const { AccountPanel } = await import('./account.ts');
+    return new AccountPanel($<HTMLDialogElement>('account-dialog'), editor, drawer, { openShow: (id, show) => openShow(id, show), say });
   });
-  const gallery = new Gallery($<HTMLDialogElement>('gallery-dialog'), editor, drawer, {
-    openShow: (id, show) => openShow(id, show),
-    say,
-    login: () => account.open(),
+  el.accountBtn.hidden = false;
+  el.accountBtn.addEventListener('click', async () => {
+    if (transport.playing) togglePlay();
+    (await getAccount()).open();
+  });
+  const getGallery = lazy(async () => {
+    const { Gallery } = await import('./gallery.ts');
+    return new Gallery($<HTMLDialogElement>('gallery-dialog'), editor, drawer, {
+      openShow: (id, show) => openShow(id, show),
+      say,
+      login: () => void getAccount().then((a) => a.open()),
+    });
   });
   const galleryBtn = $<HTMLButtonElement>('gallery-btn');
   galleryBtn.hidden = false;
-  galleryBtn.addEventListener('click', () => {
+  galleryBtn.addEventListener('click', async () => {
     if (transport.playing) togglePlay();
-    gallery.open();
+    (await getGallery()).open();
   });
 }
 
@@ -191,10 +202,8 @@ const GOAL_TARGET: Record<Goal, () => void> = {
   watch: () => el.watch.click(),
   'shell-saved': () => el.workshopBtn.click(),
   delivered: () => el.officeBtn.click(),
-  'build-saved': () => {
-    el.workshopBtn.click();
-    el.workshopDialog.querySelector<HTMLButtonElement>('[data-mode="build"]')?.click();
-  },
+  'build-saved': () =>
+    void openWorkshop().then(() => el.workshopDialog.querySelector<HTMLButtonElement>('[data-mode="build"]')?.click()),
 };
 function renderProgress(): void {
   progress.apply();
@@ -267,10 +276,10 @@ const intro = new Intro($('intro'), $('intro-end'), $('arrive'), {
 });
 
 // ── 발사장 설계 ──
-const site = new SitePlanner(el.siteDialog, editor);
-el.siteBtn.addEventListener('click', () => {
+const getSite = lazy(async () => new (await import('./siteplan.ts')).SitePlanner(el.siteDialog, editor));
+el.siteBtn.addEventListener('click', async () => {
   if (transport.playing) togglePlay();
-  site.open();
+  (await getSite()).open();
 });
 
 // ── 시간표와 설정 칸 ──
@@ -284,10 +293,10 @@ const timeline: Timeline = new Timeline(el.timeline, editor, {
   warnings: () => warnIdx,
 });
 const panel = new Panel(el.panel, editor, office.isLocked, () => drawer.list());
-const artEditor = new ArtEditor($<HTMLDialogElement>('art-dialog'));
-panel.editArt = (art) => {
+const getArtEditor = lazy(async () => new (await import('./artedit.ts')).ArtEditor($<HTMLDialogElement>('art-dialog')));
+panel.editArt = async (art) => {
   if (transport.playing) togglePlay();
-  return artEditor.edit(art);
+  return (await getArtEditor()).edit(art);
 };
 timeline.onReject = rejectPlacement;
 

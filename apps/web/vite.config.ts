@@ -18,7 +18,18 @@ function serviceWorker(): Plugin {
     enforce: 'post',
     generateBundle(_, bundle) {
       const built = Object.keys(bundle).filter((f) => !f.endsWith('.map'));
-      const files = ['./', 'v/', ...PUBLIC_FILES, ...built];
+      // 미리 받아 두는 것은 첫 화면(편집기·상영관)이 바로 쓰는 것만. 처음 열 때 받는 창·지도·영상은 쓸 때 저장한다.
+      const first = new Set<string>();
+      const visit = (name: string) => {
+        const c = bundle[name];
+        if (!c || first.has(name)) return;
+        first.add(name);
+        if (c.type !== 'chunk') return;
+        for (const css of c.viteMetadata?.importedCss ?? []) first.add(css);
+        for (const dep of c.imports) visit(dep);
+      };
+      for (const [name, c] of Object.entries(bundle)) if (c.type === 'chunk' && c.isEntry) visit(name);
+      const files = ['./', 'v/', ...PUBLIC_FILES, ...built.filter((f) => first.has(f) || f.endsWith('.html'))];
       // 빌드한 파일 이름(내용 지문)과 이 service worker 코드가 바뀌면 버전이 바뀐다.
       const version = createHash('sha1').update(built.sort().join('|') + SW_TEMPLATE).digest('hex').slice(0, 10);
       this.emitFile({ type: 'asset', fileName: 'sw.js', source: SW_TEMPLATE.replace('__VERSION__', version).replace('__FILES__', JSON.stringify(files)) });
@@ -81,6 +92,8 @@ export default defineConfig(({ mode }) => ({
   plugins: [serviceWorker()],
   build: {
     target: 'es2022',
+    // 1MB가 넘는 것은 지도(MapLibre) 하나뿐이고, 지도 무대를 열 때만 받는다.
+    chunkSizeWarningLimit: 1100,
     rollupOptions: { input: { editor: page('./index.html'), viewer: page('./v/index.html') } },
   },
 }));
