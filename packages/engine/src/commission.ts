@@ -179,7 +179,7 @@ const TEMPLATES: Template[] = [
   },
   {
     tier: 1, title: '불꽃 장인 경연', client: '연화 협회',
-    quote: '심사위원은 장인의 솜씨를 봅니다. 직접 만든 불꽃으로, 바깥 층이 위에서 아래로 차례로 터지는 것을 꼭 보여 주세요.',
+    quote: '심사위원은 장인의 솜씨를 봅니다. 직접 만든 불꽃으로, 심은 한꺼번에 피고, 바깥 층은 작은 알들이 차례로 터지는 것(천륜)을 꼭 보여 주세요.',
     music: 'march', seat: 'front-far', style: 'grand', colors: [['gold', 'white'], ['cyan', 'gold']],
     rules: () => [{ kind: 'workshopShell' }, { kind: 'outerPop' }],
   },

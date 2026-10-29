@@ -91,7 +91,7 @@ test('모든 의뢰와 이번 주 도전: 자동 연출로 만들면 사람이 �
   const kamuro = newCustomShell('kamuro', '긴 버들');
   kamuro.layers[0].star = 'kamuro';
   const pop = newCustomShell('pop', '차례로 톡톡');
-  pop.layers[0].sequence = { order: 'down', span: 1.2, mode: 'pop' };
+  pop.layers[0].sequence = { order: 'random', span: 1.2, mode: 'pop' };
   const built = buildToShell(defaultBuild(5), newCustomShell('built', '공방 불꽃'));
   const shells = [kamuro, pop, built];
   const all = [...STARTER_TYPES, ...(Object.keys(UNLOCK_PRICES) as FireworkType[])];
