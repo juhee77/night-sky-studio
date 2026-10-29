@@ -26,6 +26,7 @@ import { Drawer } from './drawer.ts';
 import { Office } from './office.ts';
 import { Guide } from './guide.ts';
 import { Intro } from './intro.ts';
+import { Coach } from './coach.ts';
 import { Compare } from './compare.ts';
 import { remoteEnabled } from './remote.ts';
 import { Panel } from './panel.ts';
@@ -233,7 +234,19 @@ function setEditing(on: boolean): void {
     // 저장하지 못하면 다음에 처음 화면으로 연다.
   }
 }
-editBtn.addEventListener('click', () => setEditing(document.body.classList.contains('simple')));
+// 처음 「편집하기」를 누르면 편집 화면을 둘러보고 첫 불꽃을 직접 놓아 보게 한다.
+const coach = new Coach(() => editor.show.cues.length, (m) => say(m, 7000));
+editor.on((c) => c === 'show' && coach.showChanged());
+editBtn.addEventListener('click', () => {
+  const open = document.body.classList.contains('simple');
+  setEditing(open);
+  if (open && Coach.isNew()) setTimeout(() => coach.start(), 250);
+});
+$<HTMLButtonElement>('help-coach').addEventListener('click', () => {
+  helpDialog.close();
+  setEditing(true);
+  setTimeout(() => coach.start(), 250);
+});
 {
   let saved: string | null = null;
   try {

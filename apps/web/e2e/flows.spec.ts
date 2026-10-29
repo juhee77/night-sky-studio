@@ -76,3 +76,24 @@ test('휴대폰 크기: 간단 화면에서 편집으로, 화면이 옆으로 �
   expect(overflow).toBeLessThanOrEqual(0);
   await ctx.close();
 });
+
+test('편집 화면 둘러보기: 처음 「편집하기」를 누르면 영역을 짚어 주고, 첫 불꽃을 놓으면 끝난다', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#intro-skip').click({ timeout: 15_000 });
+  await page.locator('#shows-btn').click();
+  await page.locator('#new-show').click();
+  await page.keyboard.press('Escape').catch(() => {});
+  await page.locator('#edit-btn').click();
+  const card = page.locator('.coach');
+  await expect(card).toContainText('무대');
+  for (let i = 0; i < 3; i++) await card.getByRole('button', { name: /다음|시작하기/ }).click();
+  await expect(card).toContainText('직접 해 보기');
+  const box = (await page.locator('#timeline').boundingBox())!;
+  await page.mouse.click(box.x + 300, box.y + 22 + 34 + 17);
+  await expect(card).toBeHidden();
+  await expect(page.locator('#toast')).toContainText('잘했어요');
+  // 두 번째부터는 나오지 않는다
+  await page.locator('#edit-btn').click();
+  await page.locator('#edit-btn').click();
+  await expect(card).toBeHidden();
+});
