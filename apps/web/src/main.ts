@@ -28,6 +28,7 @@ import { Guide } from './guide.ts';
 import { Intro } from './intro.ts';
 import { Coach } from './coach.ts';
 import { Compare } from './compare.ts';
+import { CrowdHud } from './crowd-hud.ts';
 import { remoteEnabled } from './remote.ts';
 import { Panel } from './panel.ts';
 import { registerPwa } from './pwa.ts';
@@ -906,6 +907,9 @@ el.importFile.addEventListener('change', async () => {
   }
 });
 
+// 재생 중 관객 반응 (관객 실루엣·열기 게이지·판정 글자)
+const crowdHud = new CrowdHud(el.stageWrap);
+
 // ── 매 프레임 ──
 const fanCount = (l: Launch) => editor.show.cues[l.cueIndex]?.fan?.count ?? 1;
 let lastClock = '';
@@ -924,6 +928,7 @@ function frame(now: number): void {
   }
   // 나란히 보기 창이 열려 있으면 편집 무대는 쉬고, 그 창이 무대를 그린다.
   if (!compare.open) stage.render(t, transport.playing);
+  crowdHud.update(stage, stage.sim.show, t, transport.playing && !compare.open);
   transport.schedule(stage.sim.launches, fanCount);
   if (transport.playing) timeline.follow(t);
   timeline.draw();

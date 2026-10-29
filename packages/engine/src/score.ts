@@ -9,6 +9,7 @@ import { analyzeSmoke } from './smoke.ts';
 import { craftReport, type CustomShell } from './custom.ts';
 import { applyLive, isLive } from './live.ts';
 import { artCount } from './art.ts';
+import { beatFit } from './audience.ts';
 
 export interface ScoreItem {
   key: 'beat' | 'gaps' | 'variety' | 'smoke' | 'finale' | 'taste' | 'rules' | 'craft';
@@ -173,13 +174,10 @@ export function scoreShow(show: Show, c: Commission): ScoreResult {
     let score = 70;
     let comment = '음악이 없어서 박자는 보통으로 칩니다.';
     if (music && times.length) {
-      const beat = 60 / music.bpm;
       let sum = 0;
       let onBeat = 0;
       for (const t of times) {
-        const k = (t - music.offset) / beat;
-        const d = Math.abs(k - Math.round(k)) * beat;
-        const s = clamp(1 - (d - 0.04) / 0.11, 0, 1);
+        const s = beatFit(t, music);
         sum += s;
         if (s > 0.8) onBeat++;
       }

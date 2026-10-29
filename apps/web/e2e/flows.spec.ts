@@ -97,3 +97,16 @@ test('편집 화면 둘러보기: 처음 「편집하기」를 누르면 영역�
   await page.locator('#edit-btn').click();
   await expect(card).toBeHidden();
 });
+
+test('재생 중에는 관객 열기 게이지가 오르고, 「관객 반응」을 끄면 사라진다', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#intro-skip').click({ timeout: 15_000 });
+  const hud = page.locator('.crowd-hud');
+  await expect(hud).toBeHidden();
+  await page.locator('#play').click();
+  await expect(hud).toBeVisible();
+  await expect.poll(async () => Number((await page.locator('.crowd-gauge-fill').getAttribute('style'))?.match(/scaleX\(([\d.]+)/)?.[1] ?? 0), { timeout: 15_000 }).toBeGreaterThan(0.1);
+  await page.locator('#crowd-toggle').click();
+  await expect(hud).toBeHidden();
+  await expect(page.locator('#crowd-toggle')).toHaveText('관객 반응 꺼짐');
+});
