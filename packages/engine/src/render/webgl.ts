@@ -5,6 +5,7 @@
 // 실수 화면을 못 쓰는 기기는 예전처럼 바로 그린다.
 
 import type { Mat4 } from '../camera.ts';
+import { CITY_STRIDE, type CityMesh } from './city.ts';
 import { RENDER_STRIDE } from '../sim.ts';
 import type { Vec3 } from '../show.ts';
 
@@ -72,6 +73,78 @@ void main() {
   float halo = (1.0 - r2) * (1.0 - r2) * 0.5;
   float a = (core + halo) * vColor.a;
   outColor = vec4(vColor.rgb * a, a);
+}`;
+
+/** 3D 도시: 건물·다리 상자. 물에 비친 모습은 아래로 뒤집어 물 위에 떨어지는 곳만 그린다 */
+const CITY_VS = `#version 300 es
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec3 aNormal;
+layout(location = 2) in vec2 aUv;
+layout(location = 3) in vec2 aInfo;  // 건물 번호, 종류(0 건물, 1 다리)
+uniform mat4 uViewProj;
+uniform float uMirror;
+out vec3 vWorld;
+out vec3 vNormal;
+out vec2 vUv;
+out vec2 vInfo;
+out float vDist;
+void main() {
+  vec3 p = vec3(aPos.x, aPos.y * uMirror, aPos.z);
+  vWorld = p;
+  vNormal = aNormal;
+  vUv = aUv;
+  vInfo = aInfo;
+  vec4 clip = uViewProj * vec4(p, 1.0);
+  vDist = clip.w;
+  gl_Position = clip;
+}`;
+
+const CITY_FS = `#version 300 es
+precision highp float;
+in vec3 vWorld;
+in vec3 vNormal;
+in vec2 vUv;
+in vec2 vInfo;
+in float vDist;
+uniform vec3 uSkyLight;  // 지금 터진 불꽃이 비추는 빛
+uniform float uWindows;  // 창문 불빛 세기 (하늘 모습마다)
+uniform float uMirror;
+uniform float uFade;
+uniform vec3 uEye;
+uniform vec2 uShore;
+uniform float uFog;
+out vec4 outColor;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+void main() {
+  if (uMirror < 0.0) {
+    // 비친 모습이 실제로 물 위에 떨어지는 곳만 (강가 땅 위는 그리지 않는다)
+    float t = uEye.y / max(uEye.y - vWorld.y, 0.001);
+    float hitZ = uEye.z + (vWorld.z - uEye.z) * t;
+    if (hitZ < uShore.x || hitZ > uShore.y) discard;
+  }
+  bool bridge = vInfo.y > 0.5;
+  float up = max(vNormal.y, 0.0);
+  vec3 base = bridge ? vec3(0.035, 0.04, 0.085) : vec3(0.02, 0.022, 0.042);
+  // 불꽃 빛을 받는다: 지붕은 하늘을 보고, 앞면은 강(불꽃) 쪽을 본다
+  float facing = max(-vNormal.z, 0.0) * 0.8 + up * 0.5 + 0.15;
+  vec3 c = base + uSkyLight * 0.55 * facing;
+  if (!bridge && abs(vNormal.y) < 0.5) {
+    // 창문: 가로 4m, 층 높이 3.6m 격자. 몇 개는 불이 켜져 있다 (따뜻한 빛이 많고 가끔 흰빛)
+    // 멀어서 한 칸이 화소보다 작아지면 칸을 두 배씩 키워, 반짝이지 않는 불빛 점으로 남긴다.
+    float px = max(fwidth(vUv.x) / 4.0, fwidth(vUv.y) / 3.6);
+    vec2 size = vec2(4.0, 3.6) * exp2(max(0.0, floor(log2(px * 2.5))));
+    vec2 cell = floor(vUv / size);
+    vec2 f = fract(vUv / size);
+    float win = step(0.22, f.x) * step(f.x, 0.78) * step(0.28, f.y) * step(f.y, 0.78);
+    float h = hash(cell + vInfo.x * 17.13);
+    float lit = step(1.0 - uWindows * 0.9, h);
+    vec3 tone = mix(vec3(1.0, 0.7, 0.4), vec3(0.78, 0.88, 1.0), step(0.82, hash(cell * 1.7 + vInfo.x)));
+    c += win * (lit * tone * (0.35 + 0.35 * hash(cell + 3.1)) + (1.0 - lit) * vec3(0.012, 0.016, 0.03));
+  }
+  // 물에 비친 모습은 잔물결로 가로 줄이 흔들린다
+  if (uMirror < 0.0) c *= 0.65 + 0.35 * sin(gl_FragCoord.y * 0.9 + vWorld.x * 0.04);
+  if (uFog > 0.0) c = mix(vec3(0.18, 0.19, 0.27), c, exp(-vDist / uFog));
+  outColor = vec4(c * uFade, 1.0);
 }`;
 
 /** 연기: 가운데가 짙고 가장자리로 부드럽게 옅어지는 덩어리. 받은 빛깔로 물들고 뒤를 조금 가린다 */
@@ -189,6 +262,10 @@ export interface FrameInput {
   fog?: number;
   /** 연기 덩어리 (Simulation.writeSmoke). 없으면 그리지 않는다 */
   smoke?: { buffer: Float32Array; count: number };
+  /** 도시의 움직이는 불빛 (차 불빛, writeCityTraffic). 물에도 비친다 */
+  lights?: { buffer: Float32Array; count: number };
+  /** 창문 불빛 세기 (SkyLook.windows) */
+  windows?: number;
 }
 
 /** 블룸 세기 */
@@ -206,6 +283,17 @@ export class StageRenderer {
   private readonly u: Record<string, WebGLUniformLocation | null>;
   private readonly downProg: WebGLProgram;
   private readonly smokeProg: WebGLProgram;
+  private readonly cityProg: WebGLProgram;
+  private readonly cityVao: WebGLVertexArrayObject;
+  private readonly cityVbo: WebGLBuffer;
+  private cityCount = 0;
+  private readonly lampVao: WebGLVertexArrayObject;
+  private readonly lampVbo: WebGLBuffer;
+  private lampCount = 0;
+  private lightCapacity = 0;
+  private readonly lightVao: WebGLVertexArrayObject;
+  private readonly lightVbo: WebGLBuffer;
+  private readonly cu: Record<string, WebGLUniformLocation | null>;
   private readonly smokeVao: WebGLVertexArrayObject;
   private readonly smokeVbo: WebGLBuffer;
   private smokeCapacity = 0;
@@ -269,6 +357,40 @@ export class StageRenderer {
     gl.vertexAttribPointer(1, 4, gl.FLOAT, false, RENDER_STRIDE * 4, 16);
     gl.bindVertexArray(null);
 
+    // 3D 도시
+    this.cityProg = compile(gl, CITY_VS, CITY_FS);
+    this.cu = Object.fromEntries(
+      ['uViewProj', 'uMirror', 'uFade', 'uEye', 'uShore', 'uFog', 'uSkyLight', 'uWindows'].map((n) => [n, gl.getUniformLocation(this.cityProg, n)]),
+    );
+    this.cityVao = gl.createVertexArray()!;
+    this.cityVbo = gl.createBuffer()!;
+    gl.bindVertexArray(this.cityVao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.cityVbo);
+    const cs = CITY_STRIDE * 4;
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, cs, 0);
+    gl.enableVertexAttribArray(1);
+    gl.vertexAttribPointer(1, 3, gl.FLOAT, false, cs, 12);
+    gl.enableVertexAttribArray(2);
+    gl.vertexAttribPointer(2, 2, gl.FLOAT, false, cs, 24);
+    gl.enableVertexAttribArray(3);
+    gl.vertexAttribPointer(3, 2, gl.FLOAT, false, cs, 32);
+    // 늘 켜진 등(다리 가로등·항공등)과 움직이는 차 불빛은 별과 같은 점으로 그린다.
+    const pointVao = (): [WebGLVertexArrayObject, WebGLBuffer] => {
+      const vao = gl.createVertexArray()!;
+      const vbo = gl.createBuffer()!;
+      gl.bindVertexArray(vao);
+      gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+      gl.enableVertexAttribArray(0);
+      gl.vertexAttribPointer(0, 4, gl.FLOAT, false, RENDER_STRIDE * 4, 0);
+      gl.enableVertexAttribArray(1);
+      gl.vertexAttribPointer(1, 4, gl.FLOAT, false, RENDER_STRIDE * 4, 16);
+      return [vao, vbo];
+    };
+    [this.lampVao, this.lampVbo] = pointVao();
+    [this.lightVao, this.lightVbo] = pointVao();
+    gl.bindVertexArray(null);
+
     this.hdr = !!gl.getExtension('EXT_color_buffer_float');
     this.downProg = compile(gl, QUAD_VS, DOWN_FS);
     this.upProg = compile(gl, QUAD_VS, UP_FS);
@@ -288,7 +410,7 @@ export class StageRenderer {
     return this.hdr ? this.quality : 'low';
   }
 
-  private makeTarget(w: number, h: number): Target {
+  private makeTarget(w: number, h: number, depth = false): Target {
     const gl = this.gl;
     const tex = gl.createTexture()!;
     gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -300,6 +422,13 @@ export class StageRenderer {
     const fb = gl.createFramebuffer()!;
     gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    if (depth) {
+      // 3D 도시가 서로 앞뒤를 가리도록 깊이 버퍼
+      const rb = gl.createRenderbuffer()!;
+      gl.bindRenderbuffer(gl.RENDERBUFFER, rb);
+      gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, rb);
+    }
     return { fb, tex, w, h };
   }
 
@@ -316,7 +445,7 @@ export class StageRenderer {
     if (!this.scene || this.scene.w !== w || this.scene.h !== h || this.mips.length !== levels) {
       if (this.scene) this.freeTarget(this.scene);
       for (const m of this.mips) this.freeTarget(m);
-      this.scene = this.makeTarget(w, h);
+      this.scene = this.makeTarget(w, h, true);
       this.mips = [];
       for (let i = 1; i <= levels; i++) this.mips.push(this.makeTarget(Math.max(1, w >> i), Math.max(1, h >> i)));
     }
@@ -333,6 +462,18 @@ export class StageRenderer {
     gl.uniform2f(gl.getUniformLocation(prog, 'uTexel'), 1 / srcW, 1 / srcH);
     extra?.(prog);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+
+  /** 3D 도시 모형을 올린다 (무대가 바뀔 때만). null이면 도시를 그리지 않는다 */
+  setCity(mesh: CityMesh | null): void {
+    const gl = this.gl;
+    this.cityCount = mesh?.count ?? 0;
+    this.lampCount = mesh?.lampCount ?? 0;
+    if (!mesh) return;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.cityVbo);
+    gl.bufferData(gl.ARRAY_BUFFER, mesh.vertices, gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.lampVbo);
+    gl.bufferData(gl.ARRAY_BUFFER, mesh.lamps.length ? mesh.lamps : new Float32Array(RENDER_STRIDE), gl.STATIC_DRAW);
   }
 
   /** 배경 그림을 올린다. 관람석이나 화면 크기가 바뀔 때만 부른다. */
@@ -396,8 +537,13 @@ export class StageRenderer {
     gl.uniform1i(this.u.uBackdrop, 0);
     gl.uniform3f(this.u.uSkyLight, f.skyLight[0], f.skyLight[1], f.skyLight[2]);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
+    this.drawCity(f);
 
-    if (f.count === 0) return;
+    if (f.count === 0) {
+      this.drawLights(f);
+      this.drawSmoke(f);
+      return;
+    }
     const floats = f.count * RENDER_STRIDE;
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
     if (floats > this.capacityFloats) {
@@ -426,7 +572,77 @@ export class StageRenderer {
     gl.uniform1f(this.u.uFade, 1);
     gl.drawArrays(gl.POINTS, 0, f.count);
     gl.bindVertexArray(null);
+    this.drawLights(f);
     this.drawSmoke(f);
+  }
+
+  /** 3D 도시: 물에 비친 모습을 먼저, 그 위에 건물·다리. 깊이로 서로 가린다 */
+  private drawCity(f: FrameInput): void {
+    if (!this.cityCount) return;
+    const gl = this.gl;
+    gl.disable(gl.BLEND);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LESS);
+    gl.clear(gl.DEPTH_BUFFER_BIT);
+    gl.useProgram(this.cityProg);
+    gl.bindVertexArray(this.cityVao);
+    gl.uniformMatrix4fv(this.cu.uViewProj, false, f.viewProj);
+    gl.uniform3f(this.cu.uEye, f.eye[0], f.eye[1], f.eye[2]);
+    gl.uniform2f(this.cu.uShore, f.shore[0], f.shore[1]);
+    gl.uniform1f(this.cu.uFog, f.fog ?? 0);
+    gl.uniform3f(this.cu.uSkyLight, f.skyLight[0], f.skyLight[1], f.skyLight[2]);
+    gl.uniform1f(this.cu.uWindows, f.windows ?? 0.35);
+    if (f.reflection) {
+      gl.uniform1f(this.cu.uMirror, -1);
+      gl.uniform1f(this.cu.uFade, 0.3);
+      gl.drawArrays(gl.TRIANGLES, 0, this.cityCount);
+      gl.clear(gl.DEPTH_BUFFER_BIT);
+    }
+    gl.uniform1f(this.cu.uMirror, 1);
+    gl.uniform1f(this.cu.uFade, 1);
+    gl.drawArrays(gl.TRIANGLES, 0, this.cityCount);
+    gl.bindVertexArray(null);
+    gl.disable(gl.DEPTH_TEST);
+  }
+
+  /** 다리 가로등·항공등과 차 불빛: 별처럼 빛으로 더하고 물에도 비친다 */
+  private drawLights(f: FrameInput): void {
+    const gl = this.gl;
+    const sets: [WebGLVertexArrayObject, number][] = [];
+    if (this.lampCount) sets.push([this.lampVao, this.lampCount]);
+    if (f.lights && f.lights.count) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.lightVbo);
+      const floats = f.lights.count * RENDER_STRIDE;
+      if (floats > this.lightCapacity) {
+        this.lightCapacity = f.lights.buffer.length;
+        gl.bufferData(gl.ARRAY_BUFFER, this.lightCapacity * 4, gl.DYNAMIC_DRAW);
+      }
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, f.lights.buffer, 0, floats);
+      sets.push([this.lightVao, f.lights.count]);
+    }
+    if (!sets.length) return;
+    gl.useProgram(this.pointProg);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE);
+    gl.uniformMatrix4fv(this.u.uViewProj, false, f.viewProj);
+    gl.uniform1f(this.u.uPxPerMeter, f.pxPerMeter);
+    gl.uniform1f(this.u.uMaxPoint, this.maxPoint);
+    gl.uniform3f(this.u.uEye, f.eye[0], f.eye[1], f.eye[2]);
+    gl.uniform2f(this.u.uShore, f.shore[0], f.shore[1]);
+    gl.uniform1f(this.u.uFog, f.fog ?? 0);
+    for (const [vao, count] of sets) {
+      gl.bindVertexArray(vao);
+      if (f.reflection) {
+        // 물에 비친 불빛은 길게 흔들려 보이니 조금 더 밝게
+        gl.uniform1f(this.u.uMirror, -1);
+        gl.uniform1f(this.u.uFade, 0.45);
+        gl.drawArrays(gl.POINTS, 0, count);
+      }
+      gl.uniform1f(this.u.uMirror, 1);
+      gl.uniform1f(this.u.uFade, 1);
+      gl.drawArrays(gl.POINTS, 0, count);
+    }
+    gl.bindVertexArray(null);
   }
 
   /** 연기: 별 위에 덮어 그린다 (앞을 조금 가리고, 받은 빛깔로 빛난다) */
