@@ -130,3 +130,21 @@ test('성적표: 등급과 순간이 보이고, 순간을 누르면 그 시각�
   const want = `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
   await expect(page.locator('#clock')).toContainText(want);
 });
+
+test('직접 쏘기: 누르면 상승 시간 뒤에 터지는 불꽃이 기록되고, 끝내면 시간표로 저장한다', async ({ page }) => {
+  await openAll(page);
+  await page.locator('#fire-btn').click();
+  await expect(page.locator('.fire-hud')).toBeVisible();
+  await page.waitForTimeout(500);
+  for (const k of ['1', '2', '3', '1']) {
+    await page.keyboard.press(k);
+    await page.waitForTimeout(150);
+  }
+  await page.keyboard.press('Space');
+  await expect(page.locator('.fire-score')).toContainText('쏜 불꽃 5발');
+  await page.keyboard.press('Escape');
+  const dialog = page.locator('.fire-dialog');
+  await expect(dialog).toContainText('직접 쏜 불꽃 5발');
+  await dialog.locator('[data-act="keep"]').click();
+  await expect(page.locator('#toast')).toContainText('5발을 시간표에 놓았습니다');
+});

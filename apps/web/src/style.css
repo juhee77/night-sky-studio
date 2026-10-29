@@ -643,3 +643,24 @@ body.watching .crowd-gauge { top: calc(env(safe-area-inset-top, 0px) + 12px); }
 .moments .label { font-size: 12px; color: var(--muted); }
 .moments li.best .label { color: #fde68a; }
 .moments button { text-align: left; }
+
+/* ── 직접 쏘기 ── */
+.fire-hud {
+  position: absolute;
+  right: 12px;
+  top: 34px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(11, 12, 29, 0.7);
+  font-size: 12px;
+  pointer-events: none;
+}
+.fire-rack { display: grid; grid-template-columns: 52px minmax(70px, auto) auto; align-items: center; gap: 6px; white-space: nowrap; }
+.fire-rack.empty .fire-ammo { color: var(--muted); }
+.fire-ammo { color: var(--accent); letter-spacing: 1px; }
+.fire-score { margin-top: 4px; color: var(--muted); }
+.fire-hud kbd { font: 600 11px var(--mono); padding: 1px 5px; border: 1px solid var(--line); border-radius: 4px; }
+body.firing #stage { cursor: pointer; }
