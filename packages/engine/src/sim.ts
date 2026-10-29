@@ -47,7 +47,9 @@ const EFFECT_FLAG = { crackle: FLAG_CRACKLE, hummer: FLAG_HUMMER, fish: FLAG_FIS
 /** 렌더 버퍼에서 입자 하나가 차지하는 float 개수: x, y, z, 크기(m), r, g, b, a */
 export const RENDER_STRIDE = 8;
 /** 입자 말고 더 그리는 것(올라가는 알, 연기)을 위한 여유 칸 */
-export const RENDER_EXTRA = 1100;
+/** 그릴 때 별 말고 더 그리는 점: 연기·올라가는 알·움직임 번짐 꼬리·떨어지는 잔불 */
+const MAX_TRAIL_POINTS = 12000;
+export const RENDER_EXTRA = 1100 + MAX_TRAIL_POINTS;
 const MAX_PUFFS = 300;
 
 /** 이 스텝마다 중간 저장점을 남긴다 (2초) */
@@ -1028,10 +1030,18 @@ export class Simulation {
    * 그릴 입자를 out에 채우고 개수를 돌려준다. 밝기와 색 변화도 여기서 정한다.
    * out은 (pool.capacity + RENDER_EXTRA) * RENDER_STRIDE 이상이어야 한다.
    */
+  /** 움직임 번짐 꼬리·잔불을 모아 두는 곳 */
+  private trailBuf: Float32Array | null = null;
+
   writeRender(out: Float32Array): number {
     const p = this.pool;
     const cloud = this.show.venue.cloud ?? Infinity;
     let k = 0;
+    // 움직임 번짐 꼬리와 떨어지는 잔불은 따로 모았다가 별 뒤에 붙인다 (별 i가 늘 점 i가 되게).
+    // out에 남은 자리만큼만 그린다.
+    const tb = (this.trailBuf ??= new Float32Array(MAX_TRAIL_POINTS * RENDER_STRIDE));
+    let trails = Math.min(MAX_TRAIL_POINTS, Math.floor(out.length / RENDER_STRIDE) - p.count - MAX_PUFFS - this.rising.length);
+    let t = 0;
     for (let i = 0; i < p.count; i++) {
       const age = p.age[i];
       const u = age / p.life[i];
@@ -1062,6 +1072,18 @@ export class Simulation {
         const fadeIn = Math.min(1, age / 0.04);
         const fadeOut = u < 0.7 ? 1 : (1 - u) / 0.3;
         a = fadeIn * fadeOut;
+        // 실제 별처럼 타기: 터지는 순간은 하얗게 뜨겁고 밝다가 곧 제 색으로,
+        // 꺼질 무렵엔 식으며 주황빛으로 바래고 깜빡이며 꺼진다. 별마다 밝기도 조금씩 다르다.
+        const hot = Math.exp(-Math.max(0, age) / 0.06) * 0.85;
+        r += (1 - r) * hot;
+        g += (0.96 - g) * hot;
+        b += (0.88 - b) * hot;
+        a *= (1 + hot) * (0.78 + 0.44 * rand01(p.seed[i], 11, 3));
+        const cool = smoothstep(0.72, 1, u) * 0.45;
+        r += (EMBER_RGB[0] - r) * cool;
+        g += (EMBER_RGB[1] - g) * cool;
+        b += (EMBER_RGB[2] - b) * cool;
+        if (u > 0.82) a *= 0.55 + 0.9 * rand01(p.seed[i], Math.floor(age * 22), 4);
         if (f & FLAG_EMBER) {
           const e = smoothstep(0.45, 1, u);
           r += (EMBER_RGB[0] - r) * e;
@@ -1103,7 +1125,43 @@ export class Simulation {
       out[k++] = g;
       out[k++] = b;
       out[k++] = a;
+
+      if (trails <= 0 || a < 0.15 || f & (FLAG_LANCE | FLAG_FLASH)) continue;
+      // 빠르게 나는 별은 지나온 자리에 흐린 점 둘 (움직임 번짐: 실제 사진·눈에 줄처럼 보인다)
+      const vx = p.vx[i];
+      const vy = p.vy[i];
+      const vz = p.vz[i];
+      const speed = Math.hypot(vx, vy, vz);
+      if (speed > 18) {
+        const fade = Math.min(1, speed / 60);
+        for (let s = 1; s <= 2 && trails > 0; s++, trails--) {
+          const back = s * 0.018;
+          tb[t++] = p.px[i] - vx * back;
+          tb[t++] = p.py[i] - vy * back;
+          tb[t++] = p.pz[i] - vz * back;
+          tb[t++] = p.size[i] * (1 - 0.18 * s);
+          tb[t++] = r;
+          tb[t++] = g;
+          tb[t++] = b;
+          tb[t++] = (a * 0.42 * fade) / s;
+        }
+      }
+      // 꺼질 무렵 떨어지는 잔불 하나 (별마다 넷에 하나)
+      if (u > 0.78 && trails > 0 && (p.seed[i] & 3) === 0) {
+        const fall = (u - 0.78) * p.life[i];
+        tb[t++] = p.px[i] + (rand01(p.seed[i], 12, 5) - 0.5) * 3;
+        tb[t++] = p.py[i] - 4.9 * fall * fall - 2;
+        tb[t++] = p.pz[i];
+        tb[t++] = p.size[i] * 0.45;
+        tb[t++] = EMBER_RGB[0];
+        tb[t++] = EMBER_RGB[1] * 1.6;
+        tb[t++] = EMBER_RGB[2];
+        tb[t++] = a * 0.35 * (rand01(p.seed[i], Math.floor(age * 18), 6) > 0.4 ? 1 : 0.2);
+        trails--;
+      }
     }
+    out.set(tb.subarray(0, t), k);
+    k += t;
 
     // 연기: 불꽃 빛을 받아 희미하게 보이는 덩어리
     const now = this.time;
