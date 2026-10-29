@@ -384,6 +384,9 @@ interface Placed extends Cue {
   importance: number;
 }
 
+/** 면에 그린 모양 불꽃: 방향을 정할 수 없어 여러 발을 함께 쏜다 */
+const PATTERN_TYPES: FireworkType[] = ['heart', 'star', 'smile'];
+
 export function autoChoreograph(music: MusicMap, launchers: Launcher[], o: AutoOptions): Cue[] {
   const rnd = mulberry32(o.seed);
   const pick = <T>(xs: T[]): T => xs[Math.floor(rnd() * xs.length)];
@@ -454,6 +457,8 @@ export function autoChoreograph(music: MusicMap, launchers: Launcher[], o: AutoO
   const busy = (at: string, t: number) => out.some((x) => x.at === at && Math.abs(x.t - t) < 0.45);
   const place = (c: Omit<Cue, 'colors'> & { colors?: ColorName[] }, importance: number) => {
     if (!can(c.type) || !inRange(c.t)) return false;
+    // 모양 불꽃은 아무 방향으로 서므로, 실제 연출처럼 세 발을 함께 쏴 하나라도 제대로 보이게 한다.
+    if (PATTERN_TYPES.includes(c.type) && !c.fan) c = { ...c, fan: { count: 3, spread: 16 } };
     if (c.t < (isShell(c.type) ? shellSize(c.type as ShellType, c.size).prefire + 0.2 : 0)) return false;
     if (busy(c.at, c.t) && c.type !== 'niagara' && c.type !== 'lancework') return false;
     if (freeTubes && barges.some((b) => b.id === c.at)) {

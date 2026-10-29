@@ -451,7 +451,7 @@ export class Workshop {
               <span class="label">별을 놓을 자리 (누르거나 끌어서 칠하기)</span>
               <canvas id="ws-grid" class="ws-grid" width="260" height="260"></canvas>
               <div class="chips">${Object.keys(PRESETS).map((k) => `<button type="button" data-preset="${k}">${k}</button>`).join('')}<button type="button" data-preset="">지우기</button></div>
-              <p class="note">하늘 불꽃은 단순한 모양까지만 잘 보입니다. 터질 때마다 향하는 방향이 달라서 옆에서는 납작한 선으로 보입니다. 글자는 지상 틀불꽃으로 띄우세요.</p>
+              <p class="note">하늘 불꽃은 단순한 모양까지만 잘 보입니다. 알이 날며 굴러 터질 때마다 아무 방향으로 서서, 옆으로 서면 선으로, 누우면 찌그러져 보입니다. 실제 연출처럼 두세 발을 함께 쏘면 하나는 제대로 보입니다. 글자는 지상 틀불꽃으로 띄우세요.</p>
             </div>`
           : `<div class="field"><label for="ws-stars">별 개수 <output>${(L.shape as { count: number }).count}개</output></label><input id="ws-stars" type="range" min="12" max="200" step="2" value="${(L.shape as { count: number }).count}" /></div>`}
         ${this.layer === 1 ? `<div class="field"><label for="ws-scale">크기 <output>${Math.round(L.scale * 100)}%</output></label><input id="ws-scale" type="range" min="0.2" max="0.9" step="0.05" value="${L.scale}" /></div>
