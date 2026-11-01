@@ -135,7 +135,7 @@ export class Panel {
       .join('');
 
     const isSpecial = v.type === 'niagara' || v.type === 'lancework' || v.type === 'drones';
-    const sizeField = isSpecial
+    const sizeField = isSpecial || v.type === 'cake'
       ? ''
       : `<div class="field"><span class="label">크기</span><div class="chips">${SIZES.map(
           (s) => `<button type="button" data-size="${s}" aria-pressed="${s === v.size}">${s}호</button>`,

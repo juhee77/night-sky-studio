@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { SIZES, SIZE_SPECS, starLifeOf, type Size } from '../src/catalog.ts';
+import { CAKE_SIZE, SHELLS, SIZES, SIZE_SPECS, shellSize, starLifeOf, type Size } from '../src/catalog.ts';
 import { apexTime, droopDrag, loweredApex, muzzleSpeed, shellHeightAt, starDiameter, starDragK, starSpeed, terminalSpeed } from '../src/flight.ts';
 import { Simulation } from '../src/sim.ts';
 import { soundDelay, soundFade } from '../src/sound.ts';
@@ -139,4 +139,34 @@ test('같은 쇼는 언제나 같은 결과다', () => {
   const a = peonyAt(7, 1.5);
   const b = peonyAt(7, 1.5);
   assert.deepEqual(a, b);
+});
+
+test('케이크는 저장된 호수와 상관없이 3호로 쏘고, 상승 시간은 계산값과 맞는다', () => {
+  const spec = shellSize('cake', 10);
+  assert.deepEqual(spec, shellSize('cake', 3));
+  assert.ok(Math.abs(apexTime(CAKE_SIZE, spec.height) - spec.prefire) < 0.35);
+  const { launches } = expandShow({
+    version: 1, seed: 1, venue: { preset: 'river-bridge-city' },
+    launchers: [{ id: 'b', kind: 'barge', pos: [0, 0, 0] }],
+    cues: [{ t: 10, at: 'b', type: 'cake', size: 10, shots: 2 }],
+  } as never);
+  assert.ok(launches.every((l) => l.size === CAKE_SIZE));
+});
+
+test('낙엽은 보통 별보다 훨씬 천천히 떨어지고, 작게 터진다', () => {
+  const leaf = starDragK((SHELLS.leaves.starMm / 1000), SHELLS.leaves.starDensity);
+  assert.ok(terminalSpeed(leaf) < 10 && terminalSpeed(leaf) < terminalSpeed(starDragK(0.015)) / 2);
+  assert.ok(SHELLS.leaves.spreadScale < 0.4);
+});
+
+test('나이아가라 불티는 꺼지기 전에 다리에서 물 가까이까지 떨어진다', () => {
+  const sim = new Simulation({
+    version: 1, seed: 1, venue: { preset: 'river-bridge-city', wind: { dir: 0, speed: 0 } },
+    launchers: [{ id: 'n', kind: 'bridge', pos: [0, 18, 0], from: [-50, 18, 0], to: [50, 18, 0] }],
+    cues: [{ t: 0.5, at: 'n', type: 'niagara', len: 8 }],
+  } as never);
+  sim.advanceTo(6);
+  const p = sim.pool;
+  const low = Math.min(...p.py.subarray(0, p.count));
+  assert.ok(low < 8 && low > -3, `가장 낮은 불티 ${low}m`);
 });

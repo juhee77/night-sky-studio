@@ -7,6 +7,7 @@ import {
   shellSize,
   typeLabel,
   visibleLength,
+  CAKE_SIZE,
   type FireworkType,
   type RiseEffect,
   type ShellType,
@@ -255,7 +256,7 @@ export function expandShow(show: Show): ExpandedShow {
           fireAt: fireAt + k * interval, burstAt: cue.t + k * interval,
           origin: launcher.pos,
           angle: (cue.angle ?? 0) + cakeAngle(pattern, k, shots, CAKE_DEFAULTS.spread),
-          type: 'cake', size: cue.size, colors: [colors[k % colors.length]],
+          type: 'cake', size: CAKE_SIZE, colors: [colors[k % colors.length]],
           seed: hash32(base, k, 31),
         });
       }

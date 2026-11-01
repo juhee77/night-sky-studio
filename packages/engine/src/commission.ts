@@ -65,7 +65,7 @@ export function cueCost(c: Cue, shells?: Record<string, CustomShell>): number {
   if (c.type === 'lancework') return (c.len ?? LEN_DEFAULTS.lancework) + 0.5 * [...(c.text ?? '')].length;
   // 드론은 빌려 쓰는 비용이 크고, 오래 띄울수록 더 든다.
   if (c.type === 'drones') return 15 + 0.8 * (c.len ?? LEN_DEFAULTS.drones);
-  if (c.type === 'cake') return 0.25 * (c.shots ?? CAKE_DEFAULTS.shots) * (c.size / 3);
+  if (c.type === 'cake') return 0.25 * (c.shots ?? CAKE_DEFAULTS.shots);
   // 내 불꽃은 개발비를 낸 대신 원가가 기본 불꽃보다 싸다.
   if (c.type === 'custom') {
     const def = c.custom ? shells?.[c.custom] : undefined;

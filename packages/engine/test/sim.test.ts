@@ -121,7 +121,7 @@ test('케이크는 정해진 간격으로 여러 발을 쏘고, 첫 발이 cue �
   const { launches } = expandShow(cake);
   assert.equal(launches.length, 10);
   assert.equal(launches[0].burstAt, 5);
-  assert.equal(launches[0].fireAt, 3.5); // 케이크 상승 1.5초
+  assert.equal(launches[0].fireAt, 2); // 케이크 상승 3초
   assert.ok(Math.abs(launches[9].burstAt - 6.8) < 1e-9);
   assert.equal(launches[0].angle, -30);
   assert.equal(launches[9].angle, 30);
