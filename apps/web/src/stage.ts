@@ -387,8 +387,8 @@ export class Stage {
   }
 
   /** 지금 관람석에서 이 불꽃 소리가 늦게 들리는 시간 (위에서 보기, 움직이는 카메라는 0) */
-  soundDelay = (l: Launch): number =>
-    this.seat.plan || this.seatId === 'free' || this.seatId === 'fly' ? 0 : soundDelay(this.seat.eye, l);
+  soundDelay = (l: Launch, launch = false): number =>
+    this.seat.plan || this.seatId === 'free' || this.seatId === 'fly' ? 0 : soundDelay(this.seat.eye, l, launch);
 
   /**
    * 무대 조작: 자유 시점에서는 끌어서 돌리고 휠·두 손가락으로 확대한다.

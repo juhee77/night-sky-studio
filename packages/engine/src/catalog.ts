@@ -14,13 +14,29 @@ export interface SizeSpec {
   prefire: number;
 }
 
-// 기획안의 참고값. 화면에서 보기 좋게 조정할 수 있다.
+// 높이·지름: 일본 연화 호수 표 (ハナビディア 「花火の号数とは」). 나가오카 불꽃 자료의 10호(330m, 약 300m)와
+// 포플러사 『花火の図鑑』 표(지름이 이 표보다 조금 작은 150~300m)도 같은 범위다.
+// 상승 시간: flight.ts로 계산한 값을 정수 초로 맞췄다 (3.9·5.3·5.9·6.8초). 10호를 재면 5~7초라는 자료와도 맞다.
 export const SIZE_SPECS: Record<Size, SizeSpec> = {
-  3: { height: 120, spread: 60, prefire: 3 },
-  5: { height: 190, spread: 170, prefire: 4 },
-  7: { height: 250, spread: 240, prefire: 5 },
-  10: { height: 330, spread: 320, prefire: 6 },
+  3: { height: 120, spread: 60, prefire: 4 },
+  5: { height: 190, spread: 170, prefire: 5 },
+  7: { height: 250, spread: 240, prefire: 6 },
+  10: { height: 330, spread: 320, prefire: 7 },
 };
+
+/** 알의 실제 지름(m)과 무게(kg). 위의 호수 표와 같은 자료. */
+export const SHELL_BODIES: Record<Size, { diameter: number; mass: number }> = {
+  3: { diameter: 0.085, mass: 0.2 },
+  5: { diameter: 0.142, mass: 1.3 },
+  7: { diameter: 0.205, mass: 3 },
+  10: { diameter: 0.295, mass: 8.5 },
+};
+
+/**
+ * 알의 저항 계수. Ooki 외, Sci. Tech. Energetic Materials 67(1), 2006의 자유 낙하 실험값(2·4호 0.7, 5호 0.8).
+ * 같은 논문의 풍동 실험은 5호에서 0.4가 나와 저자도 어느 쪽이 맞는지 정하지 못했다. 0.4를 쓰면 상승 시간이 0.3~0.6초 길어진다.
+ */
+export const SHELL_CD = 0.7;
 
 /** 하늘로 쏘아 올려 터지는 불꽃. 케이크는 작은 알 여러 발을 차례로 쏜다. */
 export type ShellType =

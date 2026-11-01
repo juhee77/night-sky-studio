@@ -49,7 +49,7 @@ test('휘파람 내며 오르기는 쏘아 올린 때부터 터질 때까지 소
   const s = starSounds(l).find((x) => x.kind === 'rise-whistle')!;
   assert.ok(s);
   assert.equal(l.burstAt + s.start, l.fireAt);
-  assert.equal(s.len, 4);
+  assert.equal(s.len, 5);
 });
 
 test('상승 효과는 공유 링크에 남고, 공방 알에 붙인 효과는 시간표에서 따로 고르지 않아도 쓴다', async () => {

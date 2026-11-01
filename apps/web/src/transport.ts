@@ -19,7 +19,7 @@ export class Transport {
   playing = false;
   soundOn = true;
   /** 관람석 거리만큼 소리를 늦춘다 (감상할 때만). null이면 늦추지 않는다. */
-  delayFor: ((l: Launch) => number) | null = null;
+  delayFor: ((l: Launch, launch?: boolean) => number) | null = null;
   /** 관객 함성과 박수 (감상할 때만). null이면 내지 않는다. */
   crowd: CrowdCue[] | null = null;
   /** 재생을 시작한 오디오 시계 시각 */

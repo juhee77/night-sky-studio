@@ -14,10 +14,15 @@ export function soundSource(l: Launch): Vec3 {
   return [l.origin[0] + Math.sin(tilt) * h, l.origin[1] + Math.cos(tilt) * h, l.origin[2]];
 }
 
-/** 관람석(귀)까지 소리가 오는 데 걸리는 시간(초) */
-export function soundDelay(ear: Vec3, l: Launch): number {
-  const s = soundSource(l);
+/** 관람석(귀)까지 소리가 오는 데 걸리는 시간(초). launch면 터지는 곳이 아니라 발사통에서 나는 소리다. */
+export function soundDelay(ear: Vec3, l: Launch, launch = false): number {
+  const s = launch ? l.origin : soundSource(l);
   return Math.hypot(s[0] - ear[0], s[1] - ear[1], s[2] - ear[2]) / SPEED_OF_SOUND;
+}
+
+/** 거리에 따른 소리 크기. 소리는 사방으로 퍼져 거리에 반비례해 작아진다 (1초 거리, 약 340m까지는 그대로). */
+export function soundFade(delay: number): number {
+  return delay > 1 ? 1 / delay : 1;
 }
 
 /** 별이 내는 소리: 터진 뒤 start초부터 len초 동안 */

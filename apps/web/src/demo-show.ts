@@ -3,12 +3,12 @@
 import type { Cue, Show } from '@nss/engine';
 
 const BEAT = 60 / 112;
-/** 곡의 3마디째부터 센 bar마디 beat박에 터지는 시각. 첫 불꽃은 약 4.3초 (5호 상승 4초 + 여유). */
+/** 곡의 3마디째부터 센 bar마디 beat박에 터지는 시각. 첫 불꽃은 약 4.3초 (3호 상승 4초 + 여유). */
 const at = (bar: number, beat = 0) => Math.round((8 + bar * 4 + beat) * BEAT * 1000) / 1000;
 
 const cues: Cue[] = [
   // 1부: 한 발씩
-  { t: at(0), at: 'barge-3', type: 'chrysanthemum', size: 5, colors: ['gold'] },
+  { t: at(0), at: 'barge-3', type: 'chrysanthemum', size: 3, colors: ['gold'] },
   { t: at(1), at: 'barge-1', type: 'peony', size: 3, colors: ['red'] },
   { t: at(1, 2), at: 'barge-2', type: 'peony', size: 3, colors: ['blue'] },
   { t: at(2), at: 'barge-3', type: 'chrysanthemum', size: 7, colors: ['white', 'cyan'] },
