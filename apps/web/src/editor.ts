@@ -3,6 +3,7 @@
 import {
   type CustomShell,
   CAKE_DEFAULTS,
+  CAKE_SIZE,
   LEN_DEFAULTS,
   VENUES,
   launcherKindFor,
@@ -200,7 +201,7 @@ export class Editor {
         if (tpl.art) cue.art = structuredClone(tpl.art);
       }
     } else if (type === 'cake') {
-      Object.assign(cue, { shots: tpl.shots, interval: tpl.interval, pattern: tpl.cakePattern });
+      Object.assign(cue, { size: CAKE_SIZE, shots: tpl.shots, interval: tpl.interval, pattern: tpl.cakePattern });
       if (tpl.angle) cue.angle = tpl.angle;
     } else {
       if (tpl.angle) cue.angle = tpl.angle;

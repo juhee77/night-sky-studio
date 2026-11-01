@@ -69,8 +69,8 @@ const SPARK_K = 0.3;
 /** 숯 불티: 가늘고 가벼워 오래 떠 있다. 끝 속도 약 2m/s */
 const WILLOW_SPARK_K = 2;
 const PALM_SPARK_K = 0.4;
-/** 나이아가라 불티: 끝 속도 약 4m/s */
-const CURTAIN_K = 0.6;
+/** 나이아가라 불티: 끝 속도 약 6m/s. 실제처럼 물 가까이까지 떨어지며 꺼진다 */
+const CURTAIN_K = 0.25;
 /** 작은 별 조각 */
 const SPLIT_K = 0.04;
 const FLOWER_K = 0.06;
@@ -569,7 +569,7 @@ export class Simulation {
         pool.spawn(
           a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u - 0.5, a[2] + (b[2] - a[2]) * u,
           (rand01(s, 2) - 0.5) * 1.2, -1 - rand01(s, 3) * 1.5, (rand01(s, 4) - 0.5) * 1.2,
-          1.3 + rand01(s, 5) * 0.8,
+          1.8 + rand01(s, 5) * 1,
           (1.0 * (1 - w) + rgb[0] * w) * 0.95, (0.82 * (1 - w) + rgb[1] * w) * 0.95, (0.5 * (1 - w) + rgb[2] * w) * 0.95,
           2.1, CURTAIN_K, FLAG_SPARK, s,
         );
@@ -698,8 +698,8 @@ export class Simulation {
           const n = Math.max(6, Math.round(layer.shape.count * craft.count * (layer.shape.kind === 'sphere' ? this.density : 1)));
           dirs = starDirections(layer.shape.kind, n, seed);
         }
-        // 숯이 많은 꼬리 별은 푸석해 저항을 더 받는다 (카탈로그의 버들·브로케이드와 같은 비율).
-        const drag = baseDrag * (layer.star === 'kamuro' || layer.star === 'willow' || layer.star === 'brocade' ? 2 : 1);
+        // 숯이 많은 꼬리 별은 푸석해 저항을 더 받고, 낙엽은 얇은 판이라 훨씬 더 받는다 (카탈로그의 버들·낙엽과 비슷한 비율).
+        const drag = baseDrag * (layer.star === 'leaf' ? 10 : layer.star === 'kamuro' || layer.star === 'willow' || layer.star === 'brocade' ? 2 : 1);
         let flags = 0;
         if (layer.star === 'tail') flags |= FLAG_SPARK_TAIL;
         if (layer.star === 'willow') flags |= FLAG_WILLOW_TAIL;

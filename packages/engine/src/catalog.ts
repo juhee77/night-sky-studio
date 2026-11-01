@@ -110,7 +110,7 @@ export const SHELLS: Record<ShellType, ShellSpec> = {
     starSize: 5.5, tail: 'none', ember: false, glitter: false, split: false,
   },
   willow: {
-    label: '버들', pattern: 'sphere', starsAt5: 70, starLife: 4.5, starMm: 22, starDensity: 700, spreadScale: 0.75,
+    label: '버들', pattern: 'sphere', starsAt5: 70, starLife: 6, starMm: 22, starDensity: 700, spreadScale: 0.75,
     starSize: 3.2, tail: 'willow', ember: true, glitter: false, split: false,
   },
   palm: {
@@ -158,8 +158,9 @@ export const SHELLS: Record<ShellType, ShellSpec> = {
     label: '허머', pattern: 'sphere', starsAt5: 24, starLife: 2.0, starMm: 12, spreadScale: 0.7,
     starSize: 4, tail: 'none', ember: false, glitter: false, split: false, effect: 'hummer',
   },
+  // 낙엽: 실제로는 얇은 판에 약제를 입힌 것이라 작게 터져 천천히 팔랑이며 떨어진다.
   leaves: {
-    label: '낙엽', pattern: 'sphere', starsAt5: 60, starLife: 4.0, starMm: 6, spreadScale: 0.65,
+    label: '낙엽', pattern: 'sphere', starsAt5: 60, starLife: 4.0, starMm: 6, starDensity: 400, spreadScale: 0.25,
     starSize: 4.5, tail: 'none', ember: true, glitter: false, split: false, effect: 'leaf',
   },
   salute: {
@@ -201,9 +202,14 @@ export function isShell(t: FireworkType): t is ShellType {
   return t !== 'niagara' && t !== 'lancework' && t !== 'drones';
 }
 
-/** 불꽃 종류와 크기에 맞는 높이·지름·상승 시간. 케이크는 낮게, 빨리 터진다. */
+// 케이크 한 발. 실제 케이크 통은 굵어야 지름 10cm 안쪽이라 3호까지만 있다. 예전 쇼에 저장된 큰 호수도 3호로 쏜다.
+// 상승 시간은 3호 알이 이 높이까지 오르는 계산값(flight.ts)이다. 실측 자료는 찾지 못했다.
+export const CAKE_SIZE: Size = 3;
+const CAKE_SPEC: SizeSpec = { height: 62, spread: 41, prefire: 3 };
+
+/** 불꽃 종류와 크기에 맞는 높이·지름·상승 시간. 케이크는 낮게 터진다. */
 export function shellSize(type: ShellType, size: Size): SizeSpec {
-  if (type === 'cake') return { height: 50 + size * 4, spread: 26 + size * 5, prefire: 1.5 };
+  if (type === 'cake') return CAKE_SPEC;
   return SIZE_SPECS[size];
 }
 
@@ -219,7 +225,7 @@ export function starScale(size: Size): number {
 
 /** 이 호수에 든 별이 타는 시간(초). 타는 시간은 별 지름에 비례한다 (같은 논문). */
 export function starLifeOf(type: ShellType, size: Size): number {
-  return SHELLS[type].starLife * starScale(size);
+  return SHELLS[type].starLife * starScale(type === 'cake' ? CAKE_SIZE : size);
 }
 
 /** 하늘 불꽃 한 발이 터진 뒤 눈에 보이는 시간(초) */

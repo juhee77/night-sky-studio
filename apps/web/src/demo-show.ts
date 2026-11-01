@@ -53,7 +53,7 @@ for (const pad of pads) {
 cues.push(
   { t: at(11), at: 'bridge', type: 'niagara', size: 5, colors: ['white'], len: 9 },
   { t: at(11, 2), at: 'ground', type: 'lancework', size: 5, colors: ['pink'], text: '밤하늘', len: 9 },
-  { t: at(12), at: 'barge-2', type: 'cake', size: 5, colors: ['gold', 'red'], shots: 24, interval: 0.13, pattern: 'zigzag' },
+  { t: at(12), at: 'barge-2', type: 'cake', size: 3, colors: ['gold', 'red'], shots: 24, interval: 0.13, pattern: 'zigzag' },
 );
 
 export const demoShow: Show = {
