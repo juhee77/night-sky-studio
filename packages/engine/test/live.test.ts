@@ -15,7 +15,7 @@ const show = (): Show => ({
   launchers: structuredClone(RIVER_CITY.launchers),
   cues: [
     { t: 5, at: 'barge-1', type: 'peony', size: 5 },
-    { t: 6, at: 'barge-2', type: 'willow', size: 10 },
+    { t: 8, at: 'barge-2', type: 'willow', size: 10 },
     { t: 7, at: 'barge-3', type: 'cake', size: 3, shots: 8 },
   ],
 });

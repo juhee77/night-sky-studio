@@ -9,6 +9,7 @@ import { RISE_EFFECTS, SIZE_SPECS, type RiseEffect, type Size } from './catalog.
 import type { ColorName } from './colors.ts';
 import { normalizeSequence, type CustomShell, type Sequence, type StarKind, type TailLength } from './custom.ts';
 import { evaluateMix, normalizeComposition, type Composition } from './chem.ts';
+import { loweredApex, shellHeightAt } from './flight.ts';
 
 export type ShellForm = 'round' | 'cylinder';
 export type Dir = [number, number, number];
@@ -181,9 +182,9 @@ export function buildReport(b: ShellBuild): BuildReport {
   }
   const f = flightOf(b);
   const spec = SIZE_SPECS[b.size];
-  const apex = spec.prefire * Math.sqrt(f.height);
+  const apex = loweredApex(b.size, spec.height, spec.prefire, f.height);
   const burstTime = spec.prefire * f.burstAt;
-  const y = burstHeightAt(spec.height * f.height, apex, burstTime);
+  const y = shellHeightAt(b.size, spec.height * f.height, apex, burstTime);
   const warnings: string[] = [];
   if (gap > 30) warnings.push(`별 사이에 ${Math.round(gap)}도만큼 빈 자리가 있어 하늘에 구멍으로 보입니다.`);
   if (b.form === 'cylinder') warnings.push('원통 알은 둥근 알보다 덜 동그랗게 퍼집니다.');
@@ -217,16 +218,6 @@ export function buildReport(b: ShellBuild): BuildReport {
     pastApex: burstTime > apex,
     warnings,
   };
-}
-
-/** 위로 올라가다 꼭대기에서 멈추고 떨어지는 높이 (같은 감속으로) */
-export function burstHeightAt(h: number, apex: number, t: number): number {
-  if (t <= apex) {
-    const u = t / apex;
-    return h * (1 - (1 - u) * (1 - u));
-  }
-  const a = (2 * h) / (apex * apex);
-  return Math.max(0, h - 0.5 * a * (t - apex) ** 2);
 }
 
 /** 도화선·발사약 → 비행 (높이 배율, 터지는 때 배율) */

@@ -1,7 +1,7 @@
 // 효과음 합성: 발사음, 폭발음, 나이아가라·틀불꽃 소리, 관객 함성과 박수.
 // 실시간 재생(AudioContext)과 영상 만들기(OfflineAudioContext)가 같은 소리를 쓴다.
 
-import { mulberry32, starSounds, type CrowdCue, type Launch, type Size, type StarSound } from '@nss/engine';
+import { mulberry32, soundFade, starSounds, type CrowdCue, type Launch, type Size, type StarSound } from '@nss/engine';
 
 export interface Scheduled {
   node: AudioScheduledSourceNode;
@@ -303,8 +303,8 @@ export class Sfx {
 }
 
 export interface SoundPlan {
-  /** 관람석 거리만큼 소리를 늦춘다. null이면 늦추지 않는다. */
-  delayFor: ((l: Launch) => number) | null;
+  /** 관람석 거리만큼 소리를 늦춘다. launch면 발사통에서 나는 소리다. null이면 늦추지 않는다. */
+  delayFor: ((l: Launch, launch?: boolean) => number) | null;
   /** 관객 함성과 박수. null이면 내지 않는다. */
   crowd: CrowdCue[] | null;
   fanCount: (l: Launch) => number;
@@ -327,18 +327,19 @@ export function scheduleSounds(
   for (const l of launches) {
     // 소리가 늦게 오면, 그만큼 늦은 시각에 들리는 소리로 친다.
     const d = plan.delayFor ? plan.delayFor(l) : 0;
-    const fires = l.fireAt + d >= from && l.fireAt + d < to;
+    // 발사음은 터지는 곳이 아니라 발사통에서 온다.
+    const dFire = plan.delayFor ? plan.delayFor(l, true) : 0;
+    const fires = l.fireAt + dFire >= from && l.fireAt + dFire < to;
     const bursts = l.burstAt + d >= from && l.burstAt + d < to;
     if (l.type === 'niagara' || l.type === 'lancework') {
-      if (fires) add(sfx.hiss(toCtx(l.fireAt + d), l.len ?? 8, l.type === 'niagara' ? 'niagara' : 'lance'));
+      if (fires) add(sfx.hiss(toCtx(l.fireAt + dFire), l.len ?? 8, l.type === 'niagara' ? 'niagara' : 'lance'));
     } else if (l.type === 'cake') {
       // 케이크는 한 발마다 작게 터진다.
       if (bursts) add(sfx.boom(toCtx(l.burstAt + d), 3, 1, 0.45));
-      if (fires) add(sfx.thump(toCtx(l.fireAt + d), 1, 0.5));
+      if (fires) add(sfx.thump(toCtx(l.fireAt + dFire), 1, 0.5));
     } else if (l.sub === 0) {
       const count = plan.fanCount(l);
-      // 멀리서 들으면 소리가 작아진다.
-      const fade = d > 0 ? Math.min(1, 2 / (1 + d)) : 1;
+      const fade = soundFade(d);
       const sounds = starSounds(l);
       // 살루트는 보통 폭발음 대신 더 큰 소리를 낸다.
       if (bursts && !sounds.some((x) => x.kind === 'salute')) {
@@ -346,7 +347,7 @@ export function scheduleSounds(
         // 큰 알은 강 건너 건물에 부딪혀 약 0.4초 뒤 메아리가 돌아온다
         if (l.size >= 5) add(sfx.boom(toCtx(l.burstAt + d + 0.38 + (l.seed % 7) * 0.02), l.size, 1, fade * 0.22));
       }
-      if (fires) add(sfx.thump(toCtx(l.fireAt + d), count, fade));
+      if (fires) add(sfx.thump(toCtx(l.fireAt + dFire), count, soundFade(dFire)));
       for (const snd of sounds) {
         const at = l.burstAt + d + snd.start;
         if (at >= from && at < to) add(sfx.star(toCtx(at), snd, fade));

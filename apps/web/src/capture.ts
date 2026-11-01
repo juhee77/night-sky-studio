@@ -130,7 +130,7 @@ export interface VideoOptions extends CaptureFrame {
   from: number;
   to: number;
   music: AudioBuffer | null;
-  delayFor: ((l: Launch) => number) | null;
+  delayFor: ((l: Launch, launch?: boolean) => number) | null;
   crowd: CrowdCue[] | null;
   fanCount: (l: Launch) => number;
   onProgress: (done: number, stage: string) => void;

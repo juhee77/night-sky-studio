@@ -72,7 +72,7 @@ export function testFire(shell: CustomShell, seed = 1): TestRecord {
     seed,
     venue: { preset: 'river-bridge-city', wind: { dir: 0, speed: 0 } },
     launchers: [{ id: 'test', kind: 'barge', pos: [0, 0, 0] }],
-    cues: [{ t: 6, at: 'test', type: 'custom', custom: shell.id, size }],
+    cues: [{ t: 8, at: 'test', type: 'custom', custom: shell.id, size }],
     customShells: { [shell.id]: shell },
   };
   const sim = new Simulation(show);
@@ -81,7 +81,7 @@ export function testFire(shell: CustomShell, seed = 1): TestRecord {
   // 별이 처음 보이는 때까지 조금씩 나아간다.
   let t = 2;
   let found = false;
-  for (; t < 12; t += 0.02) {
+  for (; t < 14; t += 0.02) {
     sim.advanceTo(t);
     for (let i = 0; i < p.count && !found; i++) if (isStar(p.size[i])) found = true;
     if (found) break;

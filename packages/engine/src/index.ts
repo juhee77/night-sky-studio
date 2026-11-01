@@ -13,6 +13,7 @@ export { buildCityMesh, writeCityTraffic, type CityMesh } from './render/city.ts
 export * from './text.ts';
 export * from './share.ts';
 export * from './sound.ts';
+export * from './flight.ts';
 export * from './smoke.ts';
 export * from './commission.ts';
 export * from './story.ts';

@@ -16,7 +16,7 @@ import {
   type Vec3,
 } from './show.ts';
 import { SMOKE_LIFE, analyzeSmoke, puffAt, type Puff } from './smoke.ts';
-import { burstHeightAt } from './build.ts';
+import { loweredApex, shellHeightAt } from './flight.ts';
 import { applyLive, isLive, liveWarnings } from './live.ts';
 import { textShape } from './text.ts';
 import { artShape } from './art.ts';
@@ -1358,13 +1358,13 @@ function smileFace(i: number, n: number): [number, number] {
   return [Math.cos(a) * 0.55, Math.sin(a) * 0.55 + 0.05];
 }
 
-/** 올라가는 불꽃 알의 위치. 꼭대기에 가까울수록 느려진다. */
+/** 올라가는 불꽃 알의 위치. 통을 나올 때 가장 빠르고 공기 저항과 중력으로 꼭대기까지 느려진다. */
 function risePosition(l: Launch & { type: ShellType }, age: number, wind: Vec3, out: Vec3, heightMul = 1): void {
   const spec = shellSize(l.type, l.size);
   const h = spec.height * heightMul;
-  // 같은 감속으로 올라가므로, 낮게 쏘면 꼭대기에 더 일찍 닿는다.
-  const apex = spec.prefire * Math.sqrt(heightMul);
-  const y = burstHeightAt(h, apex, age);
+  // 낮게 쏘면 꼭대기에 더 일찍 닿는다.
+  const apex = loweredApex(l.size, spec.height, spec.prefire, heightMul);
+  const y = shellHeightAt(l.size, h, apex, age);
   const e = y / spec.height;
   const tilt = (l.angle * Math.PI) / 180;
   out[0] = l.origin[0] + Math.sin(tilt) * spec.height * e + wind[0] * age * 0.25;
