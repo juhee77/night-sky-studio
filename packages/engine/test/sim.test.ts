@@ -125,7 +125,7 @@ test('케이크는 정해진 간격으로 여러 발을 쏘고, 첫 발이 cue �
   assert.ok(Math.abs(launches[9].burstAt - 6.8) < 1e-9);
   assert.equal(launches[0].angle, -30);
   assert.equal(launches[9].angle, 30);
-  assert.ok(Math.abs(cueLength(cake.cues[0]) - (9 * 0.2 + 1.1)) < 1e-9);
+  assert.ok(Math.abs(cueLength(cake.cues[0]) - (9 * 0.2 + 1.1 * (12 / 15))) < 1e-9);
 });
 
 test('불꽃은 맞는 발사 위치에만 놓인다', () => {
@@ -205,7 +205,7 @@ test('하트 같은 모양 불꽃은 알이 굴러 아무 방향으로 선다 (�
     const s = new Simulation({ ...show, seed: 100 + k, cues: [{ t: 1, at: 'barge-1', type: 'heart', size: 5 }] });
     s.advanceTo(1.02);
     const p = s.pool;
-    const stars = [...Array(p.count).keys()].filter((i) => p.grav[i] > 0 && !(p.flags[i] & (16 | 32)));
+    const stars = [...Array(p.count).keys()].filter((i) => p.drag[i] > 0 && !(p.flags[i] & (16 | 32)));
     const v = (i: number) => [p.vx[i], p.vy[i], p.vz[i]];
     const a = v(stars[0]);
     const b = v(stars[Math.floor(stars.length / 4)]);

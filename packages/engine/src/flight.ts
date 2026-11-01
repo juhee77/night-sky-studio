@@ -2,7 +2,7 @@
 // 위로 갈 때 y = (1/k)·ln(cos(w(T-t)) / cos(wT)), 꼭대기를 지나 떨어질 때 y = h - (1/k)·ln(cosh(ws)).
 // 알의 지름·무게와 저항 계수의 출처는 catalog.ts의 SHELL_BODIES와 SHELL_CD에 적어 두었다.
 
-import { SHELL_BODIES, SHELL_CD, type Size } from './catalog.ts';
+import { SHELL_BODIES, SHELL_CD, starScale, type Size } from './catalog.ts';
 
 export const GRAVITY = 9.8;
 export const AIR_DENSITY = 1.2;
@@ -43,4 +43,44 @@ export function shellHeightAt(size: Size, h: number, apex: number, t: number): n
   const w = a / apex;
   if (t <= apex) return h * (1 - Math.log(Math.cos(w * (apex - t))) / Math.log(Math.cos(a)));
   return Math.max(0, h - Math.log(Math.cosh(Math.sqrt(GRAVITY * k) * (t - apex))) / k);
+}
+
+/** 별의 밀도(kg/m³)와 저항 계수. Ooki 외, Sci. Tech. Energetic Materials 67(1), 2006의 10호용 별 발사 실험값. */
+export const STAR_DENSITY = 1510;
+export const STAR_CD = 0.5;
+
+/** 같은 논문의 5호용 별 지름(m) */
+const STAR_DIAMETER_AT_5 = 0.015;
+/** 초속 계산에 쓰는 저항 보정. 별이 타며 가늘어져 처음 지름일 때보다 저항을 더 받는 몫이다. */
+const BURN_DRAG = 1.3;
+/** 소리보다 빠르게 날아가는 별은 없다 */
+const MAX_STAR_SPEED = 340;
+
+/** 공 모양 별의 저항 상수 k = 3ρ·Cd / 4ρs·d (1/m). 지름이 작을수록 크다. */
+export function starDragK(diameter: number, density = STAR_DENSITY): number {
+  return (3 * AIR_DENSITY * STAR_CD) / (4 * density * diameter);
+}
+
+/** 이 호수에 든 보통 별의 지름(m) */
+export function starDiameter(size: Size): number {
+  return STAR_DIAMETER_AT_5 * starScale(size);
+}
+
+/** 늘어짐(0~1)에 따른 저항 배율: 무거운 별(늘어짐 큼)일수록 작다. 기본값 0.3에서 1이다. */
+export function droopDrag(droop: number): number {
+  return Math.exp(1.2 * (0.3 - droop));
+}
+
+/**
+ * 타는 동안 radius만큼 날아가는 처음 속도(m/s). 저항만 받을 때 날아간 거리 x = (1/k)·ln(1 + k·v·t)를 v로 푼 식이다.
+ * 거리가 길수록 속도가 빠르게 늘어난다: 처음엔 아주 빠르고, 곧 급격히 느려지는 까닭이다.
+ */
+export function starSpeed(k: number, radius: number, life: number): number {
+  const kk = k * BURN_DRAG;
+  return Math.min(MAX_STAR_SPEED, Math.expm1(kk * radius) / (kk * life));
+}
+
+/** 별이 떨어지는 속도의 끝값(m/s) */
+export function terminalSpeed(k: number): number {
+  return Math.sqrt(GRAVITY / k);
 }

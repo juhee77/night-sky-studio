@@ -1,7 +1,7 @@
 // 관람석에서 들리는 소리의 지연. 소리는 초속 약 343m로 오므로,
 // 1km 떨어진 자리에서는 불꽃이 터지고 약 3초 뒤에 '쿵' 소리가 들린다.
 
-import { SHELLS, isShell, shellSize } from './catalog.ts';
+import { SHELLS, isShell, shellSize, starLifeOf } from './catalog.ts';
 import type { Launch, Vec3 } from './show.ts';
 
 export const SPEED_OF_SOUND = 343;
@@ -46,7 +46,7 @@ export function starSounds(l: Launch): StarSound[] {
   } else {
     const shell = SHELLS[l.type];
     if (shell.salute) out.push({ kind: 'salute', start: 0, len: 0.3 });
-    if (shell.effect) add(shell.effect, shell.starLife);
+    if (shell.effect) add(shell.effect, starLifeOf(l.type, l.size));
   }
   // 올라가며 내는 휘파람: 쏘아 올린 때부터 터질 때까지 (터진 때 기준으로 음수)
   if (l.rise === 'whistle') out.push({ kind: 'rise-whistle', start: l.fireAt - l.burstAt, len: l.burstAt - l.fireAt });
