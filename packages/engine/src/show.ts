@@ -172,9 +172,9 @@ export function cueLength(cue: Cue, shells?: Record<string, CustomShell>): numbe
   if (cue.type === 'niagara' || cue.type === 'lancework' || cue.type === 'drones') return cue.len ?? LEN_DEFAULTS[cue.type];
   if (cue.type === 'cake') {
     const shots = cue.shots ?? CAKE_DEFAULTS.shots;
-    return (shots - 1) * (cue.interval ?? CAKE_DEFAULTS.interval) + visibleLength('cake');
+    return (shots - 1) * (cue.interval ?? CAKE_DEFAULTS.interval) + visibleLength('cake', cue.size);
   }
-  return visibleLength(cue.type);
+  return visibleLength(cue.type, cue.size);
 }
 
 /** 케이크 k번째 발의 각도 */

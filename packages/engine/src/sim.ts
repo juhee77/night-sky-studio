@@ -1,7 +1,7 @@
 // 불꽃 계산. 모든 값은 미터 단위 3D 좌표 [동, 높이, 북]이고,
 // 화면 주사율과 상관없이 STEP 간격으로만 계산한다. 그래서 같은 쇼는 어느 기기에서나 같게 재생된다.
 
-import { SHELLS, shellSize, starCount, type ShellType } from './catalog.ts';
+import { SHELLS, shellSize, starCount, starLifeOf, starScale, type ShellType } from './catalog.ts';
 import { COLORS, COLOR_NAMES } from './colors.ts';
 import { craftEffect, type CustomShell } from './custom.ts';
 import { hash32, rand01 } from './rng.ts';
@@ -16,7 +16,7 @@ import {
   type Vec3,
 } from './show.ts';
 import { SMOKE_LIFE, analyzeSmoke, puffAt, type Puff } from './smoke.ts';
-import { loweredApex, shellHeightAt } from './flight.ts';
+import { GRAVITY, droopDrag, loweredApex, shellHeightAt, starDiameter, starDragK, starSpeed } from './flight.ts';
 import { applyLive, isLive, liveWarnings } from './live.ts';
 import { textShape } from './text.ts';
 import { artShape } from './art.ts';
@@ -63,12 +63,20 @@ const EMBER_RGB = [1.0, 0.32, 0.08] as const;
 const HEAD_RGB = [1.0, 0.85, 0.6] as const;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
-const SPARK_DAMP = Math.exp(-3 * STEP);
-const WILLOW_SPARK_DAMP = Math.exp(-2 * STEP);
-const PALM_SPARK_DAMP = Math.exp(-2.4 * STEP);
-const TRAIL_DAMP = Math.exp(-2.5 * STEP);
-const SPLIT_DAMP = Math.exp(-1.4 * STEP);
-const CURTAIN_DAMP = Math.exp(-1.2 * STEP);
+// 입자별 저항 상수 k (1/m). 떨어지는 속도의 끝값은 √(g/k)다. 불티의 알갱이 크기를 잰 자료는 찾지 못해 근사한 값이다.
+/** 금속 불티: 지름 약 1mm, 끝 속도 약 6m/s */
+const SPARK_K = 0.3;
+/** 숯 불티: 가늘고 가벼워 오래 떠 있다. 끝 속도 약 2m/s */
+const WILLOW_SPARK_K = 2;
+const PALM_SPARK_K = 0.4;
+/** 나이아가라 불티: 끝 속도 약 4m/s */
+const CURTAIN_K = 0.6;
+/** 작은 별 조각 */
+const SPLIT_K = 0.04;
+const FLOWER_K = 0.06;
+const BRANCH_K = 0.03;
+/** 타면서 별이 가늘어져도 이보다 작아지지는 않는 것으로 친다 */
+const MIN_BURN_LEFT = 0.3;
 /** 나이아가라 불티가 떨어지는 지점 간격(m) */
 const CURTAIN_PITCH = 6;
 /** 틀불꽃 글자 높이(m) */
@@ -113,7 +121,7 @@ function liveShow(show: Show) {
 }
 
 const FLOAT_FIELDS = [
-  'px', 'py', 'pz', 'vx', 'vy', 'vz', 'age', 'life', 'r', 'g', 'b', 'size', 'damp', 'grav',
+  'px', 'py', 'pz', 'vx', 'vy', 'vz', 'age', 'life', 'r', 'g', 'b', 'size', 'drag',
 ] as const;
 
 class ParticlePool {
@@ -132,8 +140,7 @@ class ParticlePool {
   readonly b: Float32Array;
   readonly size: Float32Array;
   /** 한 스텝마다 속도에 곱하는 감쇠값 exp(-drag * STEP) */
-  readonly damp: Float32Array;
-  readonly grav: Float32Array;
+  readonly drag: Float32Array;
   readonly flags: Uint16Array;
   readonly seed: Uint32Array;
   /** 색이 바뀌는 별: (바뀌는 때 0~255) << 8 | (바뀐 색 번호 + 1). 0이면 바뀌지 않는다 */
@@ -154,8 +161,7 @@ class ParticlePool {
     this.g = f();
     this.b = f();
     this.size = f();
-    this.damp = f();
-    this.grav = f();
+    this.drag = f();
     this.flags = new Uint16Array(capacity);
     this.seed = new Uint32Array(capacity);
     this.aux = new Uint32Array(capacity);
@@ -166,7 +172,7 @@ class ParticlePool {
     vx: number, vy: number, vz: number,
     life: number,
     r: number, g: number, b: number,
-    size: number, damp: number, grav: number,
+    size: number, drag: number,
     flags: number, seed: number, aux = 0,
   ): boolean {
     const i = this.count;
@@ -184,8 +190,7 @@ class ParticlePool {
     this.g[i] = g;
     this.b[i] = b;
     this.size[i] = size;
-    this.damp[i] = damp;
-    this.grav[i] = grav;
+    this.drag[i] = drag;
     this.flags[i] = flags;
     this.seed[i] = seed;
     this.count = i + 1;
@@ -211,8 +216,7 @@ class ParticlePool {
         this.g[w] = this.g[i];
         this.b[w] = this.b[i];
         this.size[w] = this.size[i];
-        this.damp[w] = this.damp[i];
-        this.grav[w] = this.grav[i];
+        this.drag[w] = this.drag[i];
         this.flags[w] = this.flags[i];
         this.seed[w] = this.seed[i];
         this.aux[w] = this.aux[i];
@@ -482,7 +486,7 @@ export class Simulation {
           (rand01(seed, 1) - 0.5) * 3, -6 - rand01(seed, 2) * 4, (rand01(seed, 3) - 0.5) * 3,
           0.3 + rand01(seed, 4) * 0.4,
           SPARK_RGB[0] * 0.8, SPARK_RGB[1] * 0.8, SPARK_RGB[2] * 0.8,
-          1.6, TRAIL_DAMP, 9.8, FLAG_SPARK, seed,
+          1.6, SPARK_K, FLAG_SPARK, seed,
         );
       }
     } else {
@@ -501,7 +505,7 @@ export class Simulation {
           (rand01(ks, 1) - 0.5) * 2, -3 - rand01(ks, 2) * 3, (rand01(ks, 3) - 0.5) * 2,
           rise === 'whistle' ? 0.25 : 0.7 + rand01(ks, 4) * 0.6,
           rgb[0], rgb[1], rgb[2],
-          rise === 'whistle' ? 1.5 : 2.3, WILLOW_SPARK_DAMP, 3, FLAG_SPARK | (rise === 'silver' ? FLAG_GLITTER : 0), ks,
+          rise === 'whistle' ? 1.5 : 2.3, WILLOW_SPARK_K, FLAG_SPARK | (rise === 'silver' ? FLAG_GLITTER : 0), ks,
         );
       }
     }
@@ -523,7 +527,7 @@ export class Simulation {
             pool.spawn(
               s.pos[0], s.pos[1], s.pos[2],
               Math.cos(a) * Math.cos(e) * sp, Math.sin(e) * sp, Math.sin(a) * Math.cos(e) * sp,
-              0.7 + rand01(ks, 2) * 0.2, rgb[0], rgb[1], rgb[2], 3.4, Math.exp(-2.6 * STEP), 9.8, FLAG_EMBER, ks,
+              0.7 + rand01(ks, 2) * 0.2, rgb[0], rgb[1], rgb[2], 3.4, FLOWER_K, FLAG_EMBER, ks,
             );
           } else {
             // 곁줄기: 위로 비스듬히 뻗으며 불티 꼬리를 남긴다.
@@ -531,7 +535,7 @@ export class Simulation {
             pool.spawn(
               s.pos[0], s.pos[1], s.pos[2],
               Math.cos(a) * sp * 0.6, sp * 0.8, Math.sin(a) * sp * 0.6,
-              1.6, 1.1, 0.8, 0.4, 3, Math.exp(-1.2 * STEP), 9.8, FLAG_SPARK_TAIL | FLAG_EMBER, ks,
+              1.6, 1.1, 0.8, 0.4, 3, BRANCH_K, FLAG_SPARK_TAIL | FLAG_EMBER, ks,
             );
           }
         }
@@ -567,7 +571,7 @@ export class Simulation {
           (rand01(s, 2) - 0.5) * 1.2, -1 - rand01(s, 3) * 1.5, (rand01(s, 4) - 0.5) * 1.2,
           1.3 + rand01(s, 5) * 0.8,
           (1.0 * (1 - w) + rgb[0] * w) * 0.95, (0.82 * (1 - w) + rgb[1] * w) * 0.95, (0.5 * (1 - w) + rgb[2] * w) * 0.95,
-          2.1, CURTAIN_DAMP, 3.5, FLAG_SPARK, s,
+          2.1, CURTAIN_K, FLAG_SPARK, s,
         );
       }
       i++;
@@ -605,7 +609,7 @@ export class Simulation {
           home[0] + (target[0] - home[0]) * lag, home[1] + (target[1] - home[1]) * lag, home[2] + (target[2] - home[2]) * lag,
           0, 0, 0, STEP * 1.5,
           rgb[0] * 1.1, rgb[1] * 1.1, rgb[2] * 1.1,
-          4.2, 1, 0, FLAG_LANCE, hash32(l.seed, i, 51), DRONE_BIT,
+          4.2, 0, FLAG_LANCE, hash32(l.seed, i, 51), DRONE_BIT,
         );
       }
     }
@@ -628,7 +632,7 @@ export class Simulation {
         0, 0, 0,
         len,
         rgb[0], rgb[1], rgb[2],
-        2.6, 1, 0, FLAG_LANCE, s,
+        2.6, 0, FLAG_LANCE, s,
       );
       if (ok) this.pool.age[this.pool.count - 1] = age - delay;
     });
@@ -642,15 +646,12 @@ export class Simulation {
     const craft = craftEffect(def.craft);
     const radius = (spec.spread / 2) * def.motion.speed * craft.spread;
     const baseLife = def.motion.life * craft.life;
-    // 별이 오래 살수록 공기 저항을 줄여 너무 일찍 멈추지 않게 한다.
-    // 늘어짐: 중력은 어디서나 같으므로(9.8) 별의 공기 저항으로 낸다. 저항이 작은(무겁고 촘촘한) 별은
-    // 바깥으로 계속 날며 포물선으로 처지고, 저항이 큰(가볍고 푸석한) 별은 금방 멈춰 제자리에 떠 있듯 천천히 떨어진다.
-    const drag = Math.max(0.5, (3.4 / baseLife) * (1.5 - def.motion.droop));
+    // 늘어짐: 중력은 어디서나 같으므로 별의 무게로 낸다. 무겁고 촘촘한 별은 빨리 떨어지며 처지고,
+    // 가볍고 푸석한 별은 저항을 많이 받아 천천히 떨어진다.
+    const baseDrag = starDragK(starDiameter(l.size)) * droopDrag(def.motion.droop);
     // 장인 모드: 알이 고르게 터지지 않으면 한쪽으로 눌린 모양이 된다.
     const squashAxis = randomUnit(hash32(l.seed, 5, 91));
     const squash = 1 - 0.22 * Math.max(0, craft.asym - 0.3);
-    const damp = Math.exp(-drag * STEP);
-    const grav = 9.8;
     // 여러 단 터지기: 별을 칸마다 나눠, 아래 칸일수록 늦게 조금 아래에서 핀다.
     const chain = def.chain ?? 1;
     for (let k = 0; k < chain; k++) {
@@ -697,6 +698,8 @@ export class Simulation {
           const n = Math.max(6, Math.round(layer.shape.count * craft.count * (layer.shape.kind === 'sphere' ? this.density : 1)));
           dirs = starDirections(layer.shape.kind, n, seed);
         }
+        // 숯이 많은 꼬리 별은 푸석해 저항을 더 받는다 (카탈로그의 버들·브로케이드와 같은 비율).
+        const drag = baseDrag * (layer.star === 'kamuro' || layer.star === 'willow' || layer.star === 'brocade' ? 2 : 1);
         let flags = 0;
         if (layer.star === 'tail') flags |= FLAG_SPARK_TAIL;
         if (layer.star === 'willow') flags |= FLAG_WILLOW_TAIL;
@@ -735,7 +738,7 @@ export class Simulation {
             dz -= along * (1 - squash) * squashAxis[2];
           }
           const jitter = (precise ? 0.03 : 0.14) * (craft.asym > 0 ? craft.asym / 0.5 : 1);
-          const speed = drag * radius * layer.scale * mag * (1 - jitter / 2 + rand01(s, 4) * jitter);
+          const speed = starSpeed(drag, radius * layer.scale * mag, life) * (1 - jitter / 2 + rand01(s, 4) * jitter);
           const lifeSpread = precise ? 0 : craft.spreadLife;
           let starLife = life * (1 - lifeSpread + rand01(s, 5) * 2 * lifeSpread);
           let aux = colorAux;
@@ -762,7 +765,7 @@ export class Simulation {
             dx * speed, dy * speed, dz * speed,
             starLife,
             rgb[0], rgb[1], rgb[2],
-            layer.star === 'dot' ? 5.5 : 4.5, damp, grav, starFlags, s, aux,
+            layer.star === 'dot' ? 5.5 : 4.5, drag, starFlags, s, aux,
           );
           // 늦게 피는 층: 나이를 음수로 두면 그때까지 보이지도 움직이지도 않는다.
           if (ok && layer.delay + delayK > 0) this.pool.age[this.pool.count - 1] = -(layer.delay + delayK);
@@ -770,7 +773,7 @@ export class Simulation {
       });
     }
     const first = COLORS[def.layers[0]?.color ?? 'gold'];
-    this.pool.spawn(at[0], at[1], at[2], 0, 0, 0, 0.16, 1, 0.92, 0.8, spec.spread * 0.45, 1, 0, FLAG_FLASH, l.seed);
+    this.pool.spawn(at[0], at[1], at[2], 0, 0, 0, 0.16, 1, 0.92, 0.8, spec.spread * 0.45, 0, FLAG_FLASH, l.seed);
     const light = (spec.spread / 320) * 0.35;
     this.skyLight[0] += first[0] * light;
     this.skyLight[1] += first[1] * light;
@@ -787,7 +790,8 @@ export class Simulation {
     const pool = this.pool;
     const n = Math.max(6, Math.round(starCount(l.type, l.size) * (shell.pattern === 'sphere' ? this.density : 1)));
     const radius = (spec.spread / 2) * shell.spreadScale;
-    const damp = Math.exp(-shell.drag * STEP);
+    const drag = starDragK((shell.starMm / 1000) * starScale(l.size), shell.starDensity);
+    const starLife = starLifeOf(l.type, l.size);
     const dirs = starDirections(shell.pattern, n, l.seed);
 
     // 앞 불꽃의 연기 속에서 터지면 흐리게 보인다.
@@ -807,10 +811,9 @@ export class Simulation {
     for (let i = 0; i < n; i++) {
       const s = hash32(l.seed, i, 11);
       const [dx, dy, dz, mag] = dirs[i];
-      // 공기 저항이 k일 때 처음 속도 v는 v/k 만큼 날아가므로, 반지름에 맞춰 v = k·R로 정한다.
-      // 모양 불꽃은 모양이 흐트러지지 않게 속도 오차를 줄인다.
+      // 별이 다 탈 때 반지름에 닿도록 처음 속도를 정한다. 모양 불꽃은 모양이 흐트러지지 않게 속도 오차를 줄인다.
       const jitter = shell.pattern === 'sphere' || shell.pattern === 'palm' ? 0.14 : 0.03;
-      const speed = shell.drag * radius * mag * (1 - jitter / 2 + rand01(s, 4) * jitter);
+      const speed = starSpeed(drag, radius * mag, starLife) * (1 - jitter / 2 + rand01(s, 4) * jitter);
       // 모란에 두 색을 주면 실제 모란처럼 모든 별이 첫 색으로 피었다가 날아가는 도중 둘째 색으로 바뀐다 (색변화).
       const change = l.type === 'peony' && l.colors.length > 1;
       const rgb = shell.salute ? ([1.3, 1.25, 1.1] as const) : COLORS[l.colors[change ? 0 : i % l.colors.length]];
@@ -820,16 +823,16 @@ export class Simulation {
       pool.spawn(
         at[0], at[1], at[2],
         dx * speed, dy * speed, dz * speed,
-        shell.starLife * (shell.split ? 0.95 + rand01(s, 5) * 0.1 : lifeJitter),
+        starLife * (shell.split ? 0.95 + rand01(s, 5) * 0.1 : lifeJitter),
         rgb[0] * dim, rgb[1] * dim, rgb[2] * dim,
-        shell.starSize, damp, 9.8, flags, s, aux,
+        shell.starSize, drag, flags, s, aux,
       );
     }
 
     const first = shell.salute ? ([1.4, 1.4, 1.4] as const) : COLORS[l.colors[0]];
     pool.spawn(
       at[0], at[1], at[2], 0, 0, 0, flashLife,
-      1, 0.92, 0.8, spec.spread * flashScale, 1, 0, FLAG_FLASH, l.seed,
+      1, 0.92, 0.8, spec.spread * flashScale, 0, FLAG_FLASH, l.seed,
     );
     const light = (spec.spread / 320) * (shell.salute ? 1.2 : 0.35);
     this.skyLight[0] += first[0] * light;
@@ -852,7 +855,7 @@ export class Simulation {
           p.vx[i] * 0.2 + Math.cos(a) * Math.cos(e) * sp, p.vy[i] * 0.2 + Math.sin(e) * sp, p.vz[i] * 0.2 + Math.sin(a) * Math.cos(e) * sp,
           0.7 + rand01(s, 3) * 0.3,
           p.r[i], p.g[i], p.b[i],
-          3.2, SPLIT_DAMP, 9.8, FLAG_EMBER, s,
+          3.2, SPLIT_K * 2, FLAG_EMBER, s,
         );
       }
       return;
@@ -894,7 +897,7 @@ export class Simulation {
         vz * 0.3 + (az * c + bz * sn) * speed,
         1.0 + rand01(s, 1) * 0.2,
         p.r[i], p.g[i], p.b[i],
-        4, SPLIT_DAMP, 9.8, FLAG_SPARK_TAIL | FLAG_EMBER, s,
+        4, SPLIT_K, FLAG_SPARK_TAIL | FLAG_EMBER, s,
       );
     }
   }
@@ -923,18 +926,23 @@ export class Simulation {
               (rand01(s, 1) - 0.5) * 3, 1 + rand01(s, 2) * 3, (rand01(s, 3) - 0.5) * 3,
               0.25 + rand01(s, 4) * 0.3,
               SPARK_RGB[0], SPARK_RGB[1], SPARK_RGB[2],
-              1.4, SPARK_DAMP, 6, FLAG_SPARK, s,
+              1.4, SPARK_K, FLAG_SPARK, s,
             );
           }
         }
         continue;
       }
 
-      const d = p.damp[i];
-      // 공기는 바람과 같이 움직이므로, 수평 속도는 바람 속도로 다가간다.
-      const vx = wx + (p.vx[i] - wx) * d;
-      const vy = p.vy[i] * d - p.grav[i] * STEP;
-      const vz = wz + (p.vz[i] - wz) * d;
+      // 공기 저항은 공기에 대한 속도의 제곱에 비례한다. 공기는 바람과 같이 움직인다.
+      // 타는 별은 가늘어지므로(지름에 반비례) 저항을 더 받는다. 안 타는 어두운 별은 그대로다.
+      const rx = p.vx[i] - wx;
+      const ry = p.vy[i];
+      const rz = p.vz[i] - wz;
+      const burn = f & FLAG_DARK ? 1 : Math.max(MIN_BURN_LEFT, 1 - age / p.life[i]);
+      const slow = 1 / (1 + (p.drag[i] / burn) * Math.sqrt(rx * rx + ry * ry + rz * rz) * STEP);
+      const vx = wx + rx * slow;
+      const vy = ry * slow - GRAVITY * STEP;
+      const vz = wz + rz * slow;
       p.vx[i] = vx;
       p.vy[i] = vy;
       p.vz[i] = vz;
@@ -972,7 +980,7 @@ export class Simulation {
         // 도는 별과 헤엄치는 별은 가는 불티 자국을 남긴다.
         const s = hash32(p.seed[i], this.step, 15);
         if (rand01(s) < (f & FLAG_HUMMER ? 0.7 : 0.4) * this.density) {
-          p.spawn(p.px[i], p.py[i], p.pz[i], 0, 0, 0, 0.25 + rand01(s, 1) * 0.2, p.r[i] * 0.8, p.g[i] * 0.8, p.b[i] * 0.8, 1.4, SPARK_DAMP, 1, FLAG_SPARK, s);
+          p.spawn(p.px[i], p.py[i], p.pz[i], 0, 0, 0, 0.25 + rand01(s, 1) * 0.2, p.r[i] * 0.8, p.g[i] * 0.8, p.b[i] * 0.8, 1.4, SPARK_K, FLAG_SPARK, s);
         }
       }
       if (f & FLAG_CRACKLE && age > p.life[i] * 0.72) {
@@ -981,7 +989,7 @@ export class Simulation {
         if (rand01(s) < 0.3 * this.density) {
           p.spawn(
             p.px[i] + (rand01(s, 1) - 0.5) * 6, p.py[i] + (rand01(s, 2) - 0.5) * 6, p.pz[i] + (rand01(s, 3) - 0.5) * 6,
-            0, 0, 0, 0.05, 1.4, 1.35, 1.2, 3.2, 1, 0, FLAG_SPARK, s,
+            0, 0, 0, 0.05, 1.4, 1.35, 1.2, 3.2, 0, FLAG_SPARK, s,
           );
         }
       }
@@ -996,7 +1004,7 @@ export class Simulation {
             vx * 0.15 + (rand01(s, 1) - 0.5) * 3, vy * 0.15 + (rand01(s, 2) - 0.5) * 3, vz * 0.15 + (rand01(s, 3) - 0.5) * 3,
             (0.3 + rand01(s, 4) * 0.4) * tail,
             SPARK_RGB[0] * 0.9, SPARK_RGB[1] * 0.9, SPARK_RGB[2] * 0.9,
-            1.7, SPARK_DAMP, 6, FLAG_SPARK, s,
+            1.7, SPARK_K, FLAG_SPARK, s,
           );
         }
       } else if (f & FLAG_WILLOW_TAIL) {
@@ -1009,7 +1017,7 @@ export class Simulation {
             vx * 0.05 + (rand01(s, 1) - 0.5) * 1.2, vy * 0.05, vz * 0.05 + (rand01(s, 3) - 0.5) * 1.2,
             (0.7 + rand01(s, 4) * 0.6) * tail,
             1.0 * 0.75, 0.7 * 0.75, 0.3 * 0.75,
-            kamuro ? 2.4 : 1.9, WILLOW_SPARK_DAMP, kamuro ? 1.6 : 2.5, FLAG_SPARK, s,
+            kamuro ? 2.4 : 1.9, WILLOW_SPARK_K, FLAG_SPARK, s,
           );
         }
       } else if (f & FLAG_PALM_TAIL) {
@@ -1022,7 +1030,7 @@ export class Simulation {
             vx * 0.1 + (rand01(s, k, 1) - 0.5) * 2.5, vy * 0.1 + (rand01(s, k, 2) - 0.5) * 2.5, vz * 0.1 + (rand01(s, k, 3) - 0.5) * 2.5,
             0.6 + rand01(s, k, 4) * 0.5,
             1.0 * 0.85, 0.66 * 0.85, 0.28 * 0.85,
-            2.6, PALM_SPARK_DAMP, 5, FLAG_SPARK, hash32(s, k),
+            2.6, PALM_SPARK_K, FLAG_SPARK, hash32(s, k),
           );
         }
       }

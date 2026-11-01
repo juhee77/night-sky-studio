@@ -77,8 +77,10 @@ export interface ShellSpec {
   starsAt5: number;
   /** 별이 사는 시간(초). 크로세트는 갈라지기까지의 시간 */
   starLife: number;
-  /** 공기 저항(1/s). 클수록 빨리 멈추고 천천히 떨어진다. */
-  drag: number;
+  /** 5호에 넣는 별의 지름(mm). 작을수록 저항을 많이 받아 빨리 느려지고 천천히 떨어진다. */
+  starMm: number;
+  /** 별 밀도(kg/m³). 숯이 많은 꼬리 별은 보통 별(1510)보다 푸석해 저항을 더 받는다. 어림한 값이다. */
+  starDensity?: number;
   /** 지름을 크기표보다 줄이거나 늘리는 비율 */
   spreadScale: number;
   /** 별 하나의 빛 크기(m) */
@@ -96,79 +98,81 @@ export interface ShellSpec {
   salute?: boolean;
 }
 
+// 별 타는 시간(5호 기준)은 Ooki 외 2006의 실측과 같은 범위다: 5호 은빛 별 1.9초, 6호 2.4초, 3호 파란 별 2.9초.
+// 별 지름은 모란 별(5호 약 15mm)만 실측이고, 다른 종류는 그 크기를 기준으로 어림한 값이다.
 export const SHELLS: Record<ShellType, ShellSpec> = {
   chrysanthemum: {
-    label: '국화', pattern: 'sphere', starsAt5: 110, starLife: 2.1, drag: 1.6, spreadScale: 1,
+    label: '국화', pattern: 'sphere', starsAt5: 110, starLife: 2.1, starMm: 15, spreadScale: 1,
     starSize: 5, tail: 'spark', ember: true, glitter: true, split: false,
   },
   peony: {
-    label: '모란', pattern: 'sphere', starsAt5: 140, starLife: 1.8, drag: 1.8, spreadScale: 0.95,
+    label: '모란', pattern: 'sphere', starsAt5: 140, starLife: 1.8, starMm: 15, spreadScale: 0.95,
     starSize: 5.5, tail: 'none', ember: false, glitter: false, split: false,
   },
   willow: {
-    label: '버들', pattern: 'sphere', starsAt5: 70, starLife: 4.5, drag: 0.9, spreadScale: 0.75,
+    label: '버들', pattern: 'sphere', starsAt5: 70, starLife: 4.5, starMm: 22, starDensity: 700, spreadScale: 0.75,
     starSize: 3.2, tail: 'willow', ember: true, glitter: false, split: false,
   },
   palm: {
-    label: '야자', pattern: 'palm', starsAt5: 10, starLife: 2.6, drag: 1.0, spreadScale: 0.85,
+    label: '야자', pattern: 'palm', starsAt5: 10, starLife: 2.6, starMm: 30, starDensity: 1000, spreadScale: 0.85,
     starSize: 7, tail: 'palm', ember: true, glitter: false, split: false,
   },
   ring: {
-    label: '링', pattern: 'ring', starsAt5: 64, starLife: 1.6, drag: 1.8, spreadScale: 0.9,
+    label: '링', pattern: 'ring', starsAt5: 64, starLife: 1.6, starMm: 15, spreadScale: 0.9,
     starSize: 5.5, tail: 'none', ember: false, glitter: false, split: false,
   },
   crossette: {
-    label: '크로세트', pattern: 'sphere', starsAt5: 18, starLife: 0.9, drag: 1.2, spreadScale: 0.55,
+    label: '크로세트', pattern: 'sphere', starsAt5: 18, starLife: 0.9, starMm: 20, spreadScale: 0.55,
     starSize: 5, tail: 'spark', ember: false, glitter: false, split: true,
   },
   heart: {
-    label: '하트', pattern: 'heart', starsAt5: 52, starLife: 1.7, drag: 1.8, spreadScale: 0.8,
+    label: '하트', pattern: 'heart', starsAt5: 52, starLife: 1.7, starMm: 15, spreadScale: 0.8,
     starSize: 5.5, tail: 'none', ember: false, glitter: false, split: false,
   },
   star: {
-    label: '별', pattern: 'star', starsAt5: 50, starLife: 1.7, drag: 1.8, spreadScale: 0.85,
+    label: '별', pattern: 'star', starsAt5: 50, starLife: 1.7, starMm: 15, spreadScale: 0.85,
     starSize: 5.5, tail: 'none', ember: false, glitter: false, split: false,
   },
   smile: {
-    label: '웃는 얼굴', pattern: 'smile', starsAt5: 56, starLife: 1.7, drag: 1.8, spreadScale: 0.85,
+    label: '웃는 얼굴', pattern: 'smile', starsAt5: 56, starLife: 1.7, starMm: 15, spreadScale: 0.85,
     starSize: 5.5, tail: 'none', ember: false, glitter: false, split: false,
   },
   // 내 불꽃: 실제 모양은 쇼에 담긴 정의(CustomShell)로 정한다. 여기 값은 정의가 없을 때의 기본값이다.
   custom: {
-    label: '내 불꽃', pattern: 'sphere', starsAt5: 100, starLife: 2, drag: 1.6, spreadScale: 1,
+    label: '내 불꽃', pattern: 'sphere', starsAt5: 100, starLife: 2, starMm: 15, spreadScale: 1,
     starSize: 5, tail: 'none', ember: false, glitter: false, split: false,
   },
   crackle: {
-    label: '크래클', pattern: 'sphere', starsAt5: 80, starLife: 1.6, drag: 1.7, spreadScale: 0.85,
+    label: '크래클', pattern: 'sphere', starsAt5: 80, starLife: 1.6, starMm: 12, spreadScale: 0.85,
     starSize: 4, tail: 'none', ember: false, glitter: false, split: false, effect: 'crackle',
   },
   brocade: {
-    label: '브로케이드', pattern: 'sphere', starsAt5: 90, starLife: 3.2, drag: 1.1, spreadScale: 0.9,
+    label: '브로케이드', pattern: 'sphere', starsAt5: 90, starLife: 3.2, starMm: 20, starDensity: 800, spreadScale: 0.9,
     starSize: 5.5, tail: 'willow', ember: true, glitter: false, split: false,
   },
   fish: {
-    label: '피시', pattern: 'sphere', starsAt5: 40, starLife: 1.8, drag: 1.5, spreadScale: 0.7,
+    label: '피시', pattern: 'sphere', starsAt5: 40, starLife: 1.8, starMm: 10, spreadScale: 0.7,
     starSize: 3.5, tail: 'none', ember: false, glitter: false, split: false, effect: 'fish',
   },
   hummer: {
-    label: '허머', pattern: 'sphere', starsAt5: 24, starLife: 2.0, drag: 1.4, spreadScale: 0.7,
+    label: '허머', pattern: 'sphere', starsAt5: 24, starLife: 2.0, starMm: 12, spreadScale: 0.7,
     starSize: 4, tail: 'none', ember: false, glitter: false, split: false, effect: 'hummer',
   },
   leaves: {
-    label: '낙엽', pattern: 'sphere', starsAt5: 60, starLife: 4.0, drag: 2.6, spreadScale: 0.65,
+    label: '낙엽', pattern: 'sphere', starsAt5: 60, starLife: 4.0, starMm: 6, spreadScale: 0.65,
     starSize: 4.5, tail: 'none', ember: true, glitter: false, split: false, effect: 'leaf',
   },
   salute: {
-    label: '살루트', pattern: 'sphere', starsAt5: 30, starLife: 0.25, drag: 3, spreadScale: 0.35,
+    label: '살루트', pattern: 'sphere', starsAt5: 30, starLife: 0.25, starMm: 5, spreadScale: 0.35,
     starSize: 3, tail: 'none', ember: false, glitter: false, split: false, salute: true,
   },
   whistle: {
-    label: '휘슬', pattern: 'sphere', starsAt5: 16, starLife: 1.6, drag: 1.0, spreadScale: 0.8,
+    label: '휘슬', pattern: 'sphere', starsAt5: 16, starLife: 1.6, starMm: 15, spreadScale: 0.8,
     starSize: 3.5, tail: 'spark', ember: false, glitter: false, split: false, effect: 'whistle',
   },
   // 케이크 한 발. 높이와 지름은 크기표 대신 shellSize()에서 정한다.
   cake: {
-    label: '케이크', pattern: 'sphere', starsAt5: 22, starLife: 1.1, drag: 2.2, spreadScale: 1,
+    label: '케이크', pattern: 'sphere', starsAt5: 22, starLife: 1.1, starMm: 10, spreadScale: 1,
     starSize: 4, tail: 'spark', ember: true, glitter: false, split: false,
   },
 };
@@ -208,8 +212,18 @@ export function starCount(type: ShellType, size: Size): number {
   return Math.max(6, Math.round(SHELLS[type].starsAt5 * Math.pow(size / 5, exp)));
 }
 
+/** 같은 종류의 별이 호수에 따라 커지는 비율 (5호가 1). 같은 논문의 호수별 별 지름 3호 12·5호 15·10호 22mm, 7호는 그 사이 값. */
+export function starScale(size: Size): number {
+  return { 3: 12 / 15, 5: 1, 7: 18 / 15, 10: 22 / 15 }[size];
+}
+
+/** 이 호수에 든 별이 타는 시간(초). 타는 시간은 별 지름에 비례한다 (같은 논문). */
+export function starLifeOf(type: ShellType, size: Size): number {
+  return SHELLS[type].starLife * starScale(size);
+}
+
 /** 하늘 불꽃 한 발이 터진 뒤 눈에 보이는 시간(초) */
-export function visibleLength(type: ShellType): number {
-  const s = SHELLS[type];
-  return s.split ? s.starLife + 1.1 : s.starLife;
+export function visibleLength(type: ShellType, size: Size = 5): number {
+  const life = starLifeOf(type, size);
+  return SHELLS[type].split ? life + 1.1 : life;
 }
