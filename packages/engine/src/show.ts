@@ -81,6 +81,15 @@ export interface MusicRef {
   beatsPerBar?: 3 | 4;
 }
 
+export interface Greeting {
+  to: string;
+  message?: string;
+}
+
+/** 받는 사람 이름과 인사의 길이 한도 */
+export const GREETING_TO_MAX = 24;
+export const GREETING_MESSAGE_MAX = 60;
+
 export interface Show {
   version: 1;
   title?: string;
@@ -88,6 +97,8 @@ export interface Show {
   author?: string;
   /** 받은 쇼를 고쳐 만든 쇼면 원작 */
   remixOf?: { title: string; author?: string };
+  /** 받는 사람과 인사 (새해 불꽃 보내기. 상영관이 받는 사람 이름과 인사를 띄운다) */
+  greeting?: Greeting;
   seed: number;
   music?: MusicRef;
   venue: {

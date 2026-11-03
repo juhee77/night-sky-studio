@@ -675,3 +675,6 @@ body.firing #stage { cursor: pointer; }
 .ranking { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .ranking li { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; padding: 4px 8px; border-radius: 6px; }
 .ranking li.mine { background: rgba(251, 146, 60, 0.16); font-weight: 700; }
+
+.newyear-form { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+.newyear-form input { width: 100%; }

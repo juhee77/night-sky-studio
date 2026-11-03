@@ -160,3 +160,32 @@ test('경력 이야기: 의뢰소에 지금 단계와 의뢰인 말이 보이고
   const want = { '산으로 둘러싼 호수': 'mountain-lake', '강변 도시와 다리': 'river-bridge-city', '넓은 강변 초대형 축제': 'grand-river' }[venue];
   await expect(page.locator('#seat')).toHaveAttribute('data-venue', want!);
 });
+
+test('새해 불꽃 보내기: 이름과 인사로 쇼를 만들어 링크를 받고, 상영관에 이름과 인사가 보인다', async ({ page }) => {
+  await page.clock.setFixedTime(new Date(2026, 11, 20, 20, 0));
+  await page.goto('/');
+  await page.locator('#intro-newyear').click({ timeout: 15_000 });
+  const dialog = page.locator('#newyear-dialog');
+  await expect(dialog).toBeVisible();
+  await dialog.locator('#newyear-to').fill('지수');
+  await dialog.locator('#newyear-message').fill('새해 복 많이 받아!');
+  await dialog.locator('#newyear-from').fill('주희');
+  await dialog.getByRole('button', { name: '만들고 링크 받기' }).click();
+  await expect(page.locator('#share-dialog')).toBeVisible();
+  await expect(page.locator('#title')).toHaveValue('지수님께 보내는 2027 새해 불꽃');
+  await expect(page.locator('#share-author')).toHaveValue('주희');
+  await expect.poll(() => page.locator('#share-link').inputValue()).toContain('#s=');
+  const link = await page.locator('#share-link').inputValue();
+  await page.goto(link.replace(/^https?:\/\/[^/]+/, ''));
+  await expect(page.locator('#eyebrow')).toHaveText('지수님께 새해 인사가 도착했습니다');
+  await expect(page.locator('#greeting')).toHaveText('새해 복 많이 받아!');
+  await expect(page.locator('#show-by')).toContainText('주희님이 만든 쇼');
+});
+
+test('새해 불꽃 보내기 버튼은 11월부터 1월까지만 보인다', async ({ page }) => {
+  await page.clock.setFixedTime(new Date(2027, 5, 1, 20, 0));
+  await page.goto('/');
+  await expect(page.locator('#intro-skip')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('#intro-newyear')).toBeHidden();
+  await expect(page.locator('#newyear-btn')).toBeHidden();
+});

@@ -18,6 +18,10 @@ const el = {
   title: $<HTMLHeadingElement>('show-title'),
   by: $<HTMLParagraphElement>('show-by'),
   endBy: $<HTMLParagraphElement>('end-by'),
+  eyebrow: $<HTMLParagraphElement>('eyebrow'),
+  greeting: $<HTMLParagraphElement>('greeting'),
+  endGreeting: $<HTMLParagraphElement>('end-greeting'),
+  banner: $<HTMLParagraphElement>('greeting-banner'),
   sameSong: $<HTMLButtonElement>('same-song'),
   corner: $<HTMLAnchorElement>('corner-make'),
   meta: $<HTMLParagraphElement>('show-meta'),
@@ -93,6 +97,14 @@ async function boot(): Promise<void> {
     p.hidden = !by;
     p.textContent = by;
   }
+  const g = show.greeting;
+  if (g) {
+    el.eyebrow.textContent = `${g.to}님께 새해 인사가 도착했습니다`;
+    for (const p of [el.greeting, el.endGreeting]) {
+      p.hidden = !g.message;
+      p.textContent = g.message ?? '';
+    }
+  }
 
   try {
     stage = new Stage(el.stage, show);
@@ -132,6 +144,26 @@ function byline(s: Show): string {
   if (s.author) parts.push(`${s.author}님이 만든 쇼`);
   if (s.remixOf) parts.push(`원작 「${s.remixOf.title}」${s.remixOf.author ? `(${s.remixOf.author}님)` : ''}`);
   return parts.join(' · ');
+}
+
+/** 카운트다운이 끝나면 받는 사람 이름과 인사를 잠깐 크게 띄운다 */
+function showGreeting(): void {
+  const g = show?.greeting;
+  if (!g) return;
+  el.banner.replaceChildren();
+  const name = document.createElement('span');
+  name.className = 'to';
+  name.textContent = `${g.to}님께`;
+  el.banner.append(name);
+  if (g.message) el.banner.append(document.createTextNode(g.message));
+  if (show?.author) {
+    const by = document.createElement('span');
+    by.className = 'from';
+    by.textContent = `${show.author} 드림`;
+    el.banner.append(by);
+  }
+  el.banner.hidden = false;
+  window.setTimeout(() => (el.banner.hidden = true), 6000);
 }
 
 function ready(): void {
@@ -189,8 +221,12 @@ el.start.addEventListener('click', () => {
   transport.delayFor = stage.soundDelay;
   transport.crowd = audienceCues(stage.sim.launches);
   transport.seek(0);
-  if (show?.countdown) runCountdown(transport, () => setPlaying(true));
-  else setPlaying(true);
+  if (show?.countdown) {
+    runCountdown(transport, () => {
+      setPlaying(true);
+      showGreeting();
+    });
+  } else setPlaying(true);
   poke();
 });
 
