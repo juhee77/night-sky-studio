@@ -6,7 +6,7 @@
 import { ALL_TYPES, RISE_EFFECTS, type FireworkType, type Size } from './catalog.ts';
 import { COLOR_NAMES, type ColorName } from './colors.ts';
 import { normalizeShell, type CustomShell } from './custom.ts';
-import type { CakePattern, Cue, Launcher, Show } from './show.ts';
+import { GREETING_MESSAGE_MAX, GREETING_TO_MAX, type CakePattern, type Cue, type Launcher, type Show } from './show.ts';
 import { SKY_IDS } from './weather.ts';
 import { hasRig, normalizeRig, type Rig } from './rig.ts';
 import { normalizeMapVenue, type MapVenue } from './mapvenue.ts';
@@ -25,6 +25,8 @@ interface Packed {
   /** 만든 사람, 원작 [제목, 만든 사람] */
   au?: string;
   rx?: [string, string?];
+  /** 받는 사람, 인사 */
+  gr?: [string, string?];
   /** 곡 [id, 제목, BPM, 첫 박, 길이, 3/4면 3] */
   mu?: [string, string, number, number, number, 3?];
   ve: [string, number?, number?, number?, number?];
@@ -71,6 +73,7 @@ export function packShow(show: Show): Packed {
   if (show.title) p.ti = show.title;
   if (show.author) p.au = show.author;
   if (show.remixOf) p.rx = show.remixOf.author ? [show.remixOf.title, show.remixOf.author] : [show.remixOf.title];
+  if (show.greeting) p.gr = show.greeting.message ? [show.greeting.to, show.greeting.message] : [show.greeting.to];
   if (show.music) {
     const m = show.music;
     p.mu = [m.id, m.title, round(m.bpm, 2), round(m.offset), round(m.duration, 2)];
@@ -166,6 +169,10 @@ export function unpackShow(p: Packed): Show {
   if (Array.isArray(p.rx) && p.rx[0]) {
     show.remixOf = { title: String(p.rx[0]).slice(0, 60) };
     if (p.rx[1]) show.remixOf.author = String(p.rx[1]).slice(0, 24);
+  }
+  if (Array.isArray(p.gr) && p.gr[0]) {
+    show.greeting = { to: String(p.gr[0]).slice(0, GREETING_TO_MAX) };
+    if (p.gr[1]) show.greeting.message = String(p.gr[1]).slice(0, GREETING_MESSAGE_MAX);
   }
   if (p.mu) {
     const [id, title, bpm, offset, duration, per] = p.mu;

@@ -55,6 +55,7 @@ import { $, el, say } from './ui.ts';
 import { wireAuto } from './auto-ui.ts';
 import { wireCapture } from './capture-ui.ts';
 import { wireShare } from './share-ui.ts';
+import { wireNewYear } from './newyear-ui.ts';
 
 // ── 상태 ──
 useDeviceFontForFrames();
@@ -750,6 +751,7 @@ function currentMusicMap(): MusicMap {
 wireAuto({ editor, drawer, office, career, transport, timeline, togglePlay: () => togglePlay(), musicMap: () => currentMusicMap() });
 wireCapture({ editor, stage, transport, togglePlay: () => togglePlay(), duration: () => duration(), music: () => musicBuffer, fanCount: (l) => fanCount(l) });
 wireShare({ editor });
+wireNewYear({ editor, transport, togglePlay: () => togglePlay(), musicMap: () => currentMusicMap() });
 
 // ── 키보드 ──
 const typing = (t: EventTarget | null) =>

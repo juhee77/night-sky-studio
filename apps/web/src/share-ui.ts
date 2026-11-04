@@ -9,11 +9,19 @@ import { $, el } from './ui.ts';
 const AUTHOR = 'nss:author';
 
 /** 이 기기에서 쓰는 만든 사람 이름 */
-function savedAuthor(): string {
+export function savedAuthor(): string {
   try {
     return localStorage.getItem(AUTHOR) ?? '';
   } catch {
     return '';
+  }
+}
+
+export function saveAuthor(name: string): void {
+  try {
+    localStorage.setItem(AUTHOR, name.trim().slice(0, 24));
+  } catch {
+    // 저장하지 못하면 이번 링크에만 넣는다.
   }
 }
 
@@ -30,6 +38,8 @@ export function wireShare(ctx: { editor: Editor }): void {
     el.shareLink.value = link;
     const m = ctx.editor.show.music;
     const notes = [`링크 길이 ${link.length.toLocaleString('ko-KR')}자.`];
+    const g = ctx.editor.show.greeting;
+    if (g) notes.unshift(`받는 사람(${g.to}님)과 인사가 링크에 함께 들어 있습니다.`);
     if (link.length > 8000) notes.push('링크가 길어서 일부 메신저에서 잘릴 수 있습니다. 그럴 땐 쇼 파일로 내보내 보내 주세요.');
     if (m && !m.id.startsWith('basic-')) {
       notes.push(`음악 파일은 링크에 들어가지 않습니다. 받는 사람이 같은 파일(「${m.title}」, ${fmtTime(m.duration).replace(/\.\d+$/, '')})을 골라야 함께 들립니다. 바로 들려주려면 기본 곡을 쓰세요.`);
@@ -52,11 +62,7 @@ export function wireShare(ctx: { editor: Editor }): void {
   });
   let timer = 0;
   authorInput.addEventListener('input', () => {
-    try {
-      localStorage.setItem(AUTHOR, authorInput.value.trim().slice(0, 24));
-    } catch {
-      // 저장하지 못하면 이번 링크에만 넣는다.
-    }
+    saveAuthor(authorInput.value);
     clearTimeout(timer);
     timer = window.setTimeout(() => void build(), 250);
   });

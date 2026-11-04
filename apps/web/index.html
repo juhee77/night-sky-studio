@@ -35,6 +35,7 @@
         <button type="button" id="photo-btn" title="셔터를 몇 초 열어 둔 장노출 사진을 찍습니다">사진</button>
         <button type="button" id="video-btn" title="쇼를 소리까지 담은 영상 파일(MP4)로 만듭니다">영상</button>
         <button type="button" id="share-btn" class="primary">공유</button>
+        <button type="button" id="newyear-btn" title="받는 사람과 인사를 넣으면 새해 불꽃쇼를 만들어 링크로 보냅니다" hidden>새해 불꽃 보내기</button>
       </div>
 
       <div class="group transport">
@@ -83,6 +84,7 @@
           <p class="note">먼저 예시 쇼를 보여 드릴게요. 소리를 켜 주세요.</p>
           <button type="button" id="intro-play" class="primary big">▶ 불꽃쇼 보기</button>
           <button type="button" id="intro-skip" class="quiet">건너뛰고 바로 만들기</button>
+          <button type="button" id="intro-newyear" class="quiet" hidden>새해 불꽃 보내기</button>
         </section>
         <section id="arrive" class="intro-card" aria-labelledby="arrive-title" hidden>
           <h2 id="arrive-title"></h2>
@@ -289,6 +291,32 @@
         <button type="button" id="share-short" hidden>짧은 링크 만들기</button>
       </div>
       <p id="share-info" class="note"></p>
+    </dialog>
+
+    <dialog id="newyear-dialog" aria-labelledby="newyear-title">
+      <form method="dialog" class="dialog-head">
+        <h2 id="newyear-title">새해 불꽃 보내기</h2>
+        <button value="close" aria-label="닫기">닫기</button>
+      </form>
+      <p class="note">받는 사람과 인사를 적으면 지금 곡에 맞춰 새해 불꽃쇼를 만듭니다. 받는 사람이 링크를 열면 이름과 인사가 보이고, 10초 카운트다운 뒤에 쇼가 시작합니다.</p>
+      <form id="newyear-form" class="newyear-form">
+        <div class="field">
+          <label for="newyear-to">받는 사람</label>
+          <input id="newyear-to" maxlength="24" placeholder="예: 엄마, 지수" required autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="newyear-message">인사 (한 줄 · 비우면 보기 문구로)</label>
+          <input id="newyear-message" maxlength="60" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="newyear-from">보내는 사람 (선택)</label>
+          <input id="newyear-from" maxlength="24" placeholder="이름이나 별명" autocomplete="nickname" />
+        </div>
+        <p id="newyear-replace" class="note"></p>
+        <div class="dialog-actions">
+          <button type="submit" class="primary">만들고 링크 받기</button>
+        </div>
+      </form>
     </dialog>
 
     <dialog id="auto-dialog" aria-labelledby="auto-title">

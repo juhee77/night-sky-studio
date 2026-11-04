@@ -1,6 +1,7 @@
 export * from './catalog.ts';
 export * from './colors.ts';
 export * from './show.ts';
+export * from './newyear.ts';
 export * from './sim.ts';
 export * from './camera.ts';
 export * from './director.ts';
